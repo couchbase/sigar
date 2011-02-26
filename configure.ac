@@ -148,10 +148,7 @@ src/os/darwin/Makefile
 src/os/freebsd/Makefile
 src/os/hpux/Makefile
 src/os/linux/Makefile
-src/os/netware/Makefile
-src/os/osf1/Makefile
 src/os/solaris/Makefile
-src/os/stub/Makefile
 src/os/win32/Makefile
 examples/Makefile
 src/sigar_version_autoconf.c

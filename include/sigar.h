@@ -91,7 +91,7 @@ typedef long long sigar_int64_t;
 #   define SIGAR_ENXIO  ENXIO
 #endif
 
-#ifdef WIN32
+#if defined(WIN32) && !defined(NO_DLLEXPORT)
 #   define SIGAR_DECLARE(type) \
         __declspec(dllexport) type __stdcall
 #else

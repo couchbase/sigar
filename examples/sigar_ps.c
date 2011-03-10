@@ -30,7 +30,7 @@ int main(int argc, char **argv) {
     if (status != SIGAR_OK) {
         printf("proc_list error: %d (%s)\n",
                status, sigar_strerror(sigar, status));
-        exit(1);
+        return 1;
     }
 
     for (i=0; i<proclist.number; i++) {

@@ -19,15 +19,17 @@
 #ifndef SIGAR_OS_H
 #define SIGAR_OS_H
 
+#ifndef __GNUC__
 #if _MSC_VER <= 1200
 #define SIGAR_USING_MSC6 /* Visual Studio version 6 */
 #endif
+#endif
 
 #define WIN32_LEAN_AND_MEAN
+#include <winsock2.h>
 #include <windows.h>
 #include <winreg.h>
 #include <winperf.h>
-#include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stddef.h>
 #include <sys/types.h>
@@ -36,12 +38,19 @@
 #include <errno.h>
 #include <tlhelp32.h>
 
+#include <iptypes.h>
+#include <iphlpapi.h>
+
 #include "sigar_util.h"
 
 #define INT64_C(val) val##i64
 
+#ifndef __GNUC__
 /* see apr/include/arch/win32/atime.h */
 #define EPOCH_DELTA INT64_C(11644473600000000)
+#else
+#define EPOCH_DELTA 11644473600000000LL
+#endif
 
 #define SIGAR_CMDLINE_MAX 4096
 
@@ -460,8 +469,8 @@ typedef BOOL (CALLBACK *mpr_get_net_connection)(LPCTSTR,
 #define SIGAR_DLLFUNC(api, name) \
     struct { \
          const char *name; \
-         ##api##_##name func; \
-    } ##name
+         api##_##name func; \
+    } name
 
 typedef struct {
     sigar_dll_handle_t handle;

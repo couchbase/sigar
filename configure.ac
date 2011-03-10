@@ -3,6 +3,7 @@ AC_INIT(libsigar, 1.6.2)
 AC_CONFIG_SRCDIR(src/sigar.c)
 dnl AC_CONFIG_HEADERS(src/config.h)
 AM_INIT_AUTOMAKE([foreign])
+LT_INIT([win32-dll])
 AC_CANONICAL_HOST
 
 dnl for sigar_version_autoconf.c.in
@@ -17,14 +18,19 @@ AC_SUBST(VERSION_MAINT)
 AC_SUBST(VERSION_BUILD)
 
 AC_PROG_CC
+AC_PROG_CXX
 AC_PROG_LN_S
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
-AC_PROG_LIBTOOL
 
 AC_MSG_CHECKING([for os type ($host_os)])
 FRAMEWORK=
 case $host_os in
+     *mingw*)
+     SRC_OS="win32"
+     SIGAR_INCLUDES="-DSIGAR_SHARED -D_WIN32_WINNT=0x0501"
+     SIGAR_LIBS="-lws2_32 -lnetapi32 -lversion"
+     ;;
      *aix*)
      SRC_OS="aix"
      AC_DEFINE(SIGAR_TEST_OS_AIX, [1], [for the tests])

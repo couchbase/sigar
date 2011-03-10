@@ -237,7 +237,7 @@ static PERF_OBJECT_TYPE *get_perf_object_inst(sigar_t *sigar,
 
 static int get_mem_counters(sigar_t *sigar, sigar_swap_t *swap, sigar_mem_t *mem)
 {
-    int status;
+    DWORD status;
     PERF_OBJECT_TYPE *object =
         get_perf_object_inst(sigar, PERF_TITLE_MEM_KEY, 0, &status);
     PERF_INSTANCE_DEFINITION *inst;
@@ -375,13 +375,13 @@ static sigar_mpr_t sigar_mpr = {
 };
 
 #define DLLMOD_COPY(name) \
-    memcpy(&(sigar->##name), &sigar_##name, sizeof(sigar_##name))
+    memcpy(&(sigar->name), &sigar_##name, sizeof(sigar_##name))
 
 #define DLLMOD_INIT(name, all) \
-    sigar_dllmod_init(sigar, (sigar_dll_module_t *)&(sigar->##name), all)
+    sigar_dllmod_init(sigar, (sigar_dll_module_t *)&(sigar->name), all)
 
 #define DLLMOD_FREE(name) \
-    sigar_dllmod_free((sigar_dll_module_t *)&(sigar->##name))
+    sigar_dllmod_free((sigar_dll_module_t *)&(sigar->name))
 
 static void sigar_dllmod_free(sigar_dll_module_t *module)
 {
@@ -1005,7 +1005,7 @@ SIGAR_DECLARE(int) sigar_cpu_list_get(sigar_t *sigar,
 SIGAR_DECLARE(int) sigar_uptime_get(sigar_t *sigar,
                                     sigar_uptime_t *uptime)
 {
-    int status;
+    DWORD status;
     PERF_OBJECT_TYPE *object =
         get_perf_object_inst(sigar, PERF_TITLE_SYS_KEY, 0, &status);
     PERF_INSTANCE_DEFINITION *inst;
@@ -1274,7 +1274,7 @@ SIGAR_DECLARE(int) sigar_proc_cred_get(sigar_t *sigar, sigar_pid_t pid,
 }
 
 #define FILETIME2MSEC(ft) \
-    NS100_2MSEC(((ft.dwHighDateTime << 32) | ft.dwLowDateTime))
+	NS100_2MSEC((((long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime))
 
 sigar_int64_t sigar_time_now_millis(void)
 {
@@ -1348,7 +1348,7 @@ SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-static int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
+int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
 {
     PERF_OBJECT_TYPE *object;
     PERF_INSTANCE_DEFINITION *inst;
@@ -1492,7 +1492,7 @@ static int sigar_proc_env_parse(UCHAR *ptr, sigar_proc_env_t *procenv,
                                 int multi)
 {
     while (*ptr) {
-        char *val;
+        UCHAR *val;
         int klen, vlen, status;
         char key[128]; /* XXX is there a max key size? */
 
@@ -2637,11 +2637,11 @@ static int get_mib_ifrow(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-static int netif_hash(char *s)
+int netif_hash(char *s)
 {
     int hash = 0;
     while (*s) {
-        hash = 31*hash + *s++; 
+        hash = 31*hash + *s++;
     }
     return hash;
 }

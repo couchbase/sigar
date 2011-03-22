@@ -72,7 +72,7 @@ case $host_os in
      AC_DEFINE(SOLARIS,[],[running on Solaris])
      SRC_OS="solaris"
      AC_DEFINE(SIGAR_TEST_OS_SOLARIS, [1], [for the tests])
-     SIGAR_LIBS="-lkstat -lsocket"
+     SIGAR_LIBS="-lkstat -lsocket -lnsl"
      ;;
      *)
      ac_system="unknown"

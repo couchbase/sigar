@@ -1,6 +1,4 @@
 WIN32_EXTRA_DIST=\
-	build-cpu.bat \
-	counter_names.txt \
 	sigar.rc.in \
 	wmi.cpp
 

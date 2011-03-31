@@ -5,6 +5,7 @@
 .libs
 /examples/cpuinfo.exe
 /examples/sigar_ps.exe
+/m4
 Makefile
 Makefile.in
 aclocal.m4

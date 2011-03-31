@@ -1,6 +1,7 @@
 dnl ... hmm ... we have to duplicate the data below again
 AC_INIT(libsigar, 1.6.2)
 AC_CONFIG_SRCDIR(src/sigar.c)
+AC_CONFIG_MACRO_DIR([m4])
 dnl AC_CONFIG_HEADERS(src/config.h)
 AM_INIT_AUTOMAKE([foreign])
 AC_CANONICAL_HOST

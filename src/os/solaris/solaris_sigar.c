@@ -390,7 +390,7 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
         cpu->idle  += xcpu->idle;
         cpu->nice  += xcpu->nice;
         cpu->wait  += xcpu->wait;
-        cpu->total = xcpu->total;
+        cpu->total += xcpu->total;
     }
 
     return SIGAR_OK;

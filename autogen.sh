@@ -37,10 +37,10 @@ find_program() {
   exit 1
 }
 
-LIBTOOLIZE=`find_program libtoolize libtoolize-1.5 glibtoolize`
-ACLOCAL=`find_program aclocal-1.11 aclocal-1.10 aclocal-1.9 aclocal`
-AUTOMAKE=`find_program automake-1.11 automake-1.10 automake-1.9 automake`
-AUTOCONF=`find_program autoconf autoconf259 autoconf-2.59`
+LIBTOOLIZE=`find_program $LIBTOOLIZE libtoolize libtoolize-1.5 glibtoolize`
+ACLOCAL=`find_program $ACLOCAL aclocal aclocal-1.11 aclocal-1.10 aclocal-1.9`
+AUTOMAKE=`find_program $AUTOMAKE automake automake-1.11 automake-1.10 automake-1.9`
+AUTOCONF=`find_program $AUTOCONF autoconf autoconf259 autoconf-2.59`
 
 run $LIBTOOLIZE $LIBTOOLIZE_FLAGS
 run $ACLOCAL $ACLOCAL_FLAGS

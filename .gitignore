@@ -3,6 +3,7 @@
 *.o
 .deps
 .libs
+/config.cache
 /examples/cpuinfo.exe
 /examples/sigar_ps.exe
 /m4

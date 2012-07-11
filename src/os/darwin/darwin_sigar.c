@@ -50,9 +50,8 @@
 #endif
 #include <mach-o/dyld.h>
 #define __OPENTRANSPORTPROVIDERS__
-#include <Gestalt.h>
-#include <CFString.h>
 #include <CoreFoundation/CoreFoundation.h>
+#include <CoreServices/CoreServices.h>
 #include <IOKit/IOBSD.h>
 #include <IOKit/IOKitLib.h>
 #include <IOKit/IOTypes.h>

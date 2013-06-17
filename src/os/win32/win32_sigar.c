@@ -23,6 +23,7 @@
 #include "sigar_util.h"
 #include "sigar_format.h"
 #include <shellapi.h>
+#include <assert.h>
 
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
@@ -114,6 +115,10 @@ typedef enum {
 #define PERF_VAL(ix) \
     perf_offsets[ix] ? \
         *((DWORD *)((BYTE *)counter_block + perf_offsets[ix])) : 0
+
+#define PERF_VAL64(ix) \
+    perf_offsets[ix] ? \
+        *((sigar_uint64_t *)((BYTE *)counter_block + perf_offsets[ix])) : 0
 
 /* 1/100ns units to milliseconds */
 #define NS100_2MSEC(t) ((t) / 10000)
@@ -1397,9 +1402,11 @@ int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
             perf_offsets[PERF_IX_PAGE_FAULTS] = offset;
             break;
           case PERF_TITLE_MEM_VSIZE:
+            assert(counter->CounterSize >= 8);
             perf_offsets[PERF_IX_MEM_VSIZE] = offset;
             break;
           case PERF_TITLE_MEM_SIZE:
+            assert(counter->CounterSize >= 8);
             perf_offsets[PERF_IX_MEM_SIZE] = offset;
             break;
           case PERF_TITLE_THREAD_CNT:
@@ -1438,8 +1445,8 @@ int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
         SIGAR_W2A(PdhInstanceName(inst),
                   pinfo->name, sizeof(pinfo->name));
 
-        pinfo->size     = PERF_VAL(PERF_IX_MEM_VSIZE);
-        pinfo->resident = PERF_VAL(PERF_IX_MEM_SIZE);
+        pinfo->size     = PERF_VAL64(PERF_IX_MEM_VSIZE);
+        pinfo->resident = PERF_VAL64(PERF_IX_MEM_SIZE);
         pinfo->ppid     = PERF_VAL(PERF_IX_PPID);
         pinfo->priority = PERF_VAL(PERF_IX_PRIORITY);
         pinfo->handles  = PERF_VAL(PERF_IX_HANDLE_CNT);

@@ -22,6 +22,7 @@
 /* System Information Gatherer And Reporter */
 
 #include <limits.h>
+#include <sigar_visibility.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -91,12 +92,7 @@ typedef long long sigar_int64_t;
 #   define SIGAR_ENXIO  ENXIO
 #endif
 
-#if defined(WIN32) && !defined(NO_DLLEXPORT)
-#   define SIGAR_DECLARE(type) \
-        __declspec(dllexport) type __stdcall
-#else
-#   define SIGAR_DECLARE(type) type
-#endif
+#define SIGAR_DECLARE(type) SIGAR_PUBLIC_API type
 
 #if defined(PATH_MAX)
 #   define SIGAR_PATH_MAX PATH_MAX

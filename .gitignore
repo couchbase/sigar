@@ -1,6 +1,7 @@
 *.la
 *.lo
 *.o
+*~
 .deps
 .libs
 /config.cache
@@ -27,3 +28,12 @@ ltmain.sh
 missing
 pkg
 src/sigar_version_autoconf.c
+
+/CMakeFiles/
+/CTestTestfile.cmake
+/DartConfiguration.tcl
+/Testing/
+/build-include/
+/build-src/
+/build-tests/
+/cmake_install.cmake

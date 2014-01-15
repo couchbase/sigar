@@ -1,3 +1,4 @@
+IF (INSTALL_HEADER_FILES)
 INSTALL(FILES sigar.h
 	sigar_fileinfo.h
 	sigar_format.h
@@ -9,3 +10,4 @@ INSTALL(FILES sigar.h
         sigar_visibility.h
 	DESTINATION include/
 	)
+ENDIF (INSTALL_HEADER_FILES)

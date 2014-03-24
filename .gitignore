@@ -36,4 +36,5 @@ src/sigar_version_autoconf.c
 /build-include/
 /build-src/
 /build-tests/
+/build-programs/
 /cmake_install.cmake

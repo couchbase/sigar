@@ -39,6 +39,7 @@ ENDIF(WIN32)
 
 SIGAR_TEST(t_sigar_cpu)
 SIGAR_TEST(t_sigar_fs)
+SIGAR_TEST(t_sigar_disk)
 SIGAR_TEST(t_sigar_loadavg)
 SIGAR_TEST(t_sigar_mem)
 SIGAR_TEST(t_sigar_netconn)

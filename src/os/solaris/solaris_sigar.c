@@ -34,6 +34,8 @@
 #include <sys/utsname.h>
 #include <dlfcn.h>
 #include <dirent.h>
+#include <sys/vm_usage.h>
+#include <zone.h>
 
 #define PROC_ERRNO ((errno == ENOENT) ? ESRCH : errno)
 #define SIGAR_USR_UCB_PS "/usr/ucb/ps"
@@ -171,9 +173,63 @@ char *sigar_os_error_string(sigar_t *sigar, int err)
     }
 }
 
+
+/* getvmusage() can be CPU expensive; throttle calls to secs: */
+#define VMUSAGE_INTERVAL       60
+
+static int zone_mem_get(sigar_t *sigar, sigar_mem_t *mem)
+{
+    kstat_ctl_t *kc = sigar->kc;
+    kstat_t *ksp;
+    char path[MAXPATHLEN];
+    sigar_vmusage64_t result;
+    size_t nres = 1;
+    sigar_uint64_t used = 0, cap = 0;
+    int ret;
+
+    /*
+     * The memory_cap kstat is ideal (originally added to SmartOS), but
+     * if that doesn't exist, switch to getvmusage().
+     */
+    if ((ksp = kstat_lookup(sigar->kc, "memory_cap", -1, NULL)) &&
+        (kstat_read(sigar->kc, ksp, NULL) != -1))
+    {
+        kstat_named_t *kn;
+
+        if ((kn = (kstat_named_t *)kstat_data_lookup(ksp, "rss"))) {
+            used = kn->value.i64;
+        }
+        if ((kn = (kstat_named_t *)kstat_data_lookup(ksp, "physcap"))) {
+            cap = kn->value.i64;
+        }
+    }
+    else {
+        ret = sysinfo(SI_ARCHITECTURE_64, path, sizeof (path));
+        if (ret < 0) {
+                /* 32-bit kernels not supported via getvmusage() */
+                return -1;
+        }
+
+        /* since we are not GZ, should only get one result */
+        if (getvmusage(VMUSAGE_ZONE, VMUSAGE_INTERVAL, (vmusage_t *)&result,
+            &nres) != 0 || nres != 1) {
+            return -1;
+        }
+        used = result.vmu_rss_all;
+        cap = mem->total;
+    }
+
+    mem->actual_free = mem->free = cap - used;
+    mem->actual_used = mem->used = used;
+
+    sigar_mem_calc_ram(sigar, mem);
+
+    return SIGAR_OK;
+}
+
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     sigar_uint64_t kern = 0;
 
@@ -185,6 +241,11 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 
     if (sigar_kstat_update(sigar) == -1) {
         return errno;
+    }
+
+     if (getzoneid() != GLOBAL_ZONEID) {
+        /* zone-aware */
+       return (zone_mem_get(sigar, mem));
     }
 
     if ((ksp = sigar->ks.syspages) && kstat_read(kc, ksp, NULL) >= 0) {
@@ -398,7 +459,7 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 
 int sigar_cpu_list_get(sigar_t *sigar, sigar_cpu_list_t *cpulist)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     uint_t cpuinfo[CPU_STATES];
     unsigned int i;
@@ -557,7 +618,7 @@ int sigar_loadavg_get(sigar_t *sigar,
     }
 
     sigar_koffsets_init_system(sigar, ksp);
-    
+
     for (i=0; i<3; i++) {
         loadavg->loadavg[i] = (double)kSYSTEM(loadavg_keys[i]) / FSCALE;
     }
@@ -960,7 +1021,7 @@ int sigar_os_proc_args_get(sigar_t *sigar, sigar_pid_t pid,
             return errno;
         }
 
-        buffer[nread] = '\0'; 
+        buffer[nread] = '\0';
         alen = strlen(buffer)+1;
         arg = malloc(alen);
         memcpy(arg, buffer, alen);
@@ -1170,7 +1231,7 @@ int sigar_proc_exe_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-static int sigar_read_xmaps(sigar_t *sigar, 
+static int sigar_read_xmaps(sigar_t *sigar,
                             prxmap_t *xmaps, int total,
                             unsigned long *last_inode,
                             struct ps_prochandle *phandle,
@@ -1196,7 +1257,7 @@ static int sigar_read_xmaps(sigar_t *sigar,
 
         sigar->pobjname(phandle, xmaps[i].pr_vaddr, buffer, sizeof(buffer));
 
-        status = 
+        status =
             procmods->module_getter(procmods->data, buffer, strlen(buffer));
 
         if (status != SIGAR_OK) {
@@ -1481,7 +1542,7 @@ static int create_fsdev_cache(sigar_t *sigar)
     sigar->fsdev = sigar_cache_new(15);
 
     status = sigar_file_system_list_get(sigar, &fslist);
-    
+
     if (status != SIGAR_OK) {
         return status;
     }
@@ -1619,7 +1680,7 @@ static int simple_hash(const char *s)
 {
     int hash = 0;
     while (*s) {
-        hash = 31*hash + *s++; 
+        hash = 31*hash + *s++;
     }
     return hash;
 }
@@ -1651,33 +1712,34 @@ int sigar_disk_usage_get(sigar_t *sigar, const char *name,
         id = SIGAR_FSDEV_ID(sb);
         ent = sigar_cache_get(sigar->fsdev, id);
         if (ent->value == NULL) {
-            return ENXIO;
+            status = ENXIO;
         }
-        iodev = (iodev_t *)ent->value;
+        else {
+            iodev = (iodev_t *)ent->value;
 
-        status = sigar_kstat_disk_usage_get(sigar, iodev->name, disk, &ksp);
+            status = sigar_kstat_disk_usage_get(sigar, iodev->name, disk, &ksp);
+        }
     }
     else {
         status = sigar_kstat_disk_usage_get(sigar, name, disk, &ksp);
-        if (status != SIGAR_OK) {
-            return status;
-        }
-        id = simple_hash(name); /*XXX*/
-        ent = sigar_cache_get(sigar->fsdev, id);
-        if (ent->value) {
-            iodev = (iodev_t *)ent->value;
-        }
-        else {
-            ent->value = iodev = malloc(sizeof(*iodev));
-            SIGAR_SSTRCPY(iodev->name, name);
-            SIGAR_DISK_STATS_INIT(&iodev->disk);
+        if (status == SIGAR_OK) {
+            id = simple_hash(name); /*XXX*/
+            ent = sigar_cache_get(sigar->fsdev, id);
+            if (ent->value) {
+                iodev = (iodev_t *)ent->value;
+            }
+            else {
+                ent->value = iodev = malloc(sizeof(*iodev));
+                SIGAR_SSTRCPY(iodev->name, name);
+                SIGAR_DISK_STATS_INIT(&iodev->disk);
+            }
         }
     }
 
     /* service_time formula derived from opensolaris.org:iostat.c */
     if ((status == SIGAR_OK) && iodev) {
         sigar_uint64_t delta;
-        double avw, avr, tps, mtps; 
+        double avw, avr, tps, mtps;
         double etime, hr_etime;
 
         if (iodev->disk.snaptime) {
@@ -1729,6 +1791,11 @@ int sigar_disk_usage_get(sigar_t *sigar, const char *name,
         }
 
         memcpy(&iodev->disk, disk, sizeof(iodev->disk));
+    }
+
+    if (status == ENXIO) {
+        /* Virtual device. This has no physical device mapping. */
+        return SIGAR_OK;
     }
 
     return status;
@@ -1948,7 +2015,7 @@ int sigar_net_route_list_get(sigar_t *sigar,
                 route->flags |= RTF_GATEWAY;
             }
 
-            route->use = route->window = route->mtu = 
+            route->use = route->window = route->mtu =
                 SIGAR_FIELD_NOTIMPL; /*XXX*/
         }
     }
@@ -2064,7 +2131,7 @@ static void ifstat_kstat_common(sigar_net_interface_stat_t *ifstat,
 static int sigar_net_ifstat_get_any(sigar_t *sigar, const char *name,
                                     sigar_net_interface_stat_t *ifstat)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     kstat_named_t *data;
 
@@ -2290,7 +2357,7 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
     struct opthdr *op;
 
     while ((rc = get_mib2(&sigar->mib2, &op, &data, &len)) == GET_MIB2_OK) {
-        if ((op->level == MIB2_TCP) && 
+        if ((op->level == MIB2_TCP) &&
             (op->name == MIB2_TCP_13) &&
             want_tcp)
         {
@@ -2299,7 +2366,7 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
                                    (struct mib2_tcpConnEntry *)data,
                                    len);
         }
-        else if ((op->level == MIB2_UDP) && 
+        else if ((op->level == MIB2_UDP) &&
                  (op->name == MIB2_UDP_5) &&
                  want_udp)
         {
@@ -2361,7 +2428,7 @@ sigar_tcp_get(sigar_t *sigar,
 }
 
 static int sigar_nfs_get(sigar_t *sigar,
-                         char *type, 
+                         char *type,
                          char **names,
                          char *nfs)
 {

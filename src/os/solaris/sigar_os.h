@@ -151,7 +151,7 @@ struct sigar_t {
         int mempages[KSTAT_MEMPAGES_MAX];
         int syspages[KSTAT_SYSPAGES_MAX];
     } koffsets;
-    
+
     int pagesize;
 
     time_t last_getprocs;
@@ -176,6 +176,20 @@ struct sigar_t {
 
     solaris_mib2_t mib2;
 };
+
+/* see usr/src/cmd/zonestat/zonestatd/zonestatd.c */
+typedef struct sigar_vmusage64 {
+        id_t vmu_zoneid;
+        uint_t vmu_type;
+        id_t vmu_id;
+        int vmu_align_next_members_on_8_bytes;
+        uint64_t vmu_rss_all;
+        uint64_t vmu_rss_private;
+        uint64_t vmu_rss_shared;
+        uint64_t vmu_swap_all;
+        uint64_t vmu_swap_private;
+        uint64_t vmu_swap_shared;
+} sigar_vmusage64_t;
 
 #ifdef SIGAR_64BIT
 #define KSTAT_UINT ui64
@@ -221,4 +235,3 @@ struct sigar_t {
 #define SIGAR_EMIB2 (SIGAR_OS_START_ERROR+1)
 
 #endif /* SIGAR_OS_H */
-

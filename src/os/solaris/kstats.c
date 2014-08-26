@@ -93,7 +93,7 @@ int sigar_get_kstats(sigar_t *sigar)
     return SIGAR_OK;
 }
 
-SIGAR_INLINE kid_t sigar_kstat_update(sigar_t *sigar)
+ kid_t sigar_kstat_update(sigar_t *sigar)
 {
     kid_t id = kstat_chain_update(sigar->kc);
 
@@ -126,7 +126,7 @@ SIGAR_INLINE kid_t sigar_kstat_update(sigar_t *sigar)
  * ksp->ks_data + offset.  this gives us bincompat without the overhead
  * of many kstat_data_lookup calls.
  */
-static SIGAR_INLINE int kstat_named_offset(kstat_t *ksp, const char *name)
+static  int kstat_named_offset(kstat_t *ksp, const char *name)
 {
     unsigned int i;
     kstat_named_t *kn;

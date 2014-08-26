@@ -70,14 +70,6 @@
    sigar_cache_t *net_services_tcp; \
    sigar_cache_t *net_services_udp
 
-#if defined(WIN32)
-#   define SIGAR_INLINE __inline
-#elif defined(__GNUC__)
-#   define SIGAR_INLINE inline
-#else
-#   define SIGAR_INLINE
-#endif
-
 #ifdef DMALLOC
 /* linux has its own strdup macro, make sure we use dmalloc's */
 #define sigar_strdup(s) \

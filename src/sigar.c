@@ -1829,7 +1829,7 @@ static int sigar_netif_configured(sigar_t *sigar, char *name)
 #endif
 
 #ifdef __linux__
-static SIGAR_INLINE int has_interface(sigar_net_interface_list_t *iflist,
+static  int has_interface(sigar_net_interface_list_t *iflist,
                                       char *name)
 {
     register int i;

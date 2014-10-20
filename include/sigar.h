@@ -133,7 +133,7 @@ typedef struct {
     sigar_uint64_t
         ram,
         total,
-        used, 
+        used,
         free,
         actual_used,
         actual_free;
@@ -146,7 +146,7 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem);
 typedef struct {
     sigar_uint64_t
         total,
-        used, 
+        used,
         free,
         page_in,
         page_out;
@@ -156,7 +156,7 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap);
 
 typedef struct {
     sigar_uint64_t
-        user, 
+        user,
         sys,
         nice,
         idle,
@@ -375,7 +375,7 @@ typedef struct {
     /* used for SIGAR_PROC_ENV_KEY */
     const char *key;
     int klen;
-    
+
     int (*env_getter)(void *, const char *, int, char *, int);
 } sigar_proc_env_t;
 
@@ -417,7 +417,7 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_thread_cpu_get(sigar_t *sigar,
                                         sigar_uint64_t id,
                                         sigar_thread_cpu_t *cpu);
-                                            
+
 typedef enum {
     SIGAR_FSTYPE_UNKNOWN,
     SIGAR_FSTYPE_NONE,
@@ -469,14 +469,6 @@ typedef struct {
     double service_time;
     double queue;
 } sigar_disk_usage_t;
-
-/* XXX for sigar_file_system_usage_t compat */
-#define disk_reads disk.reads
-#define disk_writes disk.writes
-#define disk_write_bytes disk.write_bytes
-#define disk_read_bytes disk.read_bytes
-#define disk_queue disk.queue
-#define disk_service_time disk.service_time
 
 typedef struct {
     sigar_disk_usage_t disk;
@@ -881,7 +873,7 @@ SIGAR_DECLARE(int) sigar_who_list_get(sigar_t *sigar,
 SIGAR_DECLARE(int) sigar_who_list_destroy(sigar_t *sigar,
                                           sigar_who_list_t *wholist);
 
-SIGAR_DECLARE(int) sigar_proc_port_get(sigar_t *sigar, 
+SIGAR_DECLARE(int) sigar_proc_port_get(sigar_t *sigar,
                                        int protocol, unsigned long port,
                                        sigar_pid_t *pid);
 

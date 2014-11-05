@@ -280,41 +280,41 @@ static int      gl_bell_enabled = 0;    /* bell mode */
 static int      gl_savehist = 0;        /* # of lines to save in hist file */
 static char     gl_histfile[256];       /* name of history file */
 
-static void     gl_init();              /* prepare to edit a line */
-static void     gl_bell();              /* ring bell */
-static void     gl_cleanup();           /* to undo gl_init */
-static void     gl_char_init();         /* get ready for no echo input */
-static void     gl_char_cleanup();      /* undo gl_char_init */
+static void     gl_init(void);              /* prepare to edit a line */
+static void     gl_bell(void);              /* ring bell */
+static void     gl_cleanup(void);           /* to undo gl_init */
+static void     gl_char_init(void);         /* get ready for no echo input */
+static void     gl_char_cleanup(void);      /* undo gl_char_init */
 
 static void     gl_addchar(int c);      /* install specified char */
 static void     gl_del(int loc);        /* del, either left (-1) or cur (0) */
 static void     gl_error(char *buf);    /* write error msg and die */
 static void     gl_fixup(char *p, int c, int cur); /* fixup state variables and screen */
-static int      gl_getc();              /* read one char from terminal */
-static void     gl_kill();              /* delete to EOL */
-static void     gl_newline();           /* handle \n or \r */
+static int      gl_getc(void);              /* read one char from terminal */
+static void     gl_kill(void);              /* delete to EOL */
+static void     gl_newline(void);           /* handle \n or \r */
 static void     gl_putc(int c);         /* write one char to terminal */
 static void     gl_puts(char *buf);     /* write a line to terminal */
-static void     gl_transpose();         /* transpose two chars */
-static void     gl_yank();              /* yank killed text */
+static void     gl_transpose(void);         /* transpose two chars */
+static void     gl_yank(void);              /* yank killed text */
 
 static int      is_whitespace(char c);  /* "whitespace" very loosely interpreted */
-static void     gl_back_1_word();       /* move cursor back one word */
-static void     gl_kill_1_word();       /* kill to end of word */
+static void     gl_back_1_word(void);       /* move cursor back one word */
+static void     gl_kill_1_word(void);       /* kill to end of word */
 static void     gl_kill_region(int i, int j); /* kills from i to j */
-static void     gl_fwd_1_word();        /* move cursor forward one word */
-static void     gl_set_mark();          /* sets mark to be at point */
-static void     gl_exch();              /* exchanges point and mark */
-static void     gl_wipe();              /* kills from mark to point */
+static void     gl_fwd_1_word(void);        /* move cursor forward one word */
+static void     gl_set_mark(void);          /* sets mark to be at point */
+static void     gl_exch(void);              /* exchanges point and mark */
+static void     gl_wipe(void);              /* kills from mark to point */
 static int      gl_mark = -1;           /* position of mark. gl_mark<0 if not set */
 
-static void     hist_init();            /* initializes hist pointers */
-static char    *hist_next();            /* return ptr to next item */
-static char    *hist_prev();            /* return ptr to prev item */
+static void     hist_init(void);            /* initializes hist pointers */
+static char    *hist_next(void);            /* return ptr to next item */
+static char    *hist_prev(void);            /* return ptr to prev item */
 static char    *hist_save(char *p);     /* makes copy of a string, without NL */
 
 static void     search_addchar(int c);  /* increment search string */
-static void     search_term();          /* reset with current contents */
+static void     search_term(void);          /* reset with current contents */
 static void     search_back(int s);     /* look back for current string */
 static void     search_forw(int s);     /* look forw for current string */
 
@@ -408,7 +408,7 @@ sigar_getline_config(const char *which, int value)
 }
 
 static void
-gl_char_init()                  /* turn off input echo */
+gl_char_init(void)                  /* turn off input echo */
 {
     if (gl_notty) return;
 #ifdef unix
@@ -481,7 +481,7 @@ gl_char_init()                  /* turn off input echo */
 }
 
 static void
-gl_char_cleanup()               /* undo effects of gl_char_init */
+gl_char_cleanup(void)               /* undo effects of gl_char_init */
 {
     if (gl_notty) return;
 #ifdef unix
@@ -507,7 +507,7 @@ gl_char_cleanup()               /* undo effects of gl_char_init */
 #if defined(MSDOS) && !defined(WIN32)
 // +DECK, PAUSE, T=XCC, IF=WINNT. (from KERNDOS.CAR )
 #  include <conio.h>
-   int pause_()
+   int pause_(void)
    {
       int first_char;
         first_char = _getch();
@@ -518,7 +518,7 @@ gl_char_cleanup()               /* undo effects of gl_char_init */
 
 #if defined(MSDOS) && defined(WIN32)
 //______________________________________________________________________________
-int pause_()
+int pause_(void)
 {
  static HANDLE hConsoleInput = NULL;
  static iCharCount = 0;
@@ -558,7 +558,7 @@ int pause_()
 #endif
 
 static int
-gl_getc()
+gl_getc(void)
 /* get a character without echoing it to screen */
 {
 #ifdef MSDOS
@@ -712,7 +712,7 @@ gl_error(char *buf)
 }
 
 static void
-gl_init()
+gl_init(void)
 /* set up variables and terminal */
 {
     if (gl_init_done < 0) {             /* -1 only on startup */
@@ -725,7 +725,7 @@ gl_init()
 }
 
 static void
-gl_bell()
+gl_bell(void)
 {
     if (gl_bell_enabled) {
         gl_putc('\007');
@@ -733,7 +733,7 @@ gl_bell()
 }
 
 static void
-gl_cleanup()
+gl_cleanup(void)
 /* undo effects of gl_init, as necessary */
 {
     if (gl_init_done > 0)
@@ -1040,7 +1040,7 @@ gl_addchar(int c)
 }
 
 static void
-gl_yank()
+gl_yank(void)
 /* adds the kill buffer to the input buffer at current location */
 {
     int  i, len;
@@ -1072,7 +1072,7 @@ gl_yank()
 }
 
 static void
-gl_transpose()
+gl_transpose(void)
 /* switch character under cursor and to left of cursor */
 {
     int    c;
@@ -1088,7 +1088,7 @@ gl_transpose()
 }
 
 static void
-gl_newline()
+gl_newline(void)
 /*
  * Cleans up entire line before returning to caller. A \n is appended.
  * If line longer than screen, we redraw starting at beginning
@@ -1142,7 +1142,7 @@ gl_del(int loc)
 }
 
 static void
-gl_kill()
+gl_kill(void)
 /* delete from current position to the end of line */
 {
     if (gl_pos < gl_cnt) {
@@ -1333,7 +1333,7 @@ static int      hist_pos = 0, hist_last = 0;
 static char    *hist_buf[HIST_SIZE];
 
 static void
-hist_init()
+hist_init(void)
 {
     int i;
 
@@ -1457,7 +1457,7 @@ sigar_getline_histadd(char *buf)
 }
 
 static char *
-hist_prev()
+hist_prev(void)
 /* loads previous hist entry into input buffer, sticks on first */
 {
     char *p = 0;
@@ -1475,7 +1475,7 @@ hist_prev()
 }
 
 static char *
-hist_next()
+hist_next(void)
 /* loads next hist entry into input buffer, clears on last */
 {
     char *p = 0;
@@ -1582,7 +1582,7 @@ search_addchar(int c)
 }
 
 static void
-search_term()
+search_term(void)
 {
     gl_search_mode = 0;
     if (gl_buf[0] == 0)         /* not found, reset hist list */

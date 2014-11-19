@@ -1,6 +1,9 @@
 PROJECT(sigar C)
-
 cmake_minimum_required(VERSION 2.6)
+
+IF (${CMAKE_MAJOR_VERSION} GREATER 2)
+    CMAKE_POLICY(SET CMP0042 NEW)
+ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
 
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckFunctionExists)

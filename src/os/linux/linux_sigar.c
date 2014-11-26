@@ -1679,11 +1679,7 @@ static  unsigned int hex2int(const char *x, int len)
 
 #define HEX_ENT_LEN 8
 
-#ifdef SIGAR_64BIT
-#define ROUTE_FMT "%16s %128s %128s %X %ld %ld %ld %128s %ld %ld %ld\n"
-#else
-#define ROUTE_FMT "%16s %128s %128s %X %lld %lld %lld %128s %lld %lld %lld\n"
-#endif
+#define ROUTE_FMT "%16s %128s %128s %X %"PRIu64" %"PRIu64"%"PRIu64" %128s %"PRIu64" %"PRIu64" %"PRIu64"\n"
 #define RTF_UP 0x0001
 
 int sigar_net_route_list_get(sigar_t *sigar,
@@ -1692,7 +1688,7 @@ int sigar_net_route_list_get(sigar_t *sigar,
     FILE *fp;
     char buffer[1024];
     char net_addr[128], gate_addr[128], mask_addr[128];
-    int flags;
+    unsigned int flags;
     sigar_net_route_t *route;
 
     routelist->size = routelist->number = 0;
@@ -2115,7 +2111,7 @@ int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
     FILE *fp;
     char addr[32+1], ifname[8+1];
     int status = SIGAR_ENOENT;
-    int idx, prefix, scope, flags;
+    unsigned int idx, prefix, scope, flags;
 
     if (!(fp = fopen(PROC_FS_ROOT "net/if_inet6", "r"))) {
         return errno;
@@ -2381,7 +2377,8 @@ int sigar_arp_list_get(sigar_t *sigar,
     FILE *fp;
     char buffer[1024];
     char net_addr[128], hwaddr[128], mask_addr[128];
-    int flags, type, status;
+    int status;
+    unsigned int flags, type;
     sigar_arp_t *arp;
 
     arplist->size = arplist->number = 0;

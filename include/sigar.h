@@ -23,6 +23,8 @@
 
 #include <limits.h>
 #include <sigar_visibility.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,44 +38,12 @@ extern "C" {
 #define SIGAR_64BIT
 #endif
 
-/* for printf sigar_uint64_t */
-#ifdef SIGAR_64BIT
-# define SIGAR_F_U64 "%lu"
-#else
-# define SIGAR_F_U64 "%Lu"
-#endif
+#define SIGAR_F_U64 "%"PRIu64
 
-#if defined(WIN32)
-
-typedef unsigned __int32 sigar_uint32_t;
-
-typedef unsigned __int64 sigar_uint64_t;
-
-typedef __int32 sigar_int32_t;
-
-typedef __int64 sigar_int64_t;
-
-#elif ULONG_MAX > 4294967295UL
-
-typedef unsigned int sigar_uint32_t;
-
-typedef unsigned long sigar_uint64_t;
-
-typedef int sigar_int32_t;
-
-typedef long sigar_int64_t;
-
-#else
-
-typedef unsigned int sigar_uint32_t;
-
-typedef unsigned long long sigar_uint64_t;
-
-typedef int sigar_int32_t;
-
-typedef long long sigar_int64_t;
-
-#endif
+   typedef int32_t sigar_int32_t;
+   typedef int64_t sigar_int64_t;
+   typedef uint32_t sigar_uint32_t;
+   typedef uint64_t sigar_uint64_t;
 
 #define SIGAR_FIELD_NOTIMPL -1
 

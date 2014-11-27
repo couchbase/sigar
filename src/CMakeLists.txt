@@ -1,7 +1,5 @@
 ## sigar has some base files + a set of platform specific files
 
-MESSAGE(STATUS "CMAKE_SYSTEM_NAME is ${CMAKE_SYSTEM_NAME}")
-
 INCLUDE_DIRECTORIES(../include/)
 
 ## linux

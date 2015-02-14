@@ -14,6 +14,7 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
 #include <string.h>
@@ -25,6 +26,13 @@
 #endif
 
 #define DEFAULT(value, def) ((value) == SIGAR_FIELD_NOTIMPL ? (def) : (value))
+#define MUST_SUCCEED(body)                      \
+    do {                                        \
+        int _ret = (body);                      \
+        if (_ret != SIGAR_OK) {                 \
+            exit(1);                            \
+        }                                       \
+    } while (0)
 
 #define NUM_INTERESTING_PROCS 10
 #define PROCS_REFRESH_INTERVAL 20
@@ -81,7 +89,7 @@ static int find_interesting_procs(sigar_t *sigar, sigar_pid_t parent,
     sigar_proc_cpu_t proc_cpu;
     sigar_pid_t pid;
 
-    sigar_proc_list_get(sigar, &proc_list);
+    MUST_SUCCEED(sigar_proc_list_get(sigar, &proc_list));
 
     for (i = 0; i < proc_list.number; ++i) {
         pid = proc_list.data[i];
@@ -109,7 +117,7 @@ static int find_interesting_procs(sigar_t *sigar, sigar_pid_t parent,
         }
     }
 
-    sigar_proc_list_destroy(sigar, &proc_list);
+    MUST_SUCCEED(sigar_proc_list_destroy(sigar, &proc_list));
 
     return found;
 }
@@ -171,13 +179,13 @@ int main(void)
 
     int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
 
-    sigar_open(&sigar);
+    MUST_SUCCEED(sigar_open(&sigar));
 
     pid = sigar_pid_get(sigar);
-    sigar_proc_state_get(sigar, pid, &state);
+    MUST_SUCCEED(sigar_proc_state_get(sigar, pid, &state));
     child_vm_pid = state.ppid;
 
-    sigar_proc_state_get(sigar, child_vm_pid, &state);
+    MUST_SUCCEED(sigar_proc_state_get(sigar, child_vm_pid, &state));
     babysitter_pid = state.ppid;
 
 #ifdef _WIN32

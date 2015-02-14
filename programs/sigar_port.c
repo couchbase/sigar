@@ -27,6 +27,7 @@
 #define DEFAULT(value, def) ((value) == SIGAR_FIELD_NOTIMPL ? (def) : (value))
 
 #define NUM_INTERESTING_PROCS 10
+#define PROCS_REFRESH_INTERVAL 20
 #define PROC_NAME_LEN 12
 
 struct proc {
@@ -168,6 +169,8 @@ int main(void)
     int procs_count;
     struct proc procs[NUM_INTERESTING_PROCS];
 
+    int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
+
     sigar_open(&sigar);
 
     pid = sigar_pid_get(sigar);
@@ -212,15 +215,12 @@ int main(void)
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
 
-        if (procs_stale) {
+        if (procs_stale || ticks_to_refresh-- == 0) {
+            ticks_to_refresh = PROCS_REFRESH_INTERVAL;
             procs_count = find_interesting_procs(sigar, babysitter_pid, procs);
         }
 
         procs_stale = populate_interesting_procs(sigar, procs, procs_count, &reply);
-
-        if (procs_count != NUM_INTERESTING_PROCS) {
-            procs_stale = 1;
-        }
 
         fwrite(&reply, sizeof(reply), 1, stdout);
         fflush(stdout);

@@ -40,6 +40,7 @@
 
 struct proc {
     sigar_pid_t pid;
+    sigar_pid_t ppid;
     sigar_uint64_t start_time;
     char name[PROC_NAME_LEN];
 };
@@ -78,48 +79,122 @@ struct system_stats {
     struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
 };
 
-static int find_interesting_procs(sigar_t *sigar, sigar_pid_t parent,
-                                  struct proc procs[NUM_INTERESTING_PROCS])
+static int is_interesting_process(const char *name)
+{
+    return strcmp(name, "moxi") != 0;
+}
+
+static int proc_ppid_compare(const void *va, const void *vb)
+{
+    const struct proc *a = va;
+    const struct proc *b = vb;
+
+    if (a->ppid < b->ppid) {
+        return -1;
+    } else if (a->ppid > b->ppid) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+static int find_interesting_procs(sigar_t *sigar, sigar_pid_t babysitter_pid,
+                                  struct proc interesting_procs[NUM_INTERESTING_PROCS])
 {
     unsigned long i;
-    int found = 0;
+    int interesting_count = 0;
 
     sigar_proc_list_t proc_list;
-    sigar_proc_state_t proc_state;
-    sigar_proc_cpu_t proc_cpu;
-    sigar_pid_t pid;
+
+    struct proc *procs;
+    struct proc *procs_end;
+
+    struct proc *babysitter_proc = NULL;
 
     MUST_SUCCEED(sigar_proc_list_get(sigar, &proc_list));
 
+    if (proc_list.number == 0) {
+        goto find_interesting_procs_return;
+    }
+
+    procs = malloc(sizeof(struct proc) * proc_list.number);
+    if (procs == NULL) {
+        exit(1);
+    }
+
+    procs_end = procs;
+
     for (i = 0; i < proc_list.number; ++i) {
-        pid = proc_list.data[i];
+        sigar_pid_t pid = proc_list.data[i];
+
+        sigar_proc_state_t proc_state;
+        sigar_proc_cpu_t proc_cpu;
 
         if (sigar_proc_state_get(sigar, pid, &proc_state) != SIGAR_OK) {
             continue;
         }
 
-        if (proc_state.ppid == parent &&
-            strcmp(proc_state.name, "moxi") != 0) {
+        if (sigar_proc_cpu_get(sigar, pid, &proc_cpu) != SIGAR_OK) {
+            continue;
+        }
 
-            procs[found].pid = pid;
-            strncpy(procs[found].name, proc_state.name, PROC_NAME_LEN);
+        procs_end->pid = pid;
+        procs_end->ppid = proc_state.ppid;
+        procs_end->start_time = proc_cpu.start_time;
+        strncpy(procs_end->name, proc_state.name, PROC_NAME_LEN);
 
-            if (sigar_proc_cpu_get(sigar, pid, &proc_cpu) != SIGAR_OK) {
-                continue;
+        if (pid == babysitter_pid) {
+            babysitter_proc = procs_end;
+        }
+
+        ++procs_end;
+    }
+
+    // something went utterly wrong, we couldn't find babysitter
+    if (!babysitter_proc) {
+        exit(1);
+    }
+
+    interesting_procs[interesting_count++] = *babysitter_proc;
+
+    qsort(procs, procs_end - procs, sizeof(struct proc), proc_ppid_compare);
+
+    for (i = 0; i < interesting_count; ++i) {
+        sigar_pid_t ppid = interesting_procs[i].pid;
+        struct proc key = {0};
+        struct proc *child;
+
+        key.ppid = ppid;
+
+        child = bsearch(&key, procs, procs_end - procs, sizeof(struct proc),
+                        proc_ppid_compare);
+        if (!child) {
+            continue;
+        }
+
+        // which element of multiple equal elements returned is unspecified;
+        // so we need to check neighboring elements in both directions
+        while (child > procs && (child - 1)->ppid == ppid) {
+            --child;
+        }
+
+        while (child->ppid == ppid && child < procs_end) {
+            if (is_interesting_process(child->name) &&
+                interesting_count < NUM_INTERESTING_PROCS) {
+
+                interesting_procs[interesting_count++] = *child;
             }
 
-            procs[found].start_time = proc_cpu.start_time;
-            ++found;
-
-            if (found == NUM_INTERESTING_PROCS) {
-                break;
-            }
+            ++child;
         }
     }
 
+    free(procs);
+
+find_interesting_procs_return:
     MUST_SUCCEED(sigar_proc_list_destroy(sigar, &proc_list));
 
-    return found;
+    return interesting_count;
 }
 
 static int populate_interesting_procs(sigar_t *sigar,

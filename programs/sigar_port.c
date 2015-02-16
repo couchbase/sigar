@@ -81,7 +81,12 @@ struct system_stats {
 
 static int is_interesting_process(const char *name)
 {
-    return strcmp(name, "moxi") != 0;
+    return (strcmp(name, "moxi") != 0 &&
+            strcmp(name, "inet_gethost") != 0 &&
+            strcmp(name, "memsup") != 0 &&
+            strcmp(name, "cpu_sup") != 0 &&
+            strcmp(name, "sh") != 0 &&
+            strcmp(name, "epmd") != 0);
 }
 
 static int proc_ppid_compare(const void *va, const void *vb)

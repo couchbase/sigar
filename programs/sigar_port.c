@@ -34,7 +34,7 @@
         }                                       \
     } while (0)
 
-#define NUM_INTERESTING_PROCS 10
+#define NUM_INTERESTING_PROCS 40
 #define PROCS_REFRESH_INTERVAL 20
 #define PROC_NAME_LEN 12
 

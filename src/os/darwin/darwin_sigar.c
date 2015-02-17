@@ -1389,7 +1389,7 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
 
 #ifdef DARWIN
 /* thread state mapping derived from ps.tproj */
-static const char const thread_states[] = {
+static const char thread_states[] = {
     /*0*/ '-',
     /*1*/ SIGAR_PROC_STATE_RUN,
     /*2*/ SIGAR_PROC_STATE_ZOMBIE,
@@ -3220,53 +3220,6 @@ sigar_tcp_get(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-#ifndef SIGAR_FREEBSD5_NFSSTAT
-static int get_nfsstats(struct nfsstats *stats)
-{
-    size_t len = sizeof(*stats);
-    int mib[] = { CTL_VFS, 2, NFS_NFSSTATS };
-
-    if (sysctl(mib, NMIB(mib), stats, &len, NULL, 0) < 0) {
-        return errno;
-    }
-    else {
-        return SIGAR_OK;
-    }
-}
-#endif
-
-#if defined(__OpenBSD__)
-typedef uint64_t rpc_cnt_t;
-#else
-typedef int rpc_cnt_t;
-#endif
-
-static void map_nfs_stats(sigar_nfs_v3_t *nfs, rpc_cnt_t *rpc)
-{
-    nfs->null = rpc[NFSPROC_NULL];
-    nfs->getattr = rpc[NFSPROC_GETATTR];
-    nfs->setattr = rpc[NFSPROC_SETATTR];
-    nfs->lookup = rpc[NFSPROC_LOOKUP];
-    nfs->access = rpc[NFSPROC_ACCESS];
-    nfs->readlink = rpc[NFSPROC_READLINK];
-    nfs->read = rpc[NFSPROC_READ];
-    nfs->write = rpc[NFSPROC_WRITE];
-    nfs->create = rpc[NFSPROC_CREATE];
-    nfs->mkdir = rpc[NFSPROC_MKDIR];
-    nfs->symlink = rpc[NFSPROC_SYMLINK];
-    nfs->mknod = rpc[NFSPROC_MKNOD];
-    nfs->remove = rpc[NFSPROC_REMOVE];
-    nfs->rmdir = rpc[NFSPROC_RMDIR];
-    nfs->rename = rpc[NFSPROC_RENAME];
-    nfs->link = rpc[NFSPROC_LINK];
-    nfs->readdir = rpc[NFSPROC_READDIR];
-    nfs->readdirplus = rpc[NFSPROC_READDIRPLUS];
-    nfs->fsstat = rpc[NFSPROC_FSSTAT];
-    nfs->fsinfo = rpc[NFSPROC_FSINFO];
-    nfs->pathconf = rpc[NFSPROC_PATHCONF];
-    nfs->commit = rpc[NFSPROC_COMMIT];
-}
-
 int sigar_nfs_client_v2_get(sigar_t *sigar,
                             sigar_nfs_client_v2_t *nfs)
 {
@@ -3282,53 +3235,13 @@ int sigar_nfs_server_v2_get(sigar_t *sigar,
 int sigar_nfs_client_v3_get(sigar_t *sigar,
                             sigar_nfs_client_v3_t *nfs)
 {
-#ifdef SIGAR_FREEBSD5_NFSSTAT
-    struct nfsstats stats;
-    size_t size = sizeof(stats);
-
-    if (sysctlbyname("vfs.nfs.nfsstats", &stats, &size, NULL, 0) == -1) {
-        return errno;
-    }
-
-    map_nfs_stats((sigar_nfs_v3_t *)nfs, &stats.rpccnt[0]);
-#else
-    int status;
-    struct nfsstats stats;
-
-    if ((status = get_nfsstats(&stats)) != SIGAR_OK) {
-        return status;
-    }
-
-    map_nfs_stats((sigar_nfs_v3_t *)nfs, &stats.rpccnt[0]);
-#endif
-
-    return SIGAR_OK;
+    return SIGAR_ENOTIMPL;
 }
 
 int sigar_nfs_server_v3_get(sigar_t *sigar,
                             sigar_nfs_server_v3_t *nfs)
 {
-#ifdef SIGAR_FREEBSD5_NFSSTAT
-    struct nfsrvstats stats;
-    size_t size = sizeof(stats);
-
-    if (sysctlbyname("vfs.nfsrv.nfsrvstats", &stats, &size, NULL, 0) == -1) {
-        return errno;
-    }
-
-    map_nfs_stats((sigar_nfs_v3_t *)nfs, &stats.srvrpccnt[0]);
-#else
-    int status;
-    struct nfsstats stats;
-
-    if ((status = get_nfsstats(&stats)) != SIGAR_OK) {
-        return status;
-    }
-
-    map_nfs_stats((sigar_nfs_v3_t *)nfs, &stats.srvrpccnt[0]);
-#endif
-
-    return SIGAR_OK;
+    return SIGAR_ENOTIMPL;
 }
 
 static char *get_hw_type(int type)
@@ -3608,6 +3521,17 @@ int sigar_os_sys_info_get(sigar_t *sigar,
                           sigar_sys_info_t *sysinfo)
 {
 #ifdef DARWIN
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#pragma clang diagnostic ignored "-Wfour-char-constants"
+    /*
+     * Gestalt is deprecated, but I don't see a nice way to
+     * get this information from the system
+     */
+#endif
+
     char *codename = NULL;
     SInt32 version, version_major, version_minor, version_fix;
 

@@ -1858,8 +1858,11 @@ static int proc_net_interface_list_get(sigar_t *sigar,
     }
 
     /* skip header */
-    fgets(buffer, sizeof(buffer), fp);
-    fgets(buffer, sizeof(buffer), fp);
+    if (fgets(buffer, sizeof(buffer), fp) == NULL ||
+        fgets(buffer, sizeof(buffer), fp) == NULL) {
+        fclose(fp);
+        return errno;
+    }
 
     while (fgets(buffer, sizeof(buffer), fp)) {
         char *ptr, *dev;

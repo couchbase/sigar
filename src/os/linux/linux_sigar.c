@@ -450,7 +450,10 @@ int sigar_cpu_list_get(sigar_t *sigar, sigar_cpu_list_t *cpulist)
     }
 
     /* skip first line */
-    (void)fgets(cpu_total, sizeof(cpu_total), fp);
+    if (fgets(cpu_total, sizeof(cpu_total), fp) == NULL) {
+        fclose(fp);
+        return errno;
+    }
 
     sigar_cpu_list_create(cpulist);
 
@@ -1331,7 +1334,11 @@ static int get_iostat_procp(sigar_t *sigar,
         return errno;
     }
 
-    (void)fgets(buffer, sizeof(buffer), fp); /* skip header */
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) { /* skip header */
+        fclose(fp);
+        return errno;
+    }
+
     while ((ptr = fgets(buffer, sizeof(buffer), fp))) {
         unsigned long major, minor;
 
@@ -1699,7 +1706,11 @@ int sigar_net_route_list_get(sigar_t *sigar,
 
     sigar_net_route_list_create(routelist);
 
-    (void)fgets(buffer, sizeof(buffer), fp); /* skip header */
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) { /* skip header */
+        fclose(fp);
+        return errno;
+    }
+
     while (fgets(buffer, sizeof(buffer), fp)) {
         int num;
 
@@ -1736,14 +1747,17 @@ int sigar_net_interface_stat_get(sigar_t *sigar, const char *name,
     int found = 0;
     char buffer[BUFSIZ];
     FILE *fp = fopen(PROC_FS_ROOT "net/dev", "r");
-    
+
     if (!fp) {
         return errno;
     }
 
     /* skip header */
-    fgets(buffer, sizeof(buffer), fp);
-    fgets(buffer, sizeof(buffer), fp);
+    if (fgets(buffer, sizeof(buffer), fp) == NULL ||
+        fgets(buffer, sizeof(buffer), fp) == NULL) {
+        fclose(fp);
+        return errno;
+    }
 
     while (fgets(buffer, sizeof(buffer), fp)) {
         char *ptr, *dev;
@@ -1907,7 +1921,10 @@ static int proc_net_read(sigar_net_connection_walker_t *walker,
         return errno;
     }
 
-    fgets(buffer, sizeof(buffer), fp); /* skip header */
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) { /* skip header */
+        fclose(fp);
+        return errno;
+    }
 
     while ((ptr = fgets(buffer, sizeof(buffer), fp))) {
         sigar_net_connection_t conn;
@@ -2389,7 +2406,10 @@ int sigar_arp_list_get(sigar_t *sigar,
 
     sigar_arp_list_create(arplist);
 
-    (void)fgets(buffer, sizeof(buffer), fp); /* skip header */
+    if (fgets(buffer, sizeof(buffer), fp) == NULL) { /* skip header */
+        fclose(fp);
+        return errno;
+    }
     while (fgets(buffer, sizeof(buffer), fp)) {
         int num;
 

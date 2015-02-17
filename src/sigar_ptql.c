@@ -721,10 +721,13 @@ static int sigar_sudo_file2str(const char *fname, char *buffer, int buflen)
     if (!(fp = popen(buffer, "r"))) {
         return errno;
     }
-    (void)fgets(buffer, buflen, fp);
+    int ret = SIGAR_OK;
+    if (fgets(buffer, buflen, fp) == NULL) {
+        ret = errno;
+    }
     pclose(fp);
 
-    return SIGAR_OK;
+    return ret;
 }
 #endif
 

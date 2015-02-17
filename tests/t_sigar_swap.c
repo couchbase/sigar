@@ -46,23 +46,23 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_swap_get) {
-	sigar_swap_t swap;
+        sigar_swap_t swap;
 
-	assert(SIGAR_OK == sigar_swap_get(t, &swap));
-	assert(swap.total == swap.used + swap.free);
+        assert(SIGAR_OK == sigar_swap_get(t, &swap));
+        assert(swap.total == swap.used + swap.free);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_swap_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_swap_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

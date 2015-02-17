@@ -460,10 +460,10 @@ static int sigar_common_fs_type_get(sigar_file_system_t *fsp)
             fsp->type = SIGAR_FSTYPE_LOCAL_DISK;
         }
         break;
-      case 'z': 
-        if (strEQ(type, "zfs")) { 
-            fsp->type = SIGAR_FSTYPE_LOCAL_DISK; 
-        } 
+      case 'z':
+        if (strEQ(type, "zfs")) {
+            fsp->type = SIGAR_FSTYPE_LOCAL_DISK;
+        }
         break;
     }
 
@@ -700,10 +700,10 @@ sigar_net_connection_list_destroy(sigar_t *sigar,
 }
 
 #if !defined(__linux__)
-/* 
+/*
  * implement sigar_net_connection_list_get using sigar_net_connection_walk
  * linux has its own list_get impl.
- */  
+ */
 static int net_connection_list_walker(sigar_net_connection_walker_t *walker,
                                       sigar_net_connection_t *conn)
 {
@@ -844,7 +844,7 @@ sigar_net_stat_get(sigar_t *sigar,
     if (!sigar->net_listen) {
         sigar->net_listen = sigar_cache_new(32);
     }
-    
+
     SIGAR_ZERO(netstat);
 
     getter.netstat = netstat;
@@ -1041,21 +1041,21 @@ SIGAR_DECLARE(int) sigar_who_list_destroy(sigar_t *sigar,
 #elif defined(WIN32)
 /* XXX may not be the default */
 #define SIGAR_UTMP_FILE "C:\\cygwin\\var\\run\\utmp"
-#define UT_LINESIZE	16
-#define UT_NAMESIZE	16
-#define UT_HOSTSIZE	256
-#define UT_IDLEN	2
+#define UT_LINESIZE     16
+#define UT_NAMESIZE     16
+#define UT_HOSTSIZE     256
+#define UT_IDLEN        2
 #define ut_name ut_user
 
 struct utmp {
-    short ut_type;	
-    int ut_pid;		
+    short ut_type;
+    int ut_pid;
     char ut_line[UT_LINESIZE];
     char ut_id[UT_IDLEN];
-    time_t ut_time;	
-    char ut_user[UT_NAMESIZE];	
-    char ut_host[UT_HOSTSIZE];	
-    long ut_addr;	
+    time_t ut_time;
+    char ut_user[UT_NAMESIZE];
+    char ut_host[UT_HOSTSIZE];
+    long ut_addr;
 };
 #elif defined(NETWARE)
 static char *getpass(const char *prompt)
@@ -1544,7 +1544,7 @@ static void hwaddr_arp_lookup(sigar_net_interface_config_t *ifconfig, int sock)
     sa = (struct sockaddr_in *)&areq.arp_pa;
     sa->sin_family = AF_INET;
     sa->sin_addr.s_addr = ifconfig->address.addr.in;
-    
+
     if (ioctl(sock, SIOCGARP, &areq) < 0) {
         /* ho-hum */
         sigar_hwaddr_set_null(ifconfig);
@@ -1682,7 +1682,7 @@ int sigar_net_interface_config_get(sigar_t *sigar, const char *name,
         sigar_net_address_set(ifconfig->netmask,
                               ifr_s_addr(ifr));
     }
-    
+
     if (!ioctl(sock, SIOCGIFFLAGS, &ifr)) {
         sigar_uint64_t flags = ifr.ifr_flags;
 #ifdef __linux__
@@ -1782,7 +1782,7 @@ int sigar_net_interface_config_get(sigar_t *sigar, const char *name,
 #else
     ifconfig->mtu = 0; /*XXX*/
 #endif
-    
+
     if (!ioctl(sock, SIOCGIFMETRIC, &ifr)) {
         ifconfig->metric = ifr.ifr_metric ? ifr.ifr_metric : 1;
     }
@@ -1790,7 +1790,7 @@ int sigar_net_interface_config_get(sigar_t *sigar, const char *name,
 #if defined(SIOCGIFTXQLEN)
     if (!ioctl(sock, SIOCGIFTXQLEN, &ifr)) {
         ifconfig->tx_queue_len = ifr.ifr_qlen;
-    } 
+    }
     else {
         ifconfig->tx_queue_len = -1; /* net-tools behaviour */
     }
@@ -1904,7 +1904,7 @@ int sigar_net_interface_list_get(sigar_t *sigar,
 
     if (sock < 0) {
         return errno;
-    } 
+    }
 
     for (;;) {
         if (!sigar->ifconf_buf || lastlen) {
@@ -1961,7 +1961,7 @@ int sigar_net_interface_list_get(sigar_t *sigar,
         if (!sigar_netif_configured(sigar, ifr->ifr_name)) {
             continue;
         }
-#   endif        
+#   endif
 #endif
         iflist->data[iflist->number++] =
             sigar_strdup(ifr->ifr_name);
@@ -2059,7 +2059,7 @@ struct hostent *sigar_gethostbyname(const char *name,
                                     sigar_hostent_t *data)
 {
     struct hostent *hp = NULL;
- 
+
 #if defined(__linux__)
     gethostbyname_r(name, &data->hs,
                     data->buffer, sizeof(data->buffer),
@@ -2318,7 +2318,7 @@ SIGAR_DECLARE(char *) sigar_password_get(const char *prompt)
             return NULL;
         }
         else if (ch == 0 || ch == 0xE0) {
-            /* FN Keys (0 or E0) are a sentinal for a FN code */ 
+            /* FN Keys (0 or E0) are a sentinal for a FN code */
             ch = (ch << 4) | _getch();
             /* Catch {DELETE}, {<--}, Num{DEL} and Num{<--} */
             if ((ch == 0xE53 || ch == 0xE4B || ch == 0x053 || ch == 0x04b) && n) {
@@ -2347,7 +2347,7 @@ SIGAR_DECLARE(char *) sigar_password_get(const char *prompt)
             fflush(stderr);
             return NULL;
         }
-	else if (ch == 27) /* ESC */ {
+        else if (ch == 27) /* ESC */ {
             fputc('\n', stderr);
             fputs(prompt, stderr);
             fflush(stderr);
@@ -2358,12 +2358,12 @@ SIGAR_DECLARE(char *) sigar_password_get(const char *prompt)
             fputc(' ', stderr);
             fflush(stderr);
         }
-	else {
+        else {
             fputc('\a', stderr);
             fflush(stderr);
         }
     }
- 
+
     fputc('\n', stderr);
     fflush(stderr);
     password[n] = '\0';
@@ -2395,7 +2395,7 @@ static char *termios_getpass(const char *prompt)
 
     fputs(prompt, stderr);
     fflush(stderr);
-        
+
     if (tcgetattr(STDIN_FILENO, &attr) != 0) {
         return NULL;
     }
@@ -2407,8 +2407,8 @@ static char *termios_getpass(const char *prompt)
     }
 
     while ((password[n] = getchar()) != '\n') {
-        if (n < (sizeof(password) - 1) && 
-            (password[n] >= ' ') && 
+        if (n < (sizeof(password) - 1) &&
+            (password[n] >= ' ') &&
             (password[n] <= '~'))
         {
             n++;
@@ -2420,7 +2420,7 @@ static char *termios_getpass(const char *prompt)
             n = 0;
         }
     }
- 
+
     password[n] = '\0';
     printf("\n");
 

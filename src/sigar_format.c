@@ -91,7 +91,7 @@ int sigar_group_name_get(sigar_t *sigar, int gid, char *buf, int buflen)
         /* seen on linux.. apache httpd.conf has:
          * Group #-1
          * results in uid == -1 and gr == NULL.
-         * wtf getgrgid_r doesnt fail instead? 
+         * wtf getgrgid_r doesnt fail instead?
          */
         sprintf(buf, "%d", gid);
     }
@@ -190,7 +190,7 @@ char *sigar_strerror_get(int err, char *errbuf, int buflen)
     if (buf != NULL) {
         SIGAR_STRNCPY(errbuf, buf, buflen);
     }
-    
+
 #endif
     return errbuf;
 }
@@ -260,7 +260,7 @@ SIGAR_DECLARE(char *) sigar_format_size(sigar_uint64_t size, char *buf)
 }
 
 
-SIGAR_DECLARE(int) sigar_uptime_string(sigar_t *sigar, 
+SIGAR_DECLARE(int) sigar_uptime_string(sigar_t *sigar,
                                        sigar_uptime_t *uptime,
                                        char *buffer,
                                        int buflen)
@@ -335,7 +335,7 @@ static int sigar_ether_ntoa(char *buff, unsigned char *ptr)
 
 SIGAR_DECLARE(int) sigar_net_address_equals(sigar_net_address_t *addr1,
                                             sigar_net_address_t *addr2)
-                                            
+
 {
     if (addr1->family != addr2->family) {
         return EINVAL;
@@ -453,7 +453,7 @@ SIGAR_DECLARE(sigar_uint32_t) sigar_net_address_hash(sigar_net_address_t *addres
         int component=0;
         while (j<elts && i<size) {
             component = (component << 8) + data[i];
-            j++; 
+            j++;
             i++;
         }
         hash += component;

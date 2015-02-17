@@ -323,7 +323,7 @@ static int get_security_info(sigar_t *sigar,
     PSECURITY_DESCRIPTOR pdesc = NULL;
     SECURITY_INFORMATION sinfo =
         OWNER_SECURITY_INFORMATION |
-        GROUP_SECURITY_INFORMATION |        
+        GROUP_SECURITY_INFORMATION |
         DACL_SECURITY_INFORMATION;
     TRUSTEE ident = {NULL, NO_MULTIPLE_TRUSTEE, TRUSTEE_IS_SID};
     ACCESS_MASK acc;
@@ -414,7 +414,7 @@ static int fileattrs_get(sigar_t *sigar,
                         OPEN_EXISTING,
                         flags,
                         NULL);
- 
+
     if (handle != INVALID_HANDLE_VALUE) {
         if (GetFileInformationByHandle(handle, &info)) {
             fileattrs->inode =
@@ -532,7 +532,7 @@ static int dir_stat_get(sigar_t *sigar,
           case SIGAR_FILETYPE_DIR:
             ++dirstats->subdirs;
             if (recurse) {
-                status = 
+                status =
                     dir_stat_get(sigar, name,
                                  dirstats, recurse);
                 if (status != SIGAR_OK) {
@@ -608,18 +608,18 @@ static sigar_file_type_e filetype_from_mode(mode_t mode)
 #endif
 
     default:
-	/* Work around missing S_IFxxx values above
+        /* Work around missing S_IFxxx values above
          * for Linux et al.
          */
 #if !defined(S_IFFIFO) && defined(S_ISFIFO)
-    	if (S_ISFIFO(mode)) {
+        if (S_ISFIFO(mode)) {
             type = SIGAR_FILETYPE_PIPE;
-	} else
+        } else
 #endif
 #if !defined(BEOS) && !defined(S_IFSOCK) && defined(S_ISSOCK)
-    	if (S_ISSOCK(mode)) {
+        if (S_ISSOCK(mode)) {
             type = SIGAR_FILETYPE_SOCK;
-	} else
+        } else
 #endif
         type = SIGAR_FILETYPE_UNKFILE;
     }
@@ -761,7 +761,7 @@ static int dir_stat_get(sigar_t *sigar,
           case SIGAR_FILETYPE_DIR:
             ++dirstats->subdirs;
             if (recurse) {
-                status = 
+                status =
                     dir_stat_get(sigar, name,
                                  dirstats, recurse);
                 if (status != SIGAR_OK) {

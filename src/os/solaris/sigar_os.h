@@ -151,7 +151,7 @@ struct sigar_t {
         int mempages[KSTAT_MEMPAGES_MAX];
         int syspages[KSTAT_SYSPAGES_MAX];
     } koffsets;
-    
+
     int pagesize;
 
     time_t last_getprocs;
@@ -221,4 +221,3 @@ struct sigar_t {
 #define SIGAR_EMIB2 (SIGAR_OS_START_ERROR+1)
 
 #endif /* SIGAR_OS_H */
-

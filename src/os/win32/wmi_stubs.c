@@ -16,4 +16,3 @@ int sigar_proc_exe_wmi_get(sigar_t *sigar, sigar_pid_t pid,
 {
     return ERROR_NOT_FOUND;
 }
-

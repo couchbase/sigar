@@ -46,32 +46,32 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_sys_info_get) {
-	sigar_sys_info_t sysinfo;
+        sigar_sys_info_t sysinfo;
 
-	assert(SIGAR_OK == sigar_sys_info_get(t, &sysinfo));
-	assert(sysinfo.name);
-	assert(sysinfo.version);
-	assert(sysinfo.arch);
-	assert(sysinfo.machine);
-	assert(sysinfo.description);
-	assert(sysinfo.patch_level);
-	assert(sysinfo.vendor);
-	assert(sysinfo.vendor_version);
-	assert(sysinfo.vendor_name);
-	assert(sysinfo.vendor_code_name);
+        assert(SIGAR_OK == sigar_sys_info_get(t, &sysinfo));
+        assert(sysinfo.name);
+        assert(sysinfo.version);
+        assert(sysinfo.arch);
+        assert(sysinfo.machine);
+        assert(sysinfo.description);
+        assert(sysinfo.patch_level);
+        assert(sysinfo.vendor);
+        assert(sysinfo.vendor_version);
+        assert(sysinfo.vendor_name);
+        assert(sysinfo.vendor_code_name);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_sys_info_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_sys_info_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

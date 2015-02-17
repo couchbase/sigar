@@ -80,7 +80,7 @@ typedef enum {
     SIGAR_FILETYPE_LNK,            /**< a symbolic link */
     SIGAR_FILETYPE_SOCK,           /**< a [unix domain] socket */
     SIGAR_FILETYPE_UNKFILE         /**< a file of some other unknown type */
-} sigar_file_type_e; 
+} sigar_file_type_e;
 
 #define SIGAR_UREAD       0x0400 /**< Read by user */
 #define SIGAR_UWRITE      0x0200 /**< Write by user */

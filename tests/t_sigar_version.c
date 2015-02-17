@@ -46,26 +46,26 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_version_get) {
-	sigar_version_t *version;
+        sigar_version_t *version;
 
-	version = sigar_version_get();
-	assert(version->major >= 0);
-	assert(version->minor >= 0);
-	assert(version->maint >= 0);
-	assert(version->build >= 0);
+        version = sigar_version_get();
+        assert(version->major >= 0);
+        assert(version->minor >= 0);
+        assert(version->maint >= 0);
+        assert(version->build >= 0);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_version_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_version_get(t);
 
-	return 0;
+        sigar_close(t);
+
+        return 0;
 }

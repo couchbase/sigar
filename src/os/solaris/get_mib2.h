@@ -37,8 +37,8 @@
  * - remove static stuff to make thread-safe by Doug MacEachern (3/11/05)
  */
 
-#if	!defined(GET_MIB2_H)
-#define	GET_MIB2_H
+#if     !defined(GET_MIB2_H)
+#define GET_MIB2_H
 
 
 /*
@@ -59,36 +59,36 @@
  * Miscellaneous definitions
  */
 
-#define	GET_MIB2_ARPDEV		"/dev/arp"	/* ARP stream devi9ce */
-#define	GET_MIB2_ERRMSGL	1024		/* ErrMsg buffer length */
-#define	GET_MIB2_TCPSTREAM	"tcp"		/* TCP stream name */
-#define	GET_MIB2_UDPSTREAM	"udp"		/* UDP stream name */
+#define GET_MIB2_ARPDEV         "/dev/arp"      /* ARP stream devi9ce */
+#define GET_MIB2_ERRMSGL        1024            /* ErrMsg buffer length */
+#define GET_MIB2_TCPSTREAM      "tcp"           /* TCP stream name */
+#define GET_MIB2_UDPSTREAM      "udp"           /* UDP stream name */
 
 
 /*
  * get_mib2() response codes
  *
- * 	-1		End of MIB2 information
- *	 0		Next MIB2 structure returned
- *	>0		Error code
+ *      -1              End of MIB2 information
+ *       0              Next MIB2 structure returned
+ *      >0              Error code
  */
 
-#define	GET_MIB2_EOD		-1	/* end of data */
-#define	GET_MIB2_OK		0	/* function succeeded */
-#define	GET_MIB2_ERR_ACK	1	/* getmsg() ACK error received */
-#define	GET_MIB2_ERR_ARPOPEN	2	/* error opening ARPDEV */
-#define	GET_MIB2_ERR_CLOSE	3	/* MIB2 access close error */
-#define	GET_MIB2_ERR_GETMSGD	4	/* error getting message data */
-#define	GET_MIB2_ERR_GETMSGR	5	/* error getting message reply */
-#define	GET_MIB2_ERR_NODATA	6	/* data expected; not received */
-#define	GET_MIB2_ERR_NOSPC	7	/* no malloc() space */
-#define	GET_MIB2_ERR_NOTOPEN	8	/* MIB2 access not open */
-#define	GET_MIB2_ERR_OPEN	9	/* MIB2 access open error */
-#define	GET_MIB2_ERR_PUTMSG	10	/* error putting request message */
-#define	GET_MIB2_ERR_TCPPUSH	11	/* error pushing TCPSTREAM */
-#define	GET_MIB2_ERR_UDPPUSH	12	/* error pushing UDPSTREAM */
+#define GET_MIB2_EOD            -1      /* end of data */
+#define GET_MIB2_OK             0       /* function succeeded */
+#define GET_MIB2_ERR_ACK        1       /* getmsg() ACK error received */
+#define GET_MIB2_ERR_ARPOPEN    2       /* error opening ARPDEV */
+#define GET_MIB2_ERR_CLOSE      3       /* MIB2 access close error */
+#define GET_MIB2_ERR_GETMSGD    4       /* error getting message data */
+#define GET_MIB2_ERR_GETMSGR    5       /* error getting message reply */
+#define GET_MIB2_ERR_NODATA     6       /* data expected; not received */
+#define GET_MIB2_ERR_NOSPC      7       /* no malloc() space */
+#define GET_MIB2_ERR_NOTOPEN    8       /* MIB2 access not open */
+#define GET_MIB2_ERR_OPEN       9       /* MIB2 access open error */
+#define GET_MIB2_ERR_PUTMSG     10      /* error putting request message */
+#define GET_MIB2_ERR_TCPPUSH    11      /* error pushing TCPSTREAM */
+#define GET_MIB2_ERR_UDPPUSH    12      /* error pushing UDPSTREAM */
 
-#define	GET_MIB2_ERR_MAX	13	/* maximum error number + 1 */
+#define GET_MIB2_ERR_MAX        13      /* maximum error number + 1 */
 
 
 typedef struct {
@@ -98,7 +98,7 @@ typedef struct {
     size_t smb_len; /* size of Smb[] */
     int sd;         /* stream device descriptor */
     char errmsg[GET_MIB2_ERRMSGL];      /* error message buffer */
-    struct T_optmgmt_ack *op_ack;       /* message ACK pointer */ 
+    struct T_optmgmt_ack *op_ack;       /* message ACK pointer */
     struct strbuf ctlbuf;               /* streams control buffer */
     struct T_error_ack *err_ack;        /* message error pointer */
     struct opthdr *op;                  /* message option pointer */
@@ -109,19 +109,19 @@ typedef struct {
  * Function prototypes
  */
 
-int close_mib2(				/* close acccess to MIB2 information */
-        solaris_mib2_t *mib2 
-	);
-int get_mib2(				/* get MIB2 information */
-        solaris_mib2_t *mib2, 
-	struct opthdr **opt,			/* opthdr pointer return (see
-						 * <sys/socket.h> */
-	char **data,				/* data buffer return address */
-	int *datalen				/* data buffer length return
-						 * address */
-	);
-int open_mib2(				/* open acccess to MIB2 information */
-        solaris_mib2_t *mib2 
-	);
+int close_mib2(                         /* close acccess to MIB2 information */
+        solaris_mib2_t *mib2
+        );
+int get_mib2(                           /* get MIB2 information */
+        solaris_mib2_t *mib2,
+        struct opthdr **opt,                    /* opthdr pointer return (see
+                                                 * <sys/socket.h> */
+        char **data,                            /* data buffer return address */
+        int *datalen                            /* data buffer length return
+                                                 * address */
+        );
+int open_mib2(                          /* open acccess to MIB2 information */
+        solaris_mib2_t *mib2
+        );
 
-#endif	/* !defined(GET_MIB2_H) */
+#endif  /* !defined(GET_MIB2_H) */

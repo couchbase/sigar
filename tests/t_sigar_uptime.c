@@ -46,22 +46,22 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_uptime_get) {
-	sigar_uptime_t uptime;
+        sigar_uptime_t uptime;
 
-	assert(SIGAR_OK == sigar_uptime_get(t, &uptime));
-	assert(uptime.uptime > 0);
+        assert(SIGAR_OK == sigar_uptime_get(t, &uptime));
+        assert(uptime.uptime > 0);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
+        sigar_t *t;
 
-	assert(SIGAR_OK == sigar_open(&t));
+        assert(SIGAR_OK == sigar_open(&t));
 
-	test_sigar_uptime_get(t);
+        test_sigar_uptime_get(t);
 
-	sigar_close(t);
+        sigar_close(t);
 
-	return 0;
+        return 0;
 }

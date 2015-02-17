@@ -37,7 +37,7 @@
  * - remove static stuff to make thread-safe by Doug MacEachern (3/11/05)
  */
 
-#if 0 /*ndef lint -Wall -Werror*/ 
+#if 0 /*ndef lint -Wall -Werror*/
 static char copyright[] =
 "@(#) Copyright 1995 Purdue Research Foundation.\nAll rights reserved.\n";
 #endif
@@ -60,8 +60,8 @@ static char copyright[] =
  *
  * return:
  *
- *	exit = GET_MIB2_OK if close succeeded
- *	       GET_MIB2_* is the error code.
+ *      exit = GET_MIB2_OK if close succeeded
+ *             GET_MIB2_* is the error code.
  */
 
 int
@@ -95,11 +95,11 @@ close_mib2(solaris_mib2_t *mib2)
  *
  * return:
  *
- *	exit = GET_MIB2_OK if get succeeded, and:
- *			*opt = opthdr structure address
- *			*data = data buffer address
- *			*datalen = size of data buffer
- *	       GET_MIB2_* is the error code for failure.
+ *      exit = GET_MIB2_OK if get succeeded, and:
+ *                      *opt = opthdr structure address
+ *                      *data = data buffer address
+ *                      *datalen = size of data buffer
+ *             GET_MIB2_* is the error code for failure.
  */
 
 int
@@ -108,56 +108,56 @@ get_mib2(solaris_mib2_t *mib2,
          char **data,
          int *datalen)
 {
-    struct strbuf d;		/* streams data buffer */
-    int err;			/* error code */
-    int f;				/* flags */
-    int rc;				/* reply code */
+    struct strbuf d;            /* streams data buffer */
+    int err;                    /* error code */
+    int f;                              /* flags */
+    int rc;                             /* reply code */
 
     /*
      * If MIB2 access isn't open, open it and issue the preliminary stream
      * messages.
      */
     if (mib2->sd < 0) {
-	/*
-	 * Open access.  Return on error.
-	 */
+        /*
+         * Open access.  Return on error.
+         */
         if ((err = open_mib2(mib2))) {
             return(err);
         }
-	/*
-	 * Set up message request and option.
-	 */
+        /*
+         * Set up message request and option.
+         */
         mib2->req = (struct T_optmgmt_req *)mib2->smb;
         mib2->op = (struct opthdr *)&mib2->smb[sizeof(struct T_optmgmt_req)];
         mib2->req->PRIM_type = T_OPTMGMT_REQ;
         mib2->req->OPT_offset = sizeof(struct T_optmgmt_req);
         mib2->req->OPT_length = sizeof(struct opthdr);
 
-#if	defined(MI_T_CURRENT)
+#if     defined(MI_T_CURRENT)
         mib2->req->MGMT_flags = MI_T_CURRENT;
-#else	/* !defined(MI_T_CURRENT) */
-# if	defined(T_CURRENT)
+#else   /* !defined(MI_T_CURRENT) */
+# if    defined(T_CURRENT)
         mib2->req->MGMT_flags = T_CURRENT;
-# else	/* !defined(T_CURRENT) */
-#error	"Neither MI_T_CURRENT nor T_CURRENT are defined."
-# endif	/* defined(T_CURRENT) */
-#endif	/* defined(MI_T_CURRENT) */
+# else  /* !defined(T_CURRENT) */
+#error  "Neither MI_T_CURRENT nor T_CURRENT are defined."
+# endif /* defined(T_CURRENT) */
+#endif  /* defined(MI_T_CURRENT) */
 
         mib2->op->level = MIB2_IP;
         mib2->op->name = mib2->op->len = 0;
         mib2->ctlbuf.buf = mib2->smb;
         mib2->ctlbuf.len = mib2->req->OPT_offset + mib2->req->OPT_length;
-	/*
-	 * Put the message.
-	 */
+        /*
+         * Put the message.
+         */
         if (putmsg(mib2->sd, &mib2->ctlbuf, (struct strbuf *)NULL, 0) == -1) {
             (void) sprintf(mib2->errmsg,
                            "get_mib2: putmsg request: %s", strerror(errno));
             return(GET_MIB2_ERR_PUTMSG);
         }
-	/*
-	 * Set up to process replies.
-	 */
+        /*
+         * Set up to process replies.
+         */
         mib2->op_ack = (struct T_optmgmt_ack *)mib2->smb;
         mib2->ctlbuf.maxlen = mib2->smb_len;
         mib2->err_ack = (struct T_error_ack *)mib2->smb;
@@ -176,10 +176,10 @@ get_mib2(solaris_mib2_t *mib2,
      * Check for end of data.
      */
     if (rc == 0
-	&&  mib2->ctlbuf.len >= sizeof(struct T_optmgmt_ack)
-	&&  mib2->op_ack->PRIM_type == T_OPTMGMT_ACK
-	&&  mib2->op_ack->MGMT_flags == T_SUCCESS
-	&&  mib2->op->len == 0)
+        &&  mib2->ctlbuf.len >= sizeof(struct T_optmgmt_ack)
+        &&  mib2->op_ack->PRIM_type == T_OPTMGMT_ACK
+        &&  mib2->op_ack->MGMT_flags == T_SUCCESS
+        &&  mib2->op->len == 0)
     {
         err = close_mib2(mib2);
         if (err) {
@@ -191,7 +191,7 @@ get_mib2(solaris_mib2_t *mib2,
      * Check for error.
      */
     if (mib2->ctlbuf.len >= sizeof(struct T_error_ack)
-	&&  mib2->err_ack->PRIM_type == T_ERROR_ACK)
+        &&  mib2->err_ack->PRIM_type == T_ERROR_ACK)
     {
         (void) sprintf(mib2->errmsg,
                        "get_mib2: T_ERROR_ACK: len=%d, TLI=%#x, UNIX=%#x",
@@ -204,9 +204,9 @@ get_mib2(solaris_mib2_t *mib2,
      * Check for no data.
      */
     if (rc != MOREDATA
-	||  mib2->ctlbuf.len < sizeof(struct T_optmgmt_ack)
-	||  mib2->op_ack->PRIM_type != T_OPTMGMT_ACK
-	||  mib2->op_ack->MGMT_flags != T_SUCCESS)
+        ||  mib2->ctlbuf.len < sizeof(struct T_optmgmt_ack)
+        ||  mib2->op_ack->PRIM_type != T_OPTMGMT_ACK
+        ||  mib2->op_ack->MGMT_flags != T_SUCCESS)
     {
         (void) sprintf(mib2->errmsg,
                        "get_mib2: T_OPTMGMT_ACK: "
@@ -267,8 +267,8 @@ get_mib2(solaris_mib2_t *mib2,
  *
  * return:
  *
- *	exit = GET_MIB2_OK if open succeeded
- *	       GET_MIB2_* is the error code for failure.
+ *      exit = GET_MIB2_OK if open succeeded
+ *             GET_MIB2_* is the error code for failure.
  */
 
 int

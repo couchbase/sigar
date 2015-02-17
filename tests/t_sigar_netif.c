@@ -46,91 +46,91 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_net_iflist_get) {
-	sigar_net_interface_list_t net_iflist;
-	size_t i;
-	int ret;
+        sigar_net_interface_list_t net_iflist;
+        size_t i;
+        int ret;
 
-	assert(SIGAR_OK == sigar_net_interface_list_get(t, &net_iflist));
-	assert(net_iflist.number > 0);
+        assert(SIGAR_OK == sigar_net_interface_list_get(t, &net_iflist));
+        assert(net_iflist.number > 0);
 
-	for (i = 0; i < net_iflist.number; i++) {
-		char *ifname = net_iflist.data[i];
-		sigar_net_interface_stat_t   ifstat;
-		sigar_net_interface_config_t config;
+        for (i = 0; i < net_iflist.number; i++) {
+                char *ifname = net_iflist.data[i];
+                sigar_net_interface_stat_t   ifstat;
+                sigar_net_interface_config_t config;
 
-		if (SIGAR_OK == (ret = sigar_net_interface_stat_get(t, ifname, &ifstat))) {
+                if (SIGAR_OK == (ret = sigar_net_interface_stat_get(t, ifname, &ifstat))) {
 #if defined(SIGAR_TEST_OS_SOLARIS)
-			/* on solaris "lo" has no real stats, skip it */
-			if (0 == strncmp(ifname, "lo", 2)) continue;
+                        /* on solaris "lo" has no real stats, skip it */
+                        if (0 == strncmp(ifname, "lo", 2)) continue;
 #endif
-			assert(IS_IMPL_U64(ifstat.rx_packets));
-			assert(IS_IMPL_U64(ifstat.rx_bytes));
-			assert(IS_IMPL_U64(ifstat.rx_errors));
+                        assert(IS_IMPL_U64(ifstat.rx_packets));
+                        assert(IS_IMPL_U64(ifstat.rx_bytes));
+                        assert(IS_IMPL_U64(ifstat.rx_errors));
 #if !(defined(SIGAR_TEST_OS_AIX))
-			assert(IS_IMPL_U64(ifstat.rx_dropped));
+                        assert(IS_IMPL_U64(ifstat.rx_dropped));
 #endif
 #if !(defined(SIGAR_TEST_OS_DARWIN) || defined(SIGAR_TEST_OS_AIX) || defined(SIGAR_TEST_OS_HPUX) || defined(_WIN32))
-			assert(IS_IMPL_U64(ifstat.rx_overruns));
-			assert(IS_IMPL_U64(ifstat.rx_frame));
+                        assert(IS_IMPL_U64(ifstat.rx_overruns));
+                        assert(IS_IMPL_U64(ifstat.rx_frame));
 #endif
-			assert(IS_IMPL_U64(ifstat.tx_packets));
-			assert(IS_IMPL_U64(ifstat.tx_bytes));
-			assert(IS_IMPL_U64(ifstat.tx_errors));
+                        assert(IS_IMPL_U64(ifstat.tx_packets));
+                        assert(IS_IMPL_U64(ifstat.tx_bytes));
+                        assert(IS_IMPL_U64(ifstat.tx_errors));
 #if !(defined(SIGAR_TEST_OS_HPUX) || defined(_WIN32))
-			assert(IS_IMPL_U64(ifstat.tx_collisions));
+                        assert(IS_IMPL_U64(ifstat.tx_collisions));
 #endif
 #if !(defined(SIGAR_TEST_OS_DARWIN) || defined(SIGAR_TEST_OS_AIX))
-			assert(IS_IMPL_U64(ifstat.tx_dropped));
+                        assert(IS_IMPL_U64(ifstat.tx_dropped));
 #endif
 #if !(defined(SIGAR_TEST_OS_DARWIN) || defined(SIGAR_TEST_OS_AIX) || defined(SIGAR_TEST_OS_HPUX) || defined(_WIN32))
-			assert(IS_IMPL_U64(ifstat.tx_overruns));
-			assert(IS_IMPL_U64(ifstat.tx_carrier));
+                        assert(IS_IMPL_U64(ifstat.tx_overruns));
+                        assert(IS_IMPL_U64(ifstat.tx_carrier));
 #endif
 #ifndef SIGAR_TEST_OS_LINUX
-			assert(IS_IMPL_U64(ifstat.speed));
+                        assert(IS_IMPL_U64(ifstat.speed));
 #endif
-		} else {
-			switch (ret) {
-				/* track the expected error code */
-			default:
-				fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-				assert(ret == SIGAR_OK); 
-				break;
-			}
-		}
+                } else {
+                        switch (ret) {
+                                /* track the expected error code */
+                        default:
+                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                                assert(ret == SIGAR_OK);
+                                break;
+                        }
+                }
 
-		if (SIGAR_OK == (ret = sigar_net_interface_config_get(t, ifname, &config))) {
-			assert(config.name);
-			assert(config.type);
-			assert(config.description);
-			assert(IS_IMPL_U64(config.flags));
-			assert(IS_IMPL_U64(config.mtu));
-			assert(IS_IMPL_U64(config.metric));
-		} else {
-			switch (ret) {
-				/* track the expected error code */
-			default:
-				fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-				assert(ret == SIGAR_OK); 
-				break;
-			}
-		}
-	}
+                if (SIGAR_OK == (ret = sigar_net_interface_config_get(t, ifname, &config))) {
+                        assert(config.name);
+                        assert(config.type);
+                        assert(config.description);
+                        assert(IS_IMPL_U64(config.flags));
+                        assert(IS_IMPL_U64(config.mtu));
+                        assert(IS_IMPL_U64(config.metric));
+                } else {
+                        switch (ret) {
+                                /* track the expected error code */
+                        default:
+                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                                assert(ret == SIGAR_OK);
+                                break;
+                        }
+                }
+        }
 
-	assert(SIGAR_OK == sigar_net_interface_list_destroy(t, &net_iflist));
+        assert(SIGAR_OK == sigar_net_interface_list_destroy(t, &net_iflist));
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_net_iflist_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_net_iflist_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

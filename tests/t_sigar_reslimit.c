@@ -46,23 +46,23 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_resource_limit_get) {
-	sigar_resource_limit_t rlimit;
+        sigar_resource_limit_t rlimit;
 
-	assert(SIGAR_OK == sigar_resource_limit_get(t, &rlimit));
-	/* we can't check if the limits are reasonable */
+        assert(SIGAR_OK == sigar_resource_limit_get(t, &rlimit));
+        /* we can't check if the limits are reasonable */
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_resource_limit_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_resource_limit_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

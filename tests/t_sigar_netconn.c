@@ -46,53 +46,53 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_net_connections_get) {
-	sigar_net_connection_list_t connlist;
-	size_t i;
-	int ret;
+        sigar_net_connection_list_t connlist;
+        size_t i;
+        int ret;
 
     /*
      * SIGAR_NETCONN_UDP is removed because it does not work on
      * windows.
      */
-	if (SIGAR_OK == (ret = sigar_net_connection_list_get(t, &connlist, 
-				SIGAR_NETCONN_SERVER | SIGAR_NETCONN_CLIENT |
-				SIGAR_NETCONN_TCP))) {
-		assert(connlist.number > 0);
+        if (SIGAR_OK == (ret = sigar_net_connection_list_get(t, &connlist,
+                                SIGAR_NETCONN_SERVER | SIGAR_NETCONN_CLIENT |
+                                SIGAR_NETCONN_TCP))) {
+                assert(connlist.number > 0);
 
-		for (i = 0; i < connlist.number; i++) {
-			sigar_net_connection_t con = connlist.data[i];
+                for (i = 0; i < connlist.number; i++) {
+                        sigar_net_connection_t con = connlist.data[i];
 
-			assert(con.local_port < 65536);
-			assert(con.local_port < 65536);
-			assert(con.type >= 0);
-			assert(con.state >= 0);
-		}
+                        assert(con.local_port < 65536);
+                        assert(con.local_port < 65536);
+                        assert(con.type >= 0);
+                        assert(con.state >= 0);
+                }
 
-		assert(SIGAR_OK == sigar_net_connection_list_destroy(t, &connlist));
-	} else {
-		switch (ret) {
-		case 40013:  /* AIX: SIGAR_EPERM_KMEM */
-			/* track the expected error code */
-			break;
-		default:
-			fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-			assert(ret == SIGAR_OK); 
-			break;
-		}
-	}
+                assert(SIGAR_OK == sigar_net_connection_list_destroy(t, &connlist));
+        } else {
+                switch (ret) {
+                case 40013:  /* AIX: SIGAR_EPERM_KMEM */
+                        /* track the expected error code */
+                        break;
+                default:
+                        fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                        assert(ret == SIGAR_OK);
+                        break;
+                }
+        }
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_net_connections_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_net_connections_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

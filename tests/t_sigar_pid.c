@@ -46,22 +46,22 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_pid_get) {
-	sigar_pid_t pid;
+        sigar_pid_t pid;
 
-	pid = sigar_pid_get(t);
-	assert(pid > 0);
+        pid = sigar_pid_get(t);
+        assert(pid > 0);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
+        sigar_t *t;
 
-	assert(SIGAR_OK == sigar_open(&t));
+        assert(SIGAR_OK == sigar_open(&t));
 
-	test_sigar_pid_get(t);
+        test_sigar_pid_get(t);
 
-	sigar_close(t);
+        sigar_close(t);
 
-	return 0;
+        return 0;
 }

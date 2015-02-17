@@ -85,7 +85,7 @@ int sigar_get_kstats(sigar_t *sigar)
             i++;
         }
     }
-        
+
     sigar->ks.system   = kstat_lookup(kc, "unix", -1, "system_misc");
     sigar->ks.syspages = kstat_lookup(kc, "unix", -1, "system_pages");
     sigar->ks.mempages = kstat_lookup(kc, "bunyip", -1, "mempages");
@@ -178,4 +178,3 @@ void sigar_koffsets_lookup(kstat_t *ksp, int *offsets, int kidx)
         offsets[i] = kstat_named_offset(ksp, keys[i]);
     }
 }
-

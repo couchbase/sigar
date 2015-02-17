@@ -173,7 +173,7 @@ char *sigar_os_error_string(sigar_t *sigar, int err)
 
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     sigar_uint64_t kern = 0;
 
@@ -398,7 +398,7 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 
 int sigar_cpu_list_get(sigar_t *sigar, sigar_cpu_list_t *cpulist)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     uint_t cpuinfo[CPU_STATES];
     unsigned int i;
@@ -557,7 +557,7 @@ int sigar_loadavg_get(sigar_t *sigar,
     }
 
     sigar_koffsets_init_system(sigar, ksp);
-    
+
     for (i=0; i<3; i++) {
         loadavg->loadavg[i] = (double)kSYSTEM(loadavg_keys[i]) / FSCALE;
     }
@@ -626,21 +626,21 @@ static int sigar_init_libproc(sigar_t *sigar)
 
 /* from libproc.h, not included w/ solaris distro */
 /* Error codes from Pgrab(), Pfgrab_core(), and Pgrab_core() */
-#define	G_STRANGE	-1	/* Unanticipated error, errno is meaningful */
-#define	G_NOPROC	1	/* No such process */
-#define	G_NOCORE	2	/* No such core file */
-#define	G_NOPROCORCORE	3	/* No such proc or core (for proc_arg_grab) */
-#define	G_NOEXEC	4	/* Cannot locate executable file */
-#define	G_ZOMB		5	/* Zombie process */
-#define	G_PERM		6	/* No permission */
-#define	G_BUSY		7	/* Another process has control */
-#define	G_SYS		8	/* System process */
-#define	G_SELF		9	/* Process is self */
-#define	G_INTR		10	/* Interrupt received while grabbing */
-#define	G_LP64		11	/* Process is _LP64, self is ILP32 */
-#define	G_FORMAT	12	/* File is not an ELF format core file */
-#define	G_ELF		13	/* Libelf error, elf_errno() is meaningful */
-#define	G_NOTE		14	/* Required PT_NOTE Phdr not present in core */
+#define G_STRANGE       -1      /* Unanticipated error, errno is meaningful */
+#define G_NOPROC        1       /* No such process */
+#define G_NOCORE        2       /* No such core file */
+#define G_NOPROCORCORE  3       /* No such proc or core (for proc_arg_grab) */
+#define G_NOEXEC        4       /* Cannot locate executable file */
+#define G_ZOMB          5       /* Zombie process */
+#define G_PERM          6       /* No permission */
+#define G_BUSY          7       /* Another process has control */
+#define G_SYS           8       /* System process */
+#define G_SELF          9       /* Process is self */
+#define G_INTR          10      /* Interrupt received while grabbing */
+#define G_LP64          11      /* Process is _LP64, self is ILP32 */
+#define G_FORMAT        12      /* File is not an ELF format core file */
+#define G_ELF           13      /* Libelf error, elf_errno() is meaningful */
+#define G_NOTE          14      /* Required PT_NOTE Phdr not present in core */
 
 static int sigar_pgrab(sigar_t *sigar, sigar_pid_t pid,
                        const char *func,
@@ -960,7 +960,7 @@ int sigar_os_proc_args_get(sigar_t *sigar, sigar_pid_t pid,
             return errno;
         }
 
-        buffer[nread] = '\0'; 
+        buffer[nread] = '\0';
         alen = strlen(buffer)+1;
         arg = malloc(alen);
         memcpy(arg, buffer, alen);
@@ -1170,7 +1170,7 @@ int sigar_proc_exe_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-static int sigar_read_xmaps(sigar_t *sigar, 
+static int sigar_read_xmaps(sigar_t *sigar,
                             prxmap_t *xmaps, int total,
                             unsigned long *last_inode,
                             struct ps_prochandle *phandle,
@@ -1196,7 +1196,7 @@ static int sigar_read_xmaps(sigar_t *sigar,
 
         sigar->pobjname(phandle, xmaps[i].pr_vaddr, buffer, sizeof(buffer));
 
-        status = 
+        status =
             procmods->module_getter(procmods->data, buffer, strlen(buffer));
 
         if (status != SIGAR_OK) {
@@ -1481,7 +1481,7 @@ static int create_fsdev_cache(sigar_t *sigar)
     sigar->fsdev = sigar_cache_new(15);
 
     status = sigar_file_system_list_get(sigar, &fslist);
-    
+
     if (status != SIGAR_OK) {
         return status;
     }
@@ -1619,7 +1619,7 @@ static int simple_hash(const char *s)
 {
     int hash = 0;
     while (*s) {
-        hash = 31*hash + *s++; 
+        hash = 31*hash + *s++;
     }
     return hash;
 }
@@ -1677,7 +1677,7 @@ int sigar_disk_usage_get(sigar_t *sigar, const char *name,
     /* service_time formula derived from opensolaris.org:iostat.c */
     if ((status == SIGAR_OK) && iodev) {
         sigar_uint64_t delta;
-        double avw, avr, tps, mtps; 
+        double avw, avr, tps, mtps;
         double etime, hr_etime;
 
         if (iodev->disk.snaptime) {
@@ -1948,7 +1948,7 @@ int sigar_net_route_list_get(sigar_t *sigar,
                 route->flags |= RTF_GATEWAY;
             }
 
-            route->use = route->window = route->mtu = 
+            route->use = route->window = route->mtu =
                 SIGAR_FIELD_NOTIMPL; /*XXX*/
         }
     }
@@ -2064,7 +2064,7 @@ static void ifstat_kstat_common(sigar_net_interface_stat_t *ifstat,
 static int sigar_net_ifstat_get_any(sigar_t *sigar, const char *name,
                                     sigar_net_interface_stat_t *ifstat)
 {
-    kstat_ctl_t *kc = sigar->kc; 
+    kstat_ctl_t *kc = sigar->kc;
     kstat_t *ksp;
     kstat_named_t *data;
 
@@ -2290,7 +2290,7 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
     struct opthdr *op;
 
     while ((rc = get_mib2(&sigar->mib2, &op, &data, &len)) == GET_MIB2_OK) {
-        if ((op->level == MIB2_TCP) && 
+        if ((op->level == MIB2_TCP) &&
             (op->name == MIB2_TCP_13) &&
             want_tcp)
         {
@@ -2299,7 +2299,7 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
                                    (struct mib2_tcpConnEntry *)data,
                                    len);
         }
-        else if ((op->level == MIB2_UDP) && 
+        else if ((op->level == MIB2_UDP) &&
                  (op->name == MIB2_UDP_5) &&
                  want_udp)
         {
@@ -2361,7 +2361,7 @@ sigar_tcp_get(sigar_t *sigar,
 }
 
 static int sigar_nfs_get(sigar_t *sigar,
-                         char *type, 
+                         char *type,
                          char **names,
                          char *nfs)
 {

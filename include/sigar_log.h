@@ -19,12 +19,12 @@
 
 #include <stdarg.h>
 
-#define	SIGAR_LOG_FATAL  0
-#define	SIGAR_LOG_ERROR  1
-#define	SIGAR_LOG_WARN   2
-#define	SIGAR_LOG_INFO   3
-#define	SIGAR_LOG_DEBUG  4
-#define	SIGAR_LOG_TRACE  5
+#define SIGAR_LOG_FATAL  0
+#define SIGAR_LOG_ERROR  1
+#define SIGAR_LOG_WARN   2
+#define SIGAR_LOG_INFO   3
+#define SIGAR_LOG_DEBUG  4
+#define SIGAR_LOG_TRACE  5
 
 #define SIGAR_LOG_IS_FATAL(sigar) \
     (sigar->log_level >= SIGAR_LOG_FATAL)

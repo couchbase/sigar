@@ -24,7 +24,7 @@
 #include <mach-o/dyld.h>
 #include <libproc.h>
 typedef int (*proc_pidinfo_func_t)(int, int, uint64_t,  void *, int);
-typedef int (*proc_pidfdinfo_func_t)(int, int, int, void *, int); 
+typedef int (*proc_pidfdinfo_func_t)(int, int, int, void *, int);
 #endif
 #else
 #include <kvm.h>

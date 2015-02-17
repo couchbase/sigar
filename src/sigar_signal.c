@@ -213,4 +213,3 @@ SIGAR_DECLARE(int) sigar_signum_get(char *name)
 
     return -1;
 }
-

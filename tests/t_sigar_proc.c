@@ -51,147 +51,147 @@
 #ifdef HAVE_VALGRIND_VALGRIND_H
 #include <valgrind/valgrind.h>
 #else
-#define RUNNING_ON_VALGRIND 0 
+#define RUNNING_ON_VALGRIND 0
 #endif
 
 TEST(test_sigar_proc_stat_get) {
-	sigar_proc_stat_t proc_stat;
+        sigar_proc_stat_t proc_stat;
 
-	assert(SIGAR_OK == sigar_proc_stat_get(t, &proc_stat));
-	assert(proc_stat.total > 0);
+        assert(SIGAR_OK == sigar_proc_stat_get(t, &proc_stat));
+        assert(proc_stat.total > 0);
 
-	return 0;
+        return 0;
 }
 
 TEST(test_sigar_proc_list_get) {
-	sigar_proc_list_t proclist;
-	size_t i;
+        sigar_proc_list_t proclist;
+        size_t i;
 
-	assert(SIGAR_OK == sigar_proc_list_get(t, &proclist));
-	assert(proclist.number > 0);
+        assert(SIGAR_OK == sigar_proc_list_get(t, &proclist));
+        assert(proclist.number > 0);
 
-	for (i = 0; i < proclist.number; i++) {
-		sigar_pid_t pid = proclist.data[i];
-		sigar_proc_mem_t proc_mem;
-		sigar_proc_time_t proc_time;
-		sigar_proc_state_t proc_state;
-		int ret;
+        for (i = 0; i < proclist.number; i++) {
+                sigar_pid_t pid = proclist.data[i];
+                sigar_proc_mem_t proc_mem;
+                sigar_proc_time_t proc_time;
+                sigar_proc_state_t proc_state;
+                int ret;
 
-		if (SIGAR_OK == (ret = sigar_proc_mem_get(t, pid, &proc_mem))) {
-			assert(IS_IMPL_U64(proc_mem.size));
-			assert(IS_IMPL_U64(proc_mem.resident));
+                if (SIGAR_OK == (ret = sigar_proc_mem_get(t, pid, &proc_mem))) {
+                        assert(IS_IMPL_U64(proc_mem.size));
+                        assert(IS_IMPL_U64(proc_mem.resident));
 #if !(defined(SIGAR_TEST_OS_DARWIN) || defined(SIGAR_TEST_OS_SOLARIS) || defined(_WIN32))
-			/* MacOS X, solaris nor win32 do provide them */
-			assert(IS_IMPL_U64(proc_mem.share));
-			assert(IS_IMPL_U64(proc_mem.minor_faults));
-			assert(IS_IMPL_U64(proc_mem.major_faults));
+                        /* MacOS X, solaris nor win32 do provide them */
+                        assert(IS_IMPL_U64(proc_mem.share));
+                        assert(IS_IMPL_U64(proc_mem.minor_faults));
+                        assert(IS_IMPL_U64(proc_mem.major_faults));
 #endif
 #if !(defined(SIGAR_TEST_OS_DARWIN))
-			/* freebsd */
-			assert(IS_IMPL_U64(proc_mem.page_faults));
+                        /* freebsd */
+                        assert(IS_IMPL_U64(proc_mem.page_faults));
 #endif
-		} else {
-			switch (ret) {
-			case ESRCH:
-			case EPERM:
-				/* track the expected error code */
-				break;
+                } else {
+                        switch (ret) {
+                        case ESRCH:
+                        case EPERM:
+                                /* track the expected error code */
+                                break;
 #if (defined(SIGAR_TEST_OS_DARWIN))
-				/* valgrind on macosx doesn't handle this syscall yet */
-			case ENOSYS:
-				if (RUNNING_ON_VALGRIND) {
-					break;
-				}
+                                /* valgrind on macosx doesn't handle this syscall yet */
+                        case ENOSYS:
+                                if (RUNNING_ON_VALGRIND) {
+                                        break;
+                                }
 #endif
-			default:
-				fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-				assert(ret == SIGAR_OK); 
-				break;
-			}
-		}
+                        default:
+                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                                assert(ret == SIGAR_OK);
+                                break;
+                        }
+                }
 
-		if (SIGAR_OK == (ret = sigar_proc_time_get(t, pid, &proc_time))) {
-			assert(IS_IMPL_U64(proc_time.start_time));
-			assert(IS_IMPL_U64(proc_time.user));
-			assert(IS_IMPL_U64(proc_time.sys));
-			assert(IS_IMPL_U64(proc_time.total));
+                if (SIGAR_OK == (ret = sigar_proc_time_get(t, pid, &proc_time))) {
+                        assert(IS_IMPL_U64(proc_time.start_time));
+                        assert(IS_IMPL_U64(proc_time.user));
+                        assert(IS_IMPL_U64(proc_time.sys));
+                        assert(IS_IMPL_U64(proc_time.total));
 
 #if !(defined(SIGAR_TEST_OS_DARWIN))
-			/* Freebsd */
-			assert(proc_time.start_time > 0);
+                        /* Freebsd */
+                        assert(proc_time.start_time > 0);
 #endif
-			assert(proc_time.total == proc_time.user + proc_time.sys);
-		} else {
-			switch (ret) {
-			case EPERM:
-			case ESRCH:
+                        assert(proc_time.total == proc_time.user + proc_time.sys);
+                } else {
+                        switch (ret) {
+                        case EPERM:
+                        case ESRCH:
 #if (defined(_WIN32))
-			/* OpenProcess() may return ERROR_ACCESS_DENIED */
-			case ERROR_ACCESS_DENIED:
+                        /* OpenProcess() may return ERROR_ACCESS_DENIED */
+                        case ERROR_ACCESS_DENIED:
 #endif
-				/* track the expected error code */
-				break;
+                                /* track the expected error code */
+                                break;
 #if (defined(SIGAR_TEST_OS_DARWIN))
-				/* valgrind on macosx doesn't handle this syscall yet */
-			case ENOSYS:
-				if (RUNNING_ON_VALGRIND) {
-					break;
-				}
+                                /* valgrind on macosx doesn't handle this syscall yet */
+                        case ENOSYS:
+                                if (RUNNING_ON_VALGRIND) {
+                                        break;
+                                }
 #endif
-			default:
-				fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-				assert(ret == SIGAR_OK); 
-				break;
-			}
-		}
-		if (SIGAR_OK == sigar_proc_state_get(t, pid, &proc_state)) {
-			assert(proc_state.name != NULL);
+                        default:
+                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                                assert(ret == SIGAR_OK);
+                                break;
+                        }
+                }
+                if (SIGAR_OK == sigar_proc_state_get(t, pid, &proc_state)) {
+                        assert(proc_state.name != NULL);
 #if 0
-			/* all values are fine */
-			(proc_state.state); /* we should check if the state is one of the announced group */
-			(proc_state.ppid);
-			(proc_state.tty);
-			(proc_state.priority);
-			(proc_state.nice);
-			(proc_state.processor);
+                        /* all values are fine */
+                        (proc_state.state); /* we should check if the state is one of the announced group */
+                        (proc_state.ppid);
+                        (proc_state.tty);
+                        (proc_state.priority);
+                        (proc_state.nice);
+                        (proc_state.processor);
 #endif
 #if !(defined(SIGAR_TEST_OS_DARWIN) || defined(SIGAR_TEST_OS_LINUX))
-			/* MacOS X doesn't provide them, Linux-IA64 neither */
-			assert(IS_IMPL_U64(proc_state.threads));
+                        /* MacOS X doesn't provide them, Linux-IA64 neither */
+                        assert(IS_IMPL_U64(proc_state.threads));
 #endif
-		} else {
-			switch (ret) {
-				/* track the expected error code */
+                } else {
+                        switch (ret) {
+                                /* track the expected error code */
 #if (defined(SIGAR_TEST_OS_DARWIN))
-				/* valgrind on macosx doesn't handle this syscall yet */
-			case ENOSYS:
-				if (RUNNING_ON_VALGRIND) {
-					break;
-				}
+                                /* valgrind on macosx doesn't handle this syscall yet */
+                        case ENOSYS:
+                                if (RUNNING_ON_VALGRIND) {
+                                        break;
+                                }
 #endif
-			default:
-				fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-				assert(ret == SIGAR_OK); 
-				break;
-			}
-		}
-	}
+                        default:
+                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                                assert(ret == SIGAR_OK);
+                                break;
+                        }
+                }
+        }
 
-	sigar_proc_list_destroy(t, &proclist);
+        sigar_proc_list_destroy(t, &proclist);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_proc_stat_get(t);
-	test_sigar_proc_list_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_proc_stat_get(t);
+        test_sigar_proc_list_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

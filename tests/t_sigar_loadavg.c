@@ -46,37 +46,37 @@
 #include "sigar_tests.h"
 
 TEST(test_sigar_loadavg_get) {
-	sigar_loadavg_t loadavg;
-	int ret;
+        sigar_loadavg_t loadavg;
+        int ret;
 
-	if (SIGAR_OK == (ret = sigar_loadavg_get(t, &loadavg))) {
-		assert(loadavg.loadavg[0] >= 0);
-		assert(loadavg.loadavg[1] >= 0);
-		assert(loadavg.loadavg[2] >= 0);
-	} else {
-		switch (ret) {
-			/* track the expected error code */
-		default:
+        if (SIGAR_OK == (ret = sigar_loadavg_get(t, &loadavg))) {
+                assert(loadavg.loadavg[0] >= 0);
+                assert(loadavg.loadavg[1] >= 0);
+                assert(loadavg.loadavg[2] >= 0);
+        } else {
+                switch (ret) {
+                        /* track the expected error code */
+                default:
 #if !(defined(_WIN32))
-			/* win32 has no loadavg */
-			fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-			assert(ret == SIGAR_OK); 
+                        /* win32 has no loadavg */
+                        fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
+                        assert(ret == SIGAR_OK);
 #endif
-			break;
-		}
-	}
+                        break;
+                }
+        }
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
+        sigar_t *t;
 
-	assert(SIGAR_OK == sigar_open(&t));
+        assert(SIGAR_OK == sigar_open(&t));
 
-	test_sigar_loadavg_get(t);
+        test_sigar_loadavg_get(t);
 
-	sigar_close(t);
+        sigar_close(t);
 
-	return 0;
+        return 0;
 }

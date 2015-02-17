@@ -171,7 +171,7 @@ int sigar_os_open(sigar_t **sigar)
     if (status != SIGAR_OK) {
         return status;
     }
-    
+
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
 
     (*sigar)->ram = -1;
@@ -289,7 +289,7 @@ static int get_ram(sigar_t *sigar, sigar_mem_t *mem)
     if (total == 0) {
         return ENOENT;
     }
- 
+
     mem->ram = sigar->ram = total;
 
     return SIGAR_OK;
@@ -654,7 +654,7 @@ static int proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
 
     time_t timenow = time(NULL);
 
-    /* 
+    /*
      * short-lived cache read/parse of last /proc/pid/stat
      * as this info is spread out across a few functions.
      */
@@ -757,7 +757,7 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     procmem->major_faults = pstat->major_faults;
     procmem->page_faults =
         procmem->minor_faults + procmem->major_faults;
-    
+
     status = SIGAR_PROC_FILE2STR(buffer, pid, "/statm");
 
     if (status != SIGAR_OK) {
@@ -1035,7 +1035,7 @@ int sigar_proc_modules_get(sigar_t *sigar, sigar_pid_t pid,
             break;
         }
     }
-    
+
     fclose(fp);
 
     return SIGAR_OK;
@@ -1349,11 +1349,11 @@ static int get_iostat_procp(sigar_t *sigar,
             ptr = sigar_skip_token(ptr); /* blocks */
             ptr = sigar_skip_token(ptr); /* name */
             disk->reads = sigar_strtoull(ptr); /* rio */
-            ptr = sigar_skip_token(ptr);  /* rmerge */ 
+            ptr = sigar_skip_token(ptr);  /* rmerge */
             disk->read_bytes  = sigar_strtoull(ptr); /* rsect */
             disk->rtime = sigar_strtoull(ptr); /* ruse */
             disk->writes = sigar_strtoull(ptr); /* wio */
-            ptr = sigar_skip_token(ptr);  /* wmerge */ 
+            ptr = sigar_skip_token(ptr);  /* wmerge */
             disk->write_bytes = sigar_strtoull(ptr); /* wsect */
             disk->wtime = sigar_strtoull(ptr); /* wuse */
             ptr = sigar_skip_token(ptr); /* running */
@@ -1523,7 +1523,7 @@ static int get_cpu_info(sigar_t *sigar, sigar_cpu_info_t *info,
 
     while ((ptr = fgets(buffer, sizeof(buffer), fp))) {
         switch (*ptr) {
-          case 'p': /* processor	: 0 */
+          case 'p': /* processor        : 0 */
             if (strnEQ(ptr, "processor", 9)) {
                 found = 1;
             }
@@ -1730,7 +1730,7 @@ int sigar_net_route_list_get(sigar_t *sigar,
         }
 
         route->flags = flags;
-        
+
         sigar_net_address_set(route->destination, hex2int(net_addr, HEX_ENT_LEN));
         sigar_net_address_set(route->gateway, hex2int(gate_addr, HEX_ENT_LEN));
         sigar_net_address_set(route->mask, hex2int(mask_addr, HEX_ENT_LEN));
@@ -2053,7 +2053,7 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
         status = proc_net_read(walker,
                                PROC_FS_ROOT "net/raw",
                                SIGAR_NETCONN_RAW);
-        
+
         if (status != SIGAR_OK) {
             return status;
         }
@@ -2187,7 +2187,7 @@ sigar_tcp_get(sigar_t *sigar,
     fclose(fp);
 
     if (status == SIGAR_OK) {
-        /* assuming field order, same in 2.2, 2.4 and 2.6 kernels */ 
+        /* assuming field order, same in 2.2, 2.4 and 2.6 kernels */
         /* Tcp: RtoAlgorithm RtoMin RtoMax MaxConn */
         ptr = sigar_skip_multiple_token(ptr, 5);
         tcp->active_opens = sigar_strtoull(ptr);
@@ -2211,7 +2211,7 @@ static int sigar_proc_nfs_gets(char *file, char *tok,
     int status = ENOENT;
     int len = strlen(tok);
     FILE *fp = fopen(file, "r");
-    
+
     if (!fp) {
         return SIGAR_ENOTIMPL;
     }
@@ -2515,7 +2515,7 @@ int sigar_proc_port_get(sigar_t *sigar, int protocol,
         memcpy(&pid_name[len], ent->d_name, slen);
         len += slen;
         pid_name[len] = '\0';
-        
+
         if (stat(pid_name, &sb) < 0) {
             continue;
         }
@@ -2560,7 +2560,7 @@ int sigar_proc_port_get(sigar_t *sigar, int protocol,
                 *pid = strtoul(ent->d_name, NULL, 10);
                 return SIGAR_OK;
             }
-            
+
         }
 
         closedir(fd_dirp);
@@ -2575,7 +2575,7 @@ static void generic_vendor_parse(char *line, sigar_sys_info_t *info)
 {
     char *ptr;
     int len = 0;
-        
+
     while (*line) {
         SIGAR_SKIP_SPACE(line);
         if (!isdigit(*line)) {
@@ -2634,7 +2634,7 @@ static void redhat_vendor_parse(char *line, sigar_sys_info_t *info)
     }
 }
 
-#define is_quote(c) ((c == '\'') || (c == '"')) 
+#define is_quote(c) ((c == '\'') || (c == '"'))
 
 static void kv_parse(char *data, sigar_sys_info_t *info,
                      void (*func)(sigar_sys_info_t *, char *, char *))

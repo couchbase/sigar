@@ -47,30 +47,30 @@
 
 
 TEST(test_sigar_mem_get) {
-	sigar_mem_t mem;
-	int status;
+        sigar_mem_t mem;
+        int status;
 
-	assert(SIGAR_OK == (status = sigar_mem_get(t, &mem)));
+        assert(SIGAR_OK == (status = sigar_mem_get(t, &mem)));
 
-	assert(mem.ram > 0);
-	assert(mem.total > 0);
-	assert(mem.used > 0);
-	assert(mem.free > 0);
-	assert(mem.actual_free > 0);
-	assert(mem.actual_used > 0);
+        assert(mem.ram > 0);
+        assert(mem.total > 0);
+        assert(mem.used > 0);
+        assert(mem.free > 0);
+        assert(mem.actual_free > 0);
+        assert(mem.actual_used > 0);
 
-	return 0;
+        return 0;
 }
 
 int main() {
-	sigar_t *t;
-	int err = 0;
-	
-	assert(SIGAR_OK == sigar_open(&t));
+        sigar_t *t;
+        int err = 0;
 
-	test_sigar_mem_get(t);
+        assert(SIGAR_OK == sigar_open(&t));
 
-	sigar_close(t);
+        test_sigar_mem_get(t);
 
-	return err ? -1 : 0;
+        sigar_close(t);
+
+        return err ? -1 : 0;
 }

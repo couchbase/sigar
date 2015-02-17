@@ -34,7 +34,7 @@ SIGAR_DECLARE(int) sigar_cpu_perc_calculate(sigar_cpu_t *prev,
                                             sigar_cpu_t *curr,
                                             sigar_cpu_perc_t *perc);
 
-SIGAR_DECLARE(int) sigar_uptime_string(sigar_t *sigar, 
+SIGAR_DECLARE(int) sigar_uptime_string(sigar_t *sigar,
                                        sigar_uptime_t *uptime,
                                        char *buffer,
                                        int buflen);
@@ -62,4 +62,3 @@ SIGAR_DECLARE(char *)sigar_net_services_name_get(sigar_t *sigar,
                                                  int protocol, unsigned long port);
 
 #endif
-

@@ -50,6 +50,7 @@ struct proc_stats {
     uint32_t cpu_utilization;
 
     uint64_t pid;
+    uint64_t ppid;
 
     uint64_t mem_size;
     uint64_t mem_resident;
@@ -226,6 +227,7 @@ static int populate_interesting_procs(sigar_t *sigar,
         child = &reply->interesting_procs[i];
 
         child->pid = procs[i].pid;
+        child->ppid = procs[i].ppid;
         strncpy(child->name, procs[i].name, PROC_NAME_LEN);
         child->cpu_utilization = DEFAULT((uint32_t) (100 * proc_cpu.percent), 0);
         child->mem_size = DEFAULT(proc_mem.size, 0);

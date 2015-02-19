@@ -36,7 +36,7 @@
 
 #define NUM_INTERESTING_PROCS 40
 #define PROCS_REFRESH_INTERVAL 20
-#define PROC_NAME_LEN 12
+#define PROC_NAME_LEN 60
 
 struct proc {
     sigar_pid_t pid;
@@ -283,7 +283,7 @@ int main(void)
             break;
         }
         memset(&reply, 0, sizeof(reply));
-        reply.version = 2;
+        reply.version = 3;
         reply.struct_size = sizeof(reply);
 
         sigar_mem_get(sigar, &mem);

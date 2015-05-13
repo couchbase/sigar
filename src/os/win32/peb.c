@@ -91,42 +91,6 @@ static int sigar_rtl_get(sigar_t *sigar, HANDLE proc,
 #define rtl_bufsize(buf, uc) \
     ((sizeof(buf) < uc.Length) ? sizeof(buf) : uc.Length)
 
-int sigar_proc_exe_peb_get(sigar_t *sigar, HANDLE proc,
-                           sigar_proc_exe_t *procexe)
-{
-    int status;
-    WCHAR buf[MAX_PATH+1];
-    RTL_USER_PROCESS_PARAMETERS rtl;
-    DWORD size;
-
-    procexe->name[0] = '\0';
-    procexe->cwd[0] = '\0';
-
-    if ((status = sigar_rtl_get(sigar, proc, &rtl)) != SIGAR_OK) {
-        return status;
-    }
-
-    size = rtl_bufsize(buf, rtl.ImagePathName);
-    memset(buf, '\0', sizeof(buf));
-
-    if ((size > 0) &&
-        ReadProcessMemory(proc, rtl.ImagePathName.Buffer, buf, size, NULL))
-    {
-        SIGAR_W2A(buf, procexe->name, sizeof(procexe->name));
-    }
-
-    size = rtl_bufsize(buf, rtl.CurrentDirectoryName);
-    memset(buf, '\0', sizeof(buf));
-
-    if ((size > 0) &&
-        ReadProcessMemory(proc, rtl.CurrentDirectoryName.Buffer, buf, size, NULL))
-    {
-        SIGAR_W2A(buf, procexe->cwd, sizeof(procexe->cwd));
-    }
-
-    return SIGAR_OK;
-}
-
 int sigar_parse_proc_args(sigar_t *sigar, WCHAR *buf,
                           sigar_proc_args_t *procargs)
 {

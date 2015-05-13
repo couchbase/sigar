@@ -178,8 +178,6 @@ void sigar_strerror_printf(sigar_t *sigar, const char *format, ...);
 
 int sigar_sys_info_get_uname(sigar_sys_info_t *sysinfo);
 
-int sigar_os_sys_info_get(sigar_t *sigar, sigar_sys_info_t *sysinfo);
-
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);
 
@@ -201,9 +199,6 @@ int sigar_proc_args_grow(sigar_proc_args_t *procargs);
         sigar_proc_args_grow(procargs); \
     }
 
-int sigar_os_proc_args_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_args_t *procargs);
-
 int sigar_file_system_list_create(sigar_file_system_list_t *fslist);
 
 int sigar_file_system_list_grow(sigar_file_system_list_t *fslist);
@@ -221,33 +216,6 @@ int sigar_os_fs_type_get(sigar_file_system_t *fsp);
    sigar_fs_type_get(fsp)
 
 void sigar_fs_type_get(sigar_file_system_t *fsp);
-
-int sigar_cpu_info_list_create(sigar_cpu_info_list_t *cpu_infos);
-
-int sigar_cpu_info_list_grow(sigar_cpu_info_list_t *cpu_infos);
-
-#define SIGAR_CPU_INFO_LIST_GROW(cpu_infos) \
-    if (cpu_infos->number >= cpu_infos->size) { \
-        sigar_cpu_info_list_grow(cpu_infos); \
-    }
-
-int sigar_cpu_list_create(sigar_cpu_list_t *cpulist);
-
-int sigar_cpu_list_grow(sigar_cpu_list_t *cpulist);
-
-#define SIGAR_CPU_LIST_GROW(cpulist) \
-    if (cpulist->number >= cpulist->size) { \
-        sigar_cpu_list_grow(cpulist); \
-    }
-
-int sigar_net_route_list_create(sigar_net_route_list_t *routelist);
-
-int sigar_net_route_list_grow(sigar_net_route_list_t *net_routelist);
-
-#define SIGAR_NET_ROUTE_LIST_GROW(routelist) \
-    if (routelist->number >= routelist->size) { \
-        sigar_net_route_list_grow(routelist); \
-    }
 
 int sigar_net_interface_list_create(sigar_net_interface_list_t *iflist);
 
@@ -310,24 +278,6 @@ int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
         ifconfig->scope6 = SIGAR_IPV6_ADDR_ANY
 
 int sigar_tcp_curr_estab(sigar_t *sigar, sigar_tcp_t *tcp);
-
-int sigar_arp_list_create(sigar_arp_list_t *arplist);
-
-int sigar_arp_list_grow(sigar_arp_list_t *arplist);
-
-#define SIGAR_ARP_LIST_GROW(arplist) \
-    if (arplist->number >= arplist->size) { \
-        sigar_arp_list_grow(arplist); \
-    }
-
-int sigar_who_list_create(sigar_who_list_t *wholist);
-
-int sigar_who_list_grow(sigar_who_list_t *wholist);
-
-#define SIGAR_WHO_LIST_GROW(wholist) \
-    if (wholist->number >= wholist->size) { \
-        sigar_who_list_grow(wholist); \
-    }
 
 int sigar_user_id_get(sigar_t *sigar, const char *name, int *uid);
 

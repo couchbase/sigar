@@ -67,8 +67,6 @@ SET(SIGAR_SRC ${SIGAR_SRC}
   sigar_cache.c
   sigar_fileinfo.c
   sigar_format.c
-  sigar_ptql.c
-  sigar_signal.c
   sigar_util.c
 )
 

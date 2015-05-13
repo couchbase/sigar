@@ -18,7 +18,7 @@
 
 /* pull in time.h before resource.h does w/ _KERNEL */
 #include <sys/time.h>
-#define _KERNEL 1 
+#define _KERNEL 1
 #include <sys/file.h>     /* for struct file */
 #include <sys/resource.h> /* for rlimit32 in 64-bit mode */
 #undef  _KERNEL
@@ -124,7 +124,7 @@ static int get_koffsets(sigar_t *sigar)
     for (i=0; i<KOFFSET_MAX; i++) {
         sigar->koffsets[i] = klist[i].n_value;
     }
-    
+
     return SIGAR_OK;
 }
 
@@ -261,12 +261,12 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
     }
     else {
         return errno;
-    }            
+    }
 
     mem->used = mem->total - mem->free;
     mem->actual_used = mem->used - kern;
     mem->actual_free = mem->free + kern;
-    
+
     sigar_mem_calc_ram(sigar, mem);
 
     return SIGAR_OK;
@@ -358,7 +358,7 @@ static int swaps_get(swaps_t *swaps)
     return 0;
 }
 
-/* 
+/*
  * documented in aix tech ref,
  * but this prototype is not in any friggin header file.
  * struct pginfo is in sys/vminfo.h
@@ -518,50 +518,6 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
  * };
  */
 
-int sigar_cpu_list_get(sigar_t *sigar, sigar_cpu_list_t *cpulist)
-{
-    perfstat_cpu_t data;
-    int i, ncpu = _system_configuration.ncpus; /* this can change */
-    perfstat_id_t id;
-
-    id.name[0] = '\0';
-
-    sigar_cpu_list_create(cpulist);
-
-    for (i=0; i<ncpu; i++) {
-        sigar_cpu_t *cpu;
-
-        SIGAR_CPU_LIST_GROW(cpulist);
-
-        cpu = &cpulist->data[cpulist->number++];
-
-        if (SIGAR_LOG_IS_DEBUG(sigar)) {
-            sigar_log_printf(sigar, SIGAR_LOG_DEBUG,
-                             "cpu%d perfstat_id='%s'",
-                             i, id.name);
-        }
-
-        if (perfstat_cpu(&id, &data, sizeof(data), 1) == 1) {
-            cpu->user  = SIGAR_TICK2MSEC(data.user);
-            cpu->nice  = SIGAR_FIELD_NOTIMPL; /* N/A */
-            cpu->sys   = SIGAR_TICK2MSEC(data.sys);
-            cpu->idle  = SIGAR_TICK2MSEC(data.idle);
-            cpu->wait  = SIGAR_TICK2MSEC(data.wait);
-            cpu->irq = 0; /*N/A*/
-            cpu->soft_irq = 0; /*N/A*/
-            cpu->stolen = 0; /*N/A*/
-            cpu->total = cpu->user + cpu->sys + cpu->idle + cpu->wait;
-        }
-        else {
-            sigar_log_printf(sigar, SIGAR_LOG_ERROR,
-                             "cpu%d perfstat_cpu(%s) failed: %s",
-                             i, id.name, sigar_strerror(sigar, errno));
-            SIGAR_ZERO(cpu);
-        }
-    }
-
-    return SIGAR_OK;
-}
 
 static int boot_time(sigar_t *sigar, time_t *time)
 {
@@ -583,25 +539,6 @@ static int boot_time(sigar_t *sigar, time_t *time)
     *time = data.ut_time;
 
     close(fd);
-
-    return SIGAR_OK;
-}
-
-int sigar_uptime_get(sigar_t *sigar,
-                     sigar_uptime_t *uptime)
-{
-    if (sigar->boot_time == 0) {
-        int status;
-        time_t time;
-
-        if ((status = boot_time(sigar, &time)) != SIGAR_OK) {
-            return status;
-        }
-
-        sigar->boot_time = time;
-    }
-
-    uptime->uptime = time(NULL) - sigar->boot_time;
 
     return SIGAR_OK;
 }
@@ -645,40 +582,6 @@ static int sigar_who_utmp(sigar_t *sigar,
     fclose(fp);
 
     return SIGAR_OK;
-}
-
-int sigar_who_list_get(sigar_t *sigar,
-                       sigar_who_list_t *wholist)
-{
-    int status;
-
-    sigar_who_list_create(wholist);
-
-    status = sigar_who_utmp(sigar, wholist);
-    if (status != SIGAR_OK) {
-        sigar_who_list_destroy(sigar, wholist);
-        return status;
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_loadavg_get(sigar_t *sigar,
-                      sigar_loadavg_t *loadavg)
-{
-    int status, i;
-    int data[3];
-    perfstat_cpu_total_t cpu_data;
-
-    if (sigar_perfstat_cpu(&cpu_data) == 1) {
-        for (i=0; i<3; i++) {
-            loadavg->loadavg[i] = FIXED_TO_DOUBLE(cpu_data.loadavg[i]);
-        }
-        return SIGAR_OK;
-    }
-    else {
-        return errno;
-    }
 }
 
 int sigar_os_proc_list_get(sigar_t *sigar,
@@ -754,31 +657,6 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-int sigar_proc_cred_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_cred_t *proccred)
-{
-    int status = sigar_getprocs(sigar, pid);
-    struct procsinfo64 *pinfo = sigar->pinfo;
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    proccred->uid  = pinfo->pi_cred.cr_ruid;
-    proccred->euid = pinfo->pi_cred.cr_uid;
-    if (proccred->uid == -1) {
-        /* 
-         * aix 5.2 has a process named 'jfsz'
-         * where uid is '-1', getpwuid returns EPERM
-         */
-        proccred->uid = proccred->euid = 0;
-    }
-    proccred->gid  = pinfo->pi_cred.cr_rgid;
-    proccred->egid = pinfo->pi_cred.cr_gid;
-
-    return SIGAR_OK;
-}
-
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime)
 {
@@ -816,7 +694,7 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     else {
         procstate->processor = SIGAR_FIELD_NOTIMPL;
     }
-    
+
     SIGAR_SSTRCPY(procstate->name, pinfo->pi_comm);
     procstate->ppid = pinfo->pi_ppid;
     procstate->nice = pinfo->pi_nice;
@@ -845,150 +723,6 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-int sigar_os_proc_args_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_args_t *procargs)
-{
-    /* XXX if buffer is not large enough args are truncated */
-    char buffer[8192], *ptr;
-    struct procsinfo pinfo;
-
-    pinfo.pi_pid = pid;
-
-    if (getargs(&pinfo, sizeof(pinfo),
-                buffer, sizeof(buffer)) != 0)
-    {
-        return errno;
-    }
-
-    ptr = buffer;
-
-    while (*ptr) {
-        int alen = strlen(ptr)+1;
-        char *arg = malloc(alen);
-
-        SIGAR_PROC_ARGS_GROW(procargs);
-        memcpy(arg, ptr, alen);
-
-        procargs->data[procargs->number++] = arg;
-            
-        ptr += alen;
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_proc_env_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_env_t *procenv)
-{
-    /* XXX if buffer is not large enough args are truncated */
-    char buffer[8192], *ptr;
-    struct procsinfo pinfo;
-
-    pinfo.pi_pid = pid;
-
-    if (getevars(&pinfo, sizeof(pinfo),
-                 buffer, sizeof(buffer)) != 0)
-    {
-        return errno;
-    }
-
-    ptr = buffer;
-
-    while (*ptr) {
-        char *val = strchr(ptr, '=');
-        int klen, vlen, status;
-        char key[128]; /* XXX is there a max key size? */
-
-        if (val == NULL) {
-            /* not key=val format */
-            procenv->env_getter(procenv->data, ptr, strlen(ptr), NULL, 0);
-            break;
-        }
-
-        klen = val - ptr;
-        SIGAR_SSTRCPY(key, ptr);
-        key[klen] = '\0';
-        ++val;
-
-        vlen = strlen(val);
-        status = procenv->env_getter(procenv->data,
-                                     key, klen, val, vlen);
-
-        if (status != SIGAR_OK) {
-            /* not an error; just stop iterating */
-            break;
-        }
-
-        ptr += (klen + 1 + vlen + 1);
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_proc_fd_get(sigar_t *sigar, sigar_pid_t pid,
-                      sigar_proc_fd_t *procfd)
-{
-#ifdef SIGAR_64BIT
-    /* XXX no getuser() in 64-bit mode */
-    return SIGAR_ENOTIMPL;
-#else
-    int i;
-    struct procsinfo pinfo;
-    struct user uinfo;
-
-    procfd->total = 0;
-    pinfo.pi_pid = pid;
-
-    if (getuser(&pinfo, sizeof(pinfo),
-                &uinfo, sizeof(uinfo)) != 0) {
-        if (errno == EINVAL) {
-            return SIGAR_ENOTIMPL; /*XXX 5.2+*/
-        }
-    }
-
-    /* see sys/user.h */
-    for (i=0; i<uinfo.U_maxofile; i++) {
-        if (uinfo.U_ofile(i)) {
-            procfd->total++;
-        }
-    }
-
-    return SIGAR_OK;
-#endif
-}
-
-int sigar_proc_exe_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_exe_t *procexe)
-{
-    int len;
-    char buffer[8192];
-    struct procsinfo pinfo;
-
-    pinfo.pi_pid = pid;
-
-    if (getargs(&pinfo, sizeof(pinfo),
-                buffer, sizeof(buffer)) != 0)
-    {
-        return errno;
-    }
-    /* XXX argv[0] might be relative */
-    len = strlen(buffer);
-    SIGAR_SSTRCPY(procexe->name, buffer);
-
-    (void)SIGAR_PROC_FILENAME(buffer, pid, "/cwd");
-
-    if ((len = readlink(buffer, procexe->cwd,
-                        sizeof(procexe->cwd)-1)) < 0)
-    {
-        return errno;
-    }
-    procexe->cwd[len] = '\0';
-
-    procexe->root[0] = '\0';
-
-    return SIGAR_OK;
-}
-
 static int sigar_proc_modules_local_get(sigar_t *sigar,
                                         sigar_proc_modules_t *procmods)
 {
@@ -1010,7 +744,7 @@ static int sigar_proc_modules_local_get(sigar_t *sigar,
     do {
         char *name = info->ldinfo_filename;
 
-        status = 
+        status =
             procmods->module_getter(procmods->data, name, strlen(name));
 
         if (status != SIGAR_OK) {
@@ -1018,7 +752,7 @@ static int sigar_proc_modules_local_get(sigar_t *sigar,
             free(buffer);
             return status;
         }
-        
+
         offset = info->ldinfo_next;
         info = (struct ld_info *)((char*)info + offset);
     } while(offset);
@@ -1028,16 +762,6 @@ static int sigar_proc_modules_local_get(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-int sigar_proc_modules_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_modules_t *procmods)
-{
-    if (pid == sigar_pid_get(sigar)) {
-        return sigar_proc_modules_local_get(sigar, procmods);
-    }
-    else {
-        return SIGAR_ENOTIMPL;
-    }
-}
 
 #define SIGAR_MICROSEC2NANO(s) \
     ((sigar_uint64_t)(s) * (sigar_uint64_t)1000)
@@ -1045,36 +769,6 @@ int sigar_proc_modules_get(sigar_t *sigar, sigar_pid_t pid,
 #define TIME_NSEC(t) \
     (SIGAR_SEC2NANO((t).tv_sec) + SIGAR_MICROSEC2NANO((t).tv_usec))
 
-int sigar_thread_cpu_get(sigar_t *sigar,
-                         sigar_uint64_t id,
-                         sigar_thread_cpu_t *cpu)
-{
-    struct rusage usage;
-    int retval;
-
-    if (sigar->thrusage != PTHRDSINFO_RUSAGE_START) {
-        sigar->thrusage = PTHRDSINFO_RUSAGE_START;
-        retval =
-            sigar_thread_rusage(&usage,
-                                PTHRDSINFO_RUSAGE_START);
-        if (retval != 0) {
-            return retval;
-        }
-    }
-
-    retval = 
-        sigar_thread_rusage(&usage,
-                            PTHRDSINFO_RUSAGE_COLLECT);
-    if (retval != 0) {
-        return retval;
-    }
-
-    cpu->user  = TIME_NSEC(usage.ru_utime);
-    cpu->sys   = TIME_NSEC(usage.ru_stime);
-    cpu->total = TIME_NSEC(usage.ru_utime) + TIME_NSEC(usage.ru_stime);
-
-    return SIGAR_OK;
-}
 
 int sigar_os_fs_type_get(sigar_file_system_t *fsp)
 {
@@ -1152,7 +846,7 @@ int sigar_file_system_list_get(sigar_t *sigar,
 
         SIGAR_SSTRCPY(fsp->dir_name, vmt2dataptr(ent, VMT_STUB));
         SIGAR_SSTRCPY(fsp->options, vmt2dataptr(ent, VMT_ARGS));
-        
+
         devname = vmt2dataptr(ent, VMT_OBJECT);
 
         if (fsp->type == SIGAR_FSTYPE_NETWORK) {
@@ -1275,67 +969,6 @@ static int create_diskmap(sigar_t *sigar)
     return SIGAR_OK;
 }
 
-int sigar_disk_usage_get(sigar_t *sigar, const char *name,
-                         sigar_disk_usage_t *usage)
-{
-    perfstat_disk_t disk;
-    perfstat_id_t id;
-
-    SIGAR_SSTRCPY(id.name, name);
-
-    if (perfstat_disk(&id, &disk, sizeof(disk), 1) != 1) {
-        return ENXIO;
-    }
-
-    usage->reads = disk.rblks;
-    usage->writes = disk.wblks;
-    usage->read_bytes  = disk.rblks * disk.bsize;
-    usage->write_bytes = disk.wblks * disk.bsize;
-    usage->queue       = disk.qdepth;
-    usage->time        = disk.time;
-    usage->rtime       = SIGAR_FIELD_NOTIMPL;
-    usage->wtime       = SIGAR_FIELD_NOTIMPL;
-
-    return SIGAR_OK;
-}
-
-int sigar_file_system_usage_get(sigar_t *sigar,
-                                const char *dirname,
-                                sigar_file_system_usage_t *fsusage)
-{
-    sigar_cache_entry_t *ent;
-    struct stat sb;
-    int status;
-    
-    status = sigar_statvfs(sigar, dirname, fsusage);
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    fsusage->use_percent = sigar_file_system_usage_calc_used(sigar, fsusage);
-
-    SIGAR_DISK_STATS_INIT(&fsusage->disk);
-
-    if (!sigar->diskmap) {
-        status = create_diskmap(sigar);
-        if (status != SIGAR_OK) {
-            return SIGAR_OK;
-        }
-    }
-
-    status = stat(dirname, &sb);
-    if (status == 0) {
-        sigar_cache_entry_t *ent =
-            sigar_cache_get(sigar->diskmap, SIGAR_FSDEV_ID(sb));
-        if (!ent->value) {
-            return SIGAR_OK;
-        }
-        sigar_disk_usage_get(sigar, ((aix_diskio_t *)ent->value)->name, &fsusage->disk);
-    }
-
-    return SIGAR_OK;
-}
 
 /* from sys/systemcfg.h, not defined in 4.3 headers */
 #ifndef POWER_4
@@ -1460,47 +1093,6 @@ static char *get_cpu_model(void)
     }
 }
 
-int sigar_cpu_info_list_get(sigar_t *sigar,
-                            sigar_cpu_info_list_t *cpu_infos)
-{
-    int i;
-    int ncpu = _system_configuration.ncpus; /* this can change */
-    char *arch = get_cpu_arch(), *model = get_cpu_model();
-
-    /*XXX should only do this once*/
-    sigar_cpu_info_list_create(cpu_infos);
-
-    for (i=0; i<ncpu; i++) {
-        sigar_cpu_info_t *info;
-
-        SIGAR_CPU_INFO_LIST_GROW(cpu_infos);
-
-        info = &cpu_infos->data[cpu_infos->number++];        
-
-        info->total_cores = ncpu;
-        info->cores_per_socket = 1; /*XXX*/
-        info->total_sockets = ncpu; /*XXX*/
-
-        info->cache_size = SIGAR_CPU_CACHE_SIZE;
-
-        info->mhz = sigar_get_cpu_mhz(sigar);
-
-        if (*arch == 'P') {
-            SIGAR_SSTRCPY(info->vendor, "IBM");
-        }
-        else if (*arch == 'I') {
-            SIGAR_SSTRCPY(info->vendor, "Intel");
-        }
-        else {
-            SIGAR_SSTRCPY(info->vendor, "Unknown");
-        }
-
-        snprintf(info->model, sizeof(info->model),
-                 "%s %s", arch, model);
-    }
-
-    return SIGAR_OK;
-}
 /* XXX net_route_list copy-n-pasted from darwin_sigar.c; only diff is getkerninfo instead of sysctl */
 #define rt_s_addr(sa) ((struct sockaddr_in *)(sa))->sin_addr.s_addr
 
@@ -1511,121 +1103,6 @@ int sigar_cpu_info_list_get(sigar_t *sigar,
         1 + ( (((struct sockaddr *)(sa))->sa_len - 1) | (sizeof(long) - 1) ) )
 #endif
 
-int sigar_net_route_list_get(sigar_t *sigar,
-                             sigar_net_route_list_t *routelist)
-{
-    int needed;
-    int bit;
-    char *buf, *next, *lim;
-    struct rt_msghdr *rtm;
-
-    needed = getkerninfo(KINFO_RT_DUMP, NULL, NULL, 0);
-    if (needed <= 0) {
-        return errno;
-    }
-
-    buf = malloc(needed);
-
-    if (getkerninfo(KINFO_RT_DUMP, buf, &needed, 0) < 0) {
-        return errno;
-    }
-
-    sigar_net_route_list_create(routelist);
-
-    lim = buf + needed;
-
-    for (next = buf; next < lim; next += rtm->rtm_msglen) {
-        struct sockaddr *sa;
-        sigar_net_route_t *route;
-        rtm = (struct rt_msghdr *)next;
-
-        if (rtm->rtm_type != RTM_GET) {
-            continue;
-        }
-
-        sa = (struct sockaddr *)(rtm + 1);
-
-        if (sa->sa_family != AF_INET) {
-            continue;
-        }
-
-        SIGAR_NET_ROUTE_LIST_GROW(routelist);
-        route = &routelist->data[routelist->number++];
-        SIGAR_ZERO(route);
-
-        route->flags = rtm->rtm_flags;
-        if_indextoname(rtm->rtm_index, route->ifname);
-
-        for (bit=RTA_DST;
-             bit && ((char *)sa < lim);
-             bit <<= 1)
-        {
-            if ((rtm->rtm_addrs & bit) == 0) {
-                continue;
-            }
-            switch (bit) {
-              case RTA_DST:
-                sigar_net_address_set(route->destination,
-                                      rt_s_addr(sa));
-                break;
-              case RTA_GATEWAY:
-                if (sa->sa_family == AF_INET) {
-                    sigar_net_address_set(route->gateway,
-                                          rt_s_addr(sa));
-                }
-                break;
-              case RTA_NETMASK:
-                sigar_net_address_set(route->mask,
-                                      rt_s_addr(sa));
-                break;
-              case RTA_IFA:
-                break;
-            }
-
-            sa = (struct sockaddr *)((char *)sa + SA_SIZE(sa));
-        }
-    }
-
-    free(buf);
-
-    return SIGAR_OK;
-}
-
-int sigar_net_interface_stat_get(sigar_t *sigar,
-                                 const char *name,
-                                 sigar_net_interface_stat_t *ifstat)
-{
-    perfstat_id_t id;
-    perfstat_netinterface_t data;
-
-    sigar_log(sigar, SIGAR_LOG_DEBUG, "[ifstat] using libperfstat");
-
-    SIGAR_SSTRCPY(id.name, name);
-
-    if (perfstat_netinterface(&id, &data, sizeof(data), 1) == 1) {
-        ifstat->rx_bytes      = data.ibytes;
-        ifstat->rx_packets    = data.ipackets;
-        ifstat->rx_errors     = data.ierrors;
-        ifstat->rx_dropped    = SIGAR_FIELD_NOTIMPL;
-        ifstat->rx_overruns   = SIGAR_FIELD_NOTIMPL;
-        ifstat->rx_frame      = SIGAR_FIELD_NOTIMPL;
-
-        ifstat->tx_bytes      = data.obytes;
-        ifstat->tx_packets    = data.opackets;
-        ifstat->tx_errors     = data.oerrors;
-        ifstat->tx_dropped    = SIGAR_FIELD_NOTIMPL;
-        ifstat->tx_overruns   = SIGAR_FIELD_NOTIMPL;
-        ifstat->tx_collisions = data.collisions;
-        ifstat->tx_carrier    = SIGAR_FIELD_NOTIMPL;
-
-        ifstat->speed         = data.bitrate;
-
-        return SIGAR_OK;
-    }
-    else {
-        return errno;
-    }
-}
 
 int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
                                         sigar_net_interface_config_t *ifconfig)
@@ -1785,367 +1262,5 @@ int sigar_net_connection_walk(sigar_net_connection_walker_t *walker)
         }
     }
 #endif
-    return SIGAR_OK;
-}
-
-SIGAR_DECLARE(int)
-sigar_tcp_get(sigar_t *sigar,
-              sigar_tcp_t *tcp)
-{
-    perfstat_id_t id;
-    perfstat_protocol_t proto;
-
-    SIGAR_SSTRCPY(id.name, "tcp");
-
-    if (perfstat_protocol(&id, &proto, sizeof(proto), 1) != 1) {
-        return ENOENT;
-    }    
-
-    tcp->active_opens = proto.u.tcp.initiated;
-    tcp->passive_opens = proto.u.tcp.accepted;
-    tcp->attempt_fails = proto.u.tcp.dropped;
-    tcp->estab_resets = proto.u.tcp.dropped;
-    tcp->curr_estab = proto.u.tcp.established;
-    tcp->in_segs = proto.u.tcp.ipackets;
-    tcp->out_segs = proto.u.tcp.opackets;
-    tcp->retrans_segs = 0;
-    tcp->in_errs = proto.u.tcp.ierrors;
-    tcp->out_rsts = 0;
-}
-
-#define NFS_V2_STAT_SET(type) \
-    nfs->null = proto.u.nfsv2.type.null; \
-    nfs->getattr = proto.u.nfsv2.type.getattr; \
-    nfs->setattr = proto.u.nfsv2.type.setattr; \
-    nfs->root = proto.u.nfsv2.type.root; \
-    nfs->lookup = proto.u.nfsv2.type.lookup; \
-    nfs->readlink = proto.u.nfsv2.type.readlink; \
-    nfs->read = proto.u.nfsv2.type.read; \
-    nfs->writecache = proto.u.nfsv2.type.writecache; \
-    nfs->write = proto.u.nfsv2.type.write; \
-    nfs->create = proto.u.nfsv2.type.create; \
-    nfs->remove = proto.u.nfsv2.type.remove; \
-    nfs->rename = proto.u.nfsv2.type.rename; \
-    nfs->link = proto.u.nfsv2.type.link; \
-    nfs->symlink = proto.u.nfsv2.type.symlink; \
-    nfs->mkdir = proto.u.nfsv2.type.mkdir; \
-    nfs->rmdir = proto.u.nfsv2.type.rmdir; \
-    nfs->readdir = proto.u.nfsv2.type.readdir; \
-    nfs->fsstat = proto.u.nfsv2.type.statfs
-
-int sigar_nfs_client_v2_get(sigar_t *sigar,
-                            sigar_nfs_client_v2_t *nfs)
-{
-    perfstat_id_t id;
-    perfstat_protocol_t proto;
-
-    SIGAR_SSTRCPY(id.name, "nfsv2");
-
-    if (perfstat_protocol(&id, &proto, sizeof(proto), 1) != 1) {
-        return ENOENT;
-    }    
-
-    NFS_V2_STAT_SET(client);
-
-    return SIGAR_OK;
-}
-
-int sigar_nfs_server_v2_get(sigar_t *sigar,
-                            sigar_nfs_server_v2_t *nfs)
-{
-    perfstat_id_t id;
-    perfstat_protocol_t proto;
-
-    SIGAR_SSTRCPY(id.name, "nfsv2");
-
-    if (perfstat_protocol(&id, &proto, sizeof(proto), 1) != 1) {
-        return ENOENT;
-    }    
-
-    NFS_V2_STAT_SET(server);
-
-    return SIGAR_OK;
-}
-
-#define NFS_V3_STAT_SET(type) \
-    nfs->null = proto.u.nfsv3.type.null; \
-    nfs->getattr = proto.u.nfsv3.type.getattr; \
-    nfs->setattr = proto.u.nfsv3.type.setattr; \
-    nfs->lookup = proto.u.nfsv3.type.lookup; \
-    nfs->access = proto.u.nfsv3.type.access; \
-    nfs->readlink = proto.u.nfsv3.type.readlink; \
-    nfs->read = proto.u.nfsv3.type.read; \
-    nfs->write = proto.u.nfsv3.type.write; \
-    nfs->create = proto.u.nfsv3.type.create; \
-    nfs->mkdir = proto.u.nfsv3.type.mkdir; \
-    nfs->symlink = proto.u.nfsv3.type.symlink; \
-    nfs->mknod = proto.u.nfsv3.type.mknod; \
-    nfs->remove = proto.u.nfsv3.type.remove; \
-    nfs->rmdir = proto.u.nfsv3.type.rmdir; \
-    nfs->rename = proto.u.nfsv3.type.rename; \
-    nfs->link = proto.u.nfsv3.type.link; \
-    nfs->readdir = proto.u.nfsv3.type.readdir; \
-    nfs->readdirplus = proto.u.nfsv3.type.readdirplus; \
-    nfs->fsstat = proto.u.nfsv3.type.fsstat; \
-    nfs->fsinfo = proto.u.nfsv3.type.fsinfo; \
-    nfs->pathconf = proto.u.nfsv3.type.pathconf; \
-    nfs->commit = proto.u.nfsv3.type.commit
-
-int sigar_nfs_client_v3_get(sigar_t *sigar,
-                            sigar_nfs_client_v3_t *nfs)
-{
-    perfstat_id_t id;
-    perfstat_protocol_t proto;
-
-    SIGAR_SSTRCPY(id.name, "nfsv3");
-
-    if (perfstat_protocol(&id, &proto, sizeof(proto), 1) != 1) {
-        return ENOENT;
-    }    
-
-    NFS_V3_STAT_SET(client);
-
-    return SIGAR_OK;
-}
-
-int sigar_nfs_server_v3_get(sigar_t *sigar,
-                            sigar_nfs_server_v3_t *nfs)
-{
-    perfstat_id_t id;
-    perfstat_protocol_t proto;
-
-    SIGAR_SSTRCPY(id.name, "nfsv3");
-
-    if (perfstat_protocol(&id, &proto, sizeof(proto), 1) != 1) {
-        return ENOENT;
-    }    
-
-    NFS_V3_STAT_SET(server);
-
-    return SIGAR_OK;
-}
-
-#include <net/if_arp.h>
-/*
- * cannot find any related aix docs on reading the ARP table,
- * this impl was gleaned from the above .h file and truss -f arp -an
- */
-int sigar_arp_list_get(sigar_t *sigar,
-                       sigar_arp_list_t *arplist)
-{
-    int status = SIGAR_OK;
-    long arptabsize;
-    int i, size, retval;
-    struct arptab *arptabp;
-
-    size = sizeof(arptabsize);
-    retval = getkerninfo(KINFO_READ, &arptabsize, &size,
-                         sigar->koffsets[KOFFSET_ARPTABSIZE]);
-    if (retval != sizeof(arptabsize)) {
-        return errno;
-    }
-
-    size = sizeof(arptabp);
-    retval = getkerninfo(KINFO_READ, &arptabp, &size,
-                         sigar->koffsets[KOFFSET_ARPTABP]);
-    if (retval != sizeof(arptabp)) {
-        return errno;
-    }
-
-    sigar_arp_list_create(arplist);
-    status = SIGAR_OK;
-
-    for (i=0; i<arptabsize; i++) {
-        struct arptab ent;
-        struct ifnet ifp;
-        sigar_arp_t *arp;
-
-        size = sizeof(ent);
-        retval = getkerninfo(KINFO_READ, &ent, &size, arptabp + i);
-        if (retval != sizeof(ent)) {
-            status = errno;
-            break;
-        }
-
-        if (ent.at_flags == 0) {
-            continue; /* empty bucket */
-        }
-
-        size = sizeof(ifp);
-        retval = getkerninfo(KINFO_READ, &ifp, &size, ent.at_ifp);
-        if (retval != sizeof(ifp)) {
-            status = errno;
-            break;
-        }
-
-        SIGAR_ARP_LIST_GROW(arplist);
-        arp = &arplist->data[arplist->number++];
-
-        sigar_net_address_set(arp->address,
-                              ent.at_iaddr.s_addr);
-
-        sigar_net_address_mac_set(arp->hwaddr,
-                                  ent.hwaddr,
-                                  sizeof(arp->hwaddr.addr.mac));
-
-        if_indextoname(ifp.if_index, arp->ifname);
-
-        arp->flags = ent.at_flags;
-        SIGAR_SSTRCPY(arp->type, "ether"); /* XXX ifp.if_type */
-    }
-
-    if (status != SIGAR_OK) {
-        sigar_arp_list_destroy(sigar, arplist);
-    }
-
-    return status;
-}
-
-/* derived from pidentd's k_aix432.c */
-int sigar_proc_port_get(sigar_t *sigar, int protocol,
-                        unsigned long port, sigar_pid_t *pidp)
-{
-    struct procsinfo pinfo;
-    struct fdsinfo finfo;
-    pid_t pid = 0;
-    int type;
-    
-    switch (protocol) {
-        case SIGAR_NETCONN_TCP:
-            type = IPPROTO_TCP;
-            break;
-        case SIGAR_NETCONN_UDP:
-            type = IPPROTO_UDP;
-            break;
-        default:
-          return SIGAR_ENOTIMPL;
-    }
-    
-    for (;;) {
-        int fd, status;
-        int num = getprocs(&pinfo, sizeof(pinfo),
-                           &finfo, sizeof(finfo),
-                           &pid, 1);
-
-        if (num == 0) {
-            break;
-        }
-
-        if ((pinfo.pi_state == 0) || (pinfo.pi_state == SZOMB)) {
-            continue;
-        }
-
-        for (fd = 0; fd < pinfo.pi_maxofile; fd++) {
-            struct file file;
-            struct socket socket, *sockp;
-            struct protosw protosw;
-            struct domain domain;
-            struct inpcb inpcb;
-            long ptr;
-            
-            if (!(ptr = (long)finfo.pi_ufd[fd].fp)) {
-                continue;
-            }
-            
-            status = kread(sigar, &file, sizeof(file), ptr);
-            if (status != SIGAR_OK) {
-                continue;
-            }
-
-            if (file.f_type != DTYPE_SOCKET) {
-                continue;
-            }
-            
-            if (!(sockp = (struct socket *)file.f_data)) {
-                continue;
-            }
-            
-            status = kread(sigar, &socket, sizeof(socket), (long)sockp);
-            if (status != SIGAR_OK) {
-                continue;
-            }
-
-            if (!(ptr = (long)socket.so_proto)) {
-                continue;
-            }
-            
-            status = kread(sigar, &protosw, sizeof(protosw), ptr);
-            if (status != SIGAR_OK) {
-                continue;
-            }
-
-            if (protosw.pr_protocol != type) {
-                continue;
-            }
-            
-            if (!(ptr = (long)protosw.pr_domain)) {
-                continue;
-            }
-            
-            status = kread(sigar, &domain, sizeof(domain), ptr);
-            if (status != SIGAR_OK) {
-                continue;
-            }
-
-            if ((domain.dom_family != AF_INET) &&
-                domain.dom_family != AF_INET6)
-            {
-                continue;
-            }
-            
-            if (!(ptr = (long)socket.so_pcb)) {
-                continue;
-            }
-            
-            status = kread(sigar, &inpcb, sizeof(inpcb), ptr);
-            if (status != SIGAR_OK) {
-                continue;
-            }
-
-            if (sockp != inpcb.inp_socket) {
-                continue;
-            }
-
-            if (inpcb.inp_lport != port) {
-                continue;
-            }
-            
-            *pidp = pinfo.pi_pid;
-
-            return SIGAR_OK;
-        }
-    }
-
-    return ENOENT;
-}
-
-int sigar_os_sys_info_get(sigar_t *sigar,
-                          sigar_sys_info_t *sysinfo)
-{
-    struct utsname name;
-
-    uname(&name);
-
-    SIGAR_SSTRCPY(sysinfo->vendor, "IBM");
-    SIGAR_SSTRCPY(sysinfo->arch, get_cpu_arch());
-    /* utsname.machine is a sequence number */
-    /* XXX odm might have something better */
-    snprintf(sysinfo->machine,
-             sizeof(sysinfo->machine),
-             "%s %s",
-             sysinfo->arch, get_cpu_model());
-
-    snprintf(sysinfo->version,
-             sizeof(sysinfo->version),
-             "%s.%s",
-             name.version, name.release);
-
-    SIGAR_SSTRCPY(sysinfo->vendor_version, sysinfo->version);
-
-    snprintf(sysinfo->description,
-             sizeof(sysinfo->description),
-             "%s %s",
-             sysinfo->name, sysinfo->version);
-
     return SIGAR_OK;
 }

@@ -52,9 +52,9 @@ int sigar_os_open(sigar_t **sigar)
     (*sigar)->pinfo = NULL;
 
     (*sigar)->mib = -1;
-    
+
     return SIGAR_OK;
-    
+
 }
 
 int sigar_os_close(sigar_t *sigar)
@@ -64,7 +64,7 @@ int sigar_os_close(sigar_t *sigar)
     }
     if (sigar->mib >= 0) {
         close_mib(sigar->mib);
-    } 
+    }
     free(sigar);
     return SIGAR_OK;
 }
@@ -144,7 +144,7 @@ static void get_cpu_metrics(sigar_t *sigar,
 
     cpu->wait = SIGAR_TICK2MSEC(cpu_time[CP_SWAIT] +
                                 cpu_time[CP_BLOCK]);
-    
+
     cpu->irq = SIGAR_TICK2MSEC(cpu_time[CP_INTR]);
     cpu->soft_irq = 0; /*N/A*/
     cpu->stolen = 0; /*N/A*/
@@ -162,56 +162,6 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 
     get_cpu_metrics(sigar, cpu, stats.psd_cpu_time);
 
-    return SIGAR_OK;
-}
-
-int sigar_cpu_list_get(sigar_t *sigar, sigar_cpu_list_t *cpulist)
-{
-    int i;
-    struct pst_dynamic stats;
-
-    pstat_getdynamic(&stats, sizeof(stats), 1, 0);
-    sigar->ncpu = stats.psd_proc_cnt;
-
-    sigar_cpu_list_create(cpulist);
-
-    for (i=0; i<sigar->ncpu; i++) {
-        sigar_cpu_t *cpu;
-        struct pst_processor proc;
-
-        if (pstat_getprocessor(&proc, sizeof(proc), 1, i) < 0) {
-            continue;
-        }
-
-        SIGAR_CPU_LIST_GROW(cpulist);
-
-        cpu = &cpulist->data[cpulist->number++];
-
-        get_cpu_metrics(sigar, cpu, proc.psp_cpu_time);
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_uptime_get(sigar_t *sigar,
-                     sigar_uptime_t *uptime)
-{
-    uptime->uptime = time(NULL) - sigar->pstatic.boot_time;
-
-    return SIGAR_OK;
-}
-
-int sigar_loadavg_get(sigar_t *sigar,
-                      sigar_loadavg_t *loadavg)
-{
-    struct pst_dynamic stats;
-
-    pstat_getdynamic(&stats, sizeof(stats), 1, 0);
-
-    loadavg->loadavg[0] = stats.psd_avg_1_min;
-    loadavg->loadavg[1] = stats.psd_avg_5_min;
-    loadavg->loadavg[2] = stats.psd_avg_15_min;
-    
     return SIGAR_OK;
 }
 
@@ -283,7 +233,7 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
         return status;
     }
 
-    procmem->size = 
+    procmem->size =
         pinfo->pst_vtsize + /* text */
         pinfo->pst_vdsize + /* data */
         pinfo->pst_vssize + /* stack */
@@ -293,7 +243,7 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
         pinfo->pst_viosize; /* I/O dev mapping */
 
     procmem->size *= pagesize;
-        
+
     procmem->resident = pinfo->pst_rssize * pagesize;
 
     procmem->share = pinfo->pst_vshmsize * pagesize;
@@ -303,24 +253,6 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     procmem->page_faults =
         procmem->minor_faults +
         procmem->major_faults;
-
-    return SIGAR_OK;
-}
-
-int sigar_proc_cred_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_cred_t *proccred)
-{
-    int status = sigar_pstat_getproc(sigar, pid);
-    struct pst_status *pinfo = sigar->pinfo;
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    proccred->uid  = pinfo->pst_uid;
-    proccred->gid  = pinfo->pst_gid;
-    proccred->euid = pinfo->pst_euid;
-    proccred->egid = pinfo->pst_egid;
 
     return SIGAR_OK;
 }
@@ -354,7 +286,7 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
         return status;
     }
 
-        
+
     SIGAR_SSTRCPY(procstate->name, pinfo->pst_ucomm);
     procstate->ppid = pinfo->pst_ppid;
     procstate->tty  = makedev(pinfo->pst_term.psd_major,
@@ -387,153 +319,9 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-int sigar_os_proc_args_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_args_t *procargs)
-{
-    char *args, *arg;
-#ifdef PSTAT_GETCOMMANDLINE
-    char buf[1024]; /* kernel limit */
-
-# ifdef pstat_getcommandline /* 11i v2 + */
-    if (pstat_getcommandline(buf, sizeof(buf), sizeof(buf[0]), pid) == -1) {
-        return errno;
-    }
-# else
-    union pstun pu;
-
-    pu.pst_command = buf;
-    if (pstat(PSTAT_GETCOMMANDLINE, pu, sizeof(buf), sizeof(buf[0]), pid) == -1) {
-        return errno;
-    }
-# endif /* pstat_getcommandline */
-
-    args = buf;
-#else
-    struct pst_status status;
-
-    if (pstat_getproc(&status, sizeof(status), 0, pid) == -1) {
-        return errno;
-    }
-
-    args = status.pst_cmd;
-#endif
-
-    while (*args && (arg = sigar_getword(&args, ' '))) {
-        SIGAR_PROC_ARGS_GROW(procargs);
-        procargs->data[procargs->number++] = arg;
-    }
-    
-    return SIGAR_OK;
-}
-
-int sigar_proc_env_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_env_t *procenv)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_proc_fd_get(sigar_t *sigar, sigar_pid_t pid,
-                      sigar_proc_fd_t *procfd)
-{
-    struct pst_status status;
-    int idx=0, n;
-    struct pst_fileinfo2 psf[16];
-
-    procfd->total = 0;
-
-    if (pstat_getproc(&status, sizeof(status), 0, pid) == -1) {
-        return errno;
-    }
-
-    /* HPUX 11.31 removed the deprecated pstat_getfile call */
-    while ((n = pstat_getfile2(psf, sizeof(psf[0]),
-                               sizeof(psf)/sizeof(psf[0]),
-                               idx, pid)) > 0)
-    {
-        procfd->total += n;
-        idx = psf[n-1].psf_fd + 1;
-    }
-
-    if (n == -1) {
-        return errno;
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_proc_exe_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_exe_t *procexe)
-{
-#ifdef __pst_fid /* 11.11+ */
-    int rc;
-    struct pst_status status;
-
-    if (pstat_getproc(&status, sizeof(status), 0, pid) == -1) {
-        return errno;
-    }
-
-    rc = pstat_getpathname(procexe->cwd,
-                           sizeof(procexe->cwd),
-                           &status.pst_fid_cdir);
-    if (rc == -1) {
-        return errno;
-    }
-
-    rc = pstat_getpathname(procexe->name,
-                           sizeof(procexe->name),
-                           &status.pst_fid_text);
-    if (rc == -1) {
-        return errno;
-    }
-
-    rc = pstat_getpathname(procexe->root,
-                           sizeof(procexe->root),
-                           &status.pst_fid_rdir);
-    if (rc == -1) {
-        return errno;
-    }
-
-    return SIGAR_OK;
-#else
-    return SIGAR_ENOTIMPL; /* 11.00 */
-#endif
-}
-
-int sigar_proc_modules_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_modules_t *procmods)
-{
-    return SIGAR_ENOTIMPL;
-}
 
 #define TIME_NSEC(t) \
     (SIGAR_SEC2NANO((t).tv_sec) + (sigar_uint64_t)(t).tv_nsec)
-
-int sigar_thread_cpu_get(sigar_t *sigar,
-                         sigar_uint64_t id,
-                         sigar_thread_cpu_t *cpu)
-{
-#ifdef __ia64__
-    /* XXX seems _lwp funcs were for solaris compat and dont exist
-     * on itanium.  hp docs claim that have equiv functions,
-     * but wtf is it for _lwp_info?
-     */
-    return SIGAR_ENOTIMPL;
-#else
-    struct lwpinfo info;
-
-    if (id != 0) {
-        return SIGAR_ENOTIMPL;
-    }
-
-    _lwp_info(&info);
-
-    cpu->user  = TIME_NSEC(info.lwp_utime);
-    cpu->sys   = TIME_NSEC(info.lwp_stime);
-    cpu->total = TIME_NSEC(info.lwp_utime) + TIME_NSEC(info.lwp_stime);
-
-    return SIGAR_OK;
-#endif
-}
 
 #include <mntent.h>
 
@@ -582,7 +370,7 @@ int sigar_file_system_list_get(sigar_t *sigar,
              */
             continue;
         }
-        
+
         SIGAR_FILE_SYSTEM_LIST_GROW(fslist);
 
         fsp = &fslist->data[fslist->number++];
@@ -626,109 +414,6 @@ static int create_fsdev_cache(sigar_t *sigar)
             ent = sigar_cache_get(sigar->fsdev, SIGAR_FSDEV_ID(sb));
             ent->value = strdup(fsp->dev_name);
         }
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_disk_usage_get(sigar_t *sigar, const char *name,
-                         sigar_disk_usage_t *usage)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_file_system_usage_get(sigar_t *sigar,
-                                const char *dirname,
-                                sigar_file_system_usage_t *fsusage)
-{
-    struct stat sb;
-    int status = sigar_statvfs(sigar, dirname, fsusage);
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    fsusage->use_percent = sigar_file_system_usage_calc_used(sigar, fsusage);
-
-    SIGAR_DISK_STATS_INIT(&fsusage->disk);
-
-    if (!sigar->fsdev) {
-        if (create_fsdev_cache(sigar) != SIGAR_OK) {
-            return SIGAR_OK;
-        }
-    }
-
-    if (stat(dirname, &sb) == 0) {
-        sigar_cache_entry_t *ent;
-        struct pst_lvinfo lv;
-        struct stat devsb;
-        char *devname;
-        int retval;
-
-        ent = sigar_cache_get(sigar->fsdev, SIGAR_FSDEV_ID(sb));
-        if (ent->value == NULL) {
-            return SIGAR_OK;
-        }
-
-        if (stat((char *)ent->value, &devsb) < 0) {
-            return SIGAR_OK;
-        }
-
-        retval = pstat_getlv(&lv, sizeof(lv), 0, (int)devsb.st_rdev);
-
-        if (retval == 1) {
-            fsusage->disk.reads  = lv.psl_rxfer;
-            fsusage->disk.writes = lv.psl_wxfer;
-            fsusage->disk.read_bytes  = lv.psl_rcount;
-            fsusage->disk.write_bytes = lv.psl_wcount;
-            fsusage->disk.queue       = SIGAR_FIELD_NOTIMPL;
-        }
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_cpu_info_list_get(sigar_t *sigar,
-                            sigar_cpu_info_list_t *cpu_infos)
-{
-    int i;
-    struct pst_dynamic stats;
-
-    pstat_getdynamic(&stats, sizeof(stats), 1, 0);
-    sigar->ncpu = stats.psd_proc_cnt;
-
-    sigar_cpu_info_list_create(cpu_infos);
-
-    for (i=0; i<sigar->ncpu; i++) {
-        sigar_cpu_info_t *info;
-        struct pst_processor proc;
-
-        if (pstat_getprocessor(&proc, sizeof(proc), 1, i) < 0) {
-            perror("pstat_getprocessor");
-            continue;
-        }
-
-        SIGAR_CPU_INFO_LIST_GROW(cpu_infos);
-
-        info = &cpu_infos->data[cpu_infos->number++];
-
-        info->total_cores = sigar->ncpu;
-        info->cores_per_socket = 1; /*XXX*/
-        info->total_sockets = sigar->ncpu; /*XXX*/
-
-#ifdef __ia64__
-        SIGAR_SSTRCPY(info->vendor, "Intel"); /*XXX*/
-        SIGAR_SSTRCPY(info->model, "Itanium"); /*XXX*/
-#else
-        SIGAR_SSTRCPY(info->vendor, "HP"); /*XXX*/
-        SIGAR_SSTRCPY(info->model, "PA RISC"); /*XXX*/
-#endif
-#ifdef PSP_MAX_CACHE_LEVELS /* 11.31+; see SIGAR-196 */
-        info->mhz = proc.psp_cpu_frequency / 1000000;
-#else
-        info->mhz = sigar->ticks * proc.psp_iticksperclktick / 1000000;
-#endif
-        info->cache_size = SIGAR_FIELD_NOTIMPL; /*XXX*/
     }
 
     return SIGAR_OK;
@@ -802,72 +487,6 @@ static int sigar_if_indextoname(sigar_t *sigar,
     return ENXIO;
 }
 
-int sigar_net_route_list_get(sigar_t *sigar,
-                             sigar_net_route_list_t *routelist)
-{
-    int status, count, i;
-    unsigned int len;
-    struct nmparms parms;
-    mib_ipRouteEnt *routes;
-    sigar_net_route_t *route;
-
-    len = sizeof(count);
-    parms.objid = ID_ipRouteNumEnt;
-    parms.buffer = &count;
-    parms.len = &len;
-
-    if ((status = sigar_get_mib_info(sigar, &parms)) != SIGAR_OK) {
-        return status;
-    }
-
-    len = count * sizeof(*routes);
-    routes = malloc(len);
-
-    parms.objid = ID_ipRouteTable;
-    parms.buffer = routes;
-    parms.len = &len;
-
-    if ((status = sigar_get_mib_info(sigar, &parms)) != SIGAR_OK) {
-        free(routes);
-        return status;
-    }
-
-    routelist->size = routelist->number = 0;
-
-    sigar_net_route_list_create(routelist);
-
-    for (i=0; i<count; i++) {
-        mib_ipRouteEnt *ent = &routes[i];
-
-        SIGAR_NET_ROUTE_LIST_GROW(routelist);
-
-        route = &routelist->data[routelist->number++];
-        SIGAR_ZERO(route); /* XXX: other fields */
-        
-        sigar_net_address_set(route->destination,
-                              ent->Dest);
-
-        sigar_net_address_set(route->mask,
-                              ent->Mask);
-
-        sigar_net_address_set(route->gateway,
-                              ent->NextHop);
-
-        sigar_if_indextoname(sigar, route->ifname, ent->IfIndex);
-
-        route->flags = SIGAR_RTF_UP;
-        if ((ent->Dest == 0) &&
-            (ent->Mask == 0))
-        {
-            route->flags |= SIGAR_RTF_GATEWAY;
-        }
-    }
-
-    free(routes);
-    
-    return SIGAR_OK;
-}
-
 static int get_mib_ifstat(sigar_t *sigar,
                           const char *name,
                           mib_ifEntry *mib)
@@ -892,37 +511,6 @@ static int get_mib_ifstat(sigar_t *sigar,
     return ENXIO;
 }
 
-int sigar_net_interface_stat_get(sigar_t *sigar, const char *name,
-                                 sigar_net_interface_stat_t *ifstat)
-{
-    int status;
-    mib_ifEntry mib;
-
-    status = get_mib_ifstat(sigar, name, &mib);
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    ifstat->rx_bytes    = mib.ifInOctets;
-    ifstat->rx_packets  = mib.ifInUcastPkts + mib.ifInNUcastPkts;
-    ifstat->rx_errors   = mib.ifInErrors;
-    ifstat->rx_dropped  = mib.ifInDiscards;
-    ifstat->rx_overruns = SIGAR_FIELD_NOTIMPL;
-    ifstat->rx_frame    = SIGAR_FIELD_NOTIMPL;
-
-    ifstat->tx_bytes      = mib.ifOutOctets;
-    ifstat->tx_packets    = mib.ifOutUcastPkts + mib.ifOutNUcastPkts;
-    ifstat->tx_errors     = mib.ifOutErrors;
-    ifstat->tx_dropped    = mib.ifOutDiscards;
-    ifstat->tx_overruns   = SIGAR_FIELD_NOTIMPL;
-    ifstat->tx_collisions = SIGAR_FIELD_NOTIMPL;
-    ifstat->tx_carrier    = SIGAR_FIELD_NOTIMPL;
-
-    ifstat->speed         = mib.ifSpeed;
-
-    return SIGAR_OK;
-}
 
 int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
                                         sigar_net_interface_config_t *ifconfig)
@@ -1180,163 +768,3 @@ static struct {
     { ID_tcpInErrs, tcpsoff(in_errs) },
     { ID_tcpOutRsts, tcpsoff(out_rsts) }
 };
-
-SIGAR_DECLARE(int)
-sigar_tcp_get(sigar_t *sigar,
-              sigar_tcp_t *tcp)
-{
-    int i;
-
-    for (i=0; i<sizeof(tcps_lu)/sizeof(tcps_lu[0]); i++) {
-        struct nmparms parms;
-        int val;
-        unsigned int len = sizeof(val);
-        parms.objid = tcps_lu[i].id;
-        parms.buffer = &val;
-        parms.len = &len;        
-
-        if (sigar_get_mib_info(sigar, &parms) != SIGAR_OK) {
-            val = -1;
-        }
-
-        *(sigar_uint64_t *)((char *)tcp + tcps_lu[i].offset) = val;
-    }
-
-    return SIGAR_OK;
-}
-
-int sigar_nfs_client_v2_get(sigar_t *sigar,
-                            sigar_nfs_client_v2_t *nfs)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_nfs_server_v2_get(sigar_t *sigar,
-                            sigar_nfs_server_v2_t *nfs)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_nfs_client_v3_get(sigar_t *sigar,
-                            sigar_nfs_client_v3_t *nfs)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_nfs_server_v3_get(sigar_t *sigar,
-                            sigar_nfs_server_v3_t *nfs)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-int sigar_arp_list_get(sigar_t *sigar,
-                       sigar_arp_list_t *arplist)
-{
-    int status, count, i;
-    unsigned int len;
-    struct nmparms parms;
-    mib_ipNetToMediaEnt *entries;
-    sigar_arp_t *arp;
-
-    len = sizeof(count);
-    parms.objid = ID_ipNetToMediaTableNum;
-    parms.buffer = &count;
-    parms.len = &len;
-
-    if ((status = sigar_get_mib_info(sigar, &parms)) != SIGAR_OK) {
-        return status;
-    }
-
-    len = count * sizeof(*entries);
-    entries = malloc(len);
-
-    parms.objid = ID_ipNetToMediaTable;
-    parms.buffer = entries;
-    parms.len = &len;
-
-    if ((status = sigar_get_mib_info(sigar, &parms)) != SIGAR_OK) {
-        free(entries);
-        return status;
-    }
-
-    sigar_arp_list_create(arplist);
-
-    for (i=0; i<count; i++) {
-        mib_ipNetToMediaEnt *ent = &entries[i];
-
-        SIGAR_ARP_LIST_GROW(arplist);
-
-        arp = &arplist->data[arplist->number++];
-
-        sigar_net_address_set(arp->address,
-                              ent->NetAddr);
-
-        sigar_net_address_mac_set(arp->hwaddr,
-                                  ent->PhysAddr.o_bytes,
-                                  ent->PhysAddr.o_length);
-
-        sigar_if_indextoname(sigar, arp->ifname, ent->IfIndex);
-
-        SIGAR_SSTRCPY(arp->type, "ether"); /*XXX*/
-        arp->flags = 0; /*XXX*/
-    }
-
-    free(entries);
-
-    return SIGAR_OK;
-}
-
-int sigar_proc_port_get(sigar_t *sigar, int protocol,
-                        unsigned long port, sigar_pid_t *pid)
-{
-    return SIGAR_ENOTIMPL;
-}
-
-
-int sigar_os_sys_info_get(sigar_t *sigar,
-                          sigar_sys_info_t *sysinfo)
-{
-    char *vendor_version, *arch;
-    long cpu = sysconf(_SC_CPU_VERSION);
-
-    switch (cpu) {
-        case CPU_PA_RISC1_0:
-            arch = "PA_RISC1.0";
-            break;
-        case CPU_PA_RISC1_1:
-            arch = "PA_RISC1.1";
-            break;
-        case CPU_PA_RISC2_0:
-            arch = "PA_RISC2.0";
-            break;
-#ifdef CPU_IA64_ARCHREV_0            
-        case CPU_IA64_ARCHREV_0:
-            arch = "ia64";
-            break;
-#endif
-        default:
-            arch = "unknown";
-            break;
-    }
-
-    SIGAR_SSTRCPY(sysinfo->arch, arch);
-
-    SIGAR_SSTRCPY(sysinfo->name, "HPUX");
-    SIGAR_SSTRCPY(sysinfo->vendor, "Hewlett-Packard");
-
-    if (strstr(sysinfo->version, ".11.")) {
-        vendor_version = "11";
-    }
-    else {
-        vendor_version = sysinfo->version;
-    }
-
-    SIGAR_SSTRCPY(sysinfo->vendor_version, vendor_version);
-
-    snprintf(sysinfo->description,
-             sizeof(sysinfo->description),
-             "%s %s",
-             sysinfo->vendor_name, sysinfo->vendor_version);
-
-    return SIGAR_OK;
-}

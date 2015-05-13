@@ -83,8 +83,6 @@ char *sigar_skip_multiple_token(char *p, int count);
 
 char *sigar_getword(char **line, char stop);
 
-char *sigar_strcasestr(const char *s1, const char *s2);
-
 int sigar_file2str(const char *fname, char *buffer, int buflen);
 
 int sigar_proc_file2str(char *buffer, int buflen,
@@ -114,8 +112,6 @@ int sigar_proc_fd_count(sigar_t *sigar, sigar_pid_t pid,
                         sigar_uint64_t *total);
 
 /* linux + freebsd */
-int sigar_procfs_args_get(sigar_t *sigar, sigar_pid_t pid,
-                          sigar_proc_args_t *procargs);
 
 int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem);
 
@@ -153,7 +149,6 @@ void sigar_cpu_model_adjust(sigar_t *sigar, sigar_cpu_info_t *info);
 
 int sigar_cpu_mhz_from_model(char *model);
 
-char *sigar_get_self_path(sigar_t *sigar);
 
 #if defined(__sun) || defined(__FreeBSD__)
 

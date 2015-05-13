@@ -316,5 +316,6 @@ int main(void)
         fflush(stdout);
     }
 
+    sigar_close(sigar);
     return 0;
 }

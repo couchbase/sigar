@@ -40,13 +40,12 @@
 #include <stdio.h>
 #include <errno.h>
 #include <tlhelp32.h>
+#include <stdint.h>
 
 #include <iptypes.h>
 #include <iphlpapi.h>
 
 #include "sigar_util.h"
-
-#define INT64_C(val) val##i64
 
 #ifndef __GNUC__
 /* see apr/include/arch/win32/atime.h */
@@ -595,25 +594,15 @@ sigar_uint64_t sigar_FileTimeToTime(FILETIME *ft);
 
 int sigar_wsa_init(sigar_t *sigar);
 
-int sigar_proc_exe_peb_get(sigar_t *sigar, HANDLE proc,
-                           sigar_proc_exe_t *procexe);
-
 int sigar_proc_args_peb_get(sigar_t *sigar, HANDLE proc,
                             sigar_proc_args_t *procargs);
 
 int sigar_proc_env_peb_get(sigar_t *sigar, HANDLE proc,
                            WCHAR *env, DWORD envlen);
 
-int sigar_proc_args_wmi_get(sigar_t *sigar, sigar_pid_t pid,
-                            sigar_proc_args_t *procargs);
-
-int sigar_proc_exe_wmi_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_exe_t *procexe);
-
 int sigar_parse_proc_args(sigar_t *sigar, WCHAR *buf,
                           sigar_proc_args_t *procargs);
 
-int sigar_service_pid_get(sigar_t *sigar, char *name, sigar_pid_t *pid);
 
 typedef struct {
     DWORD size;
@@ -621,10 +610,6 @@ typedef struct {
     ENUM_SERVICE_STATUS *services;
     SC_HANDLE handle;
 } sigar_services_status_t;
-
-int sigar_services_status_get(sigar_services_status_t *ss, DWORD state);
-
-void sigar_services_status_close(sigar_services_status_t *ss);
 
 typedef struct sigar_services_walker_t sigar_services_walker_t;
 
@@ -639,7 +624,6 @@ int sigar_services_query(char *ptql,
                          sigar_ptql_error_t *error,
                          sigar_services_walker_t *walker);
 
-char *sigar_service_exe_get(char *path, char *buffer, int basename);
 
 typedef struct {
     WORD product_major;
@@ -651,10 +635,6 @@ typedef struct {
     WORD file_build;
     WORD file_revision;
 } sigar_file_version_t;
-
-int sigar_file_version_get(sigar_file_version_t *version,
-                           char *name,
-                           sigar_proc_env_t *infocb);
 
 #ifdef __cplusplus
 }

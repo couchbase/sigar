@@ -127,6 +127,12 @@ typedef int (*proc_getsockopt_func_t)(struct ps_prochandle *,
 typedef int (*proc_getsockname_func_t)(struct ps_prochandle *,
                                       int, struct sockaddr *, socklen_t *);
 
+typedef struct {
+    unsigned long number;
+    unsigned long size;
+    sigar_cpu_t *data;
+} sigar_cpu_list_t;
+
 struct sigar_t {
     SIGAR_T_BASE;
 

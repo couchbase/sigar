@@ -54,15 +54,6 @@
 #define RUNNING_ON_VALGRIND 0
 #endif
 
-TEST(test_sigar_proc_stat_get) {
-        sigar_proc_stat_t proc_stat;
-
-        assert(SIGAR_OK == sigar_proc_stat_get(t, &proc_stat));
-        assert(proc_stat.total > 0);
-
-        return 0;
-}
-
 TEST(test_sigar_proc_list_get) {
         sigar_proc_list_t proclist;
         size_t i;
@@ -73,7 +64,6 @@ TEST(test_sigar_proc_list_get) {
         for (i = 0; i < proclist.number; i++) {
                 sigar_pid_t pid = proclist.data[i];
                 sigar_proc_mem_t proc_mem;
-                sigar_proc_time_t proc_time;
                 sigar_proc_state_t proc_state;
                 int ret;
 
@@ -110,40 +100,6 @@ TEST(test_sigar_proc_list_get) {
                         }
                 }
 
-                if (SIGAR_OK == (ret = sigar_proc_time_get(t, pid, &proc_time))) {
-                        assert(IS_IMPL_U64(proc_time.start_time));
-                        assert(IS_IMPL_U64(proc_time.user));
-                        assert(IS_IMPL_U64(proc_time.sys));
-                        assert(IS_IMPL_U64(proc_time.total));
-
-#if !(defined(SIGAR_TEST_OS_DARWIN))
-                        /* Freebsd */
-                        assert(proc_time.start_time > 0);
-#endif
-                        assert(proc_time.total == proc_time.user + proc_time.sys);
-                } else {
-                        switch (ret) {
-                        case EPERM:
-                        case ESRCH:
-#if (defined(_WIN32))
-                        /* OpenProcess() may return ERROR_ACCESS_DENIED */
-                        case ERROR_ACCESS_DENIED:
-#endif
-                                /* track the expected error code */
-                                break;
-#if (defined(SIGAR_TEST_OS_DARWIN))
-                                /* valgrind on macosx doesn't handle this syscall yet */
-                        case ENOSYS:
-                                if (RUNNING_ON_VALGRIND) {
-                                        break;
-                                }
-#endif
-                        default:
-                                fprintf(stderr, "ret = %d (%s)\n", ret, sigar_strerror(t, ret));
-                                assert(ret == SIGAR_OK);
-                                break;
-                        }
-                }
                 if (SIGAR_OK == sigar_proc_state_get(t, pid, &proc_state)) {
                         assert(proc_state.name != NULL);
 #if 0
@@ -188,7 +144,6 @@ int main() {
 
         assert(SIGAR_OK == sigar_open(&t));
 
-        test_sigar_proc_stat_get(t);
         test_sigar_proc_list_get(t);
 
         sigar_close(t);

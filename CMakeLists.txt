@@ -38,7 +38,7 @@ IF ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 ENDIF ("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang")
 
 
-ADD_SUBDIRECTORY(src build-src)
-ADD_SUBDIRECTORY(tests build-tests)
-ADD_SUBDIRECTORY(include build-include)
-ADD_SUBDIRECTORY(programs build-programs)
+ADD_SUBDIRECTORY(src)
+ADD_SUBDIRECTORY(tests)
+ADD_SUBDIRECTORY(include)
+ADD_SUBDIRECTORY(programs)

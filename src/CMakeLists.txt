@@ -17,6 +17,7 @@ IF(CMAKE_SYSTEM_NAME MATCHES "(Darwin|FreeBSD)")
   IF(CMAKE_SYSTEM_NAME MATCHES "(Darwin)")
     INCLUDE_DIRECTORIES(/Developer/Headers/FlatCarbon/)
     ADD_DEFINITIONS(-DDARWIN)
+    ADD_DEFINITIONS(-DDARWIN_HAS_LIBPROC_H=1)
     SET(SIGAR_LINK_FLAGS "-framework CoreServices -framework IOKit")
   ELSE(CMAKE_SYSTEM_NAME MATCHES "(Darwin)")
     ## freebsd needs libkvm

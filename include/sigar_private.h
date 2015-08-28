@@ -275,8 +275,6 @@ int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
     else \
         ifconfig->scope6 = SIGAR_IPV6_ADDR_ANY
 
-int sigar_tcp_curr_estab(sigar_t *sigar, sigar_tcp_t *tcp);
-
 int sigar_user_id_get(sigar_t *sigar, const char *name, int *uid);
 
 int sigar_user_name_get(sigar_t *sigar, int uid, char *buf, int buflen);

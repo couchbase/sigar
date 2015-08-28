@@ -471,34 +471,6 @@ sigar_net_connection_list_get(sigar_t *sigar,
 }
 #endif
 
-static int tcp_curr_estab_count(sigar_net_connection_walker_t *walker,
-                                sigar_net_connection_t *conn)
-{
-    if ((conn->state == SIGAR_TCP_ESTABLISHED) ||
-        (conn->state == SIGAR_TCP_CLOSE_WAIT))
-    {
-        ((sigar_tcp_t *)walker->data)->curr_estab++;
-    }
-
-    return SIGAR_OK;
-}
-
-/* TCP-MIB::tcpCurrEstab */
-int sigar_tcp_curr_estab(sigar_t *sigar, sigar_tcp_t *tcp)
-{
-    sigar_net_connection_walker_t walker;
-
-    walker.sigar = sigar;
-    walker.data = tcp;
-    walker.add_connection = tcp_curr_estab_count;
-    walker.flags = SIGAR_NETCONN_CLIENT|SIGAR_NETCONN_TCP;
-
-    tcp->curr_estab = 0;
-
-    return sigar_net_connection_walk(&walker);
-}
-
-
 #ifdef DARWIN
 #include <AvailabilityMacros.h>
 #endif

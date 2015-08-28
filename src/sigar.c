@@ -172,28 +172,6 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-#ifndef WIN32
-
-#include <sys/utsname.h>
-
-int sigar_sys_info_get_uname(sigar_sys_info_t *sysinfo)
-{
-    struct utsname name;
-
-    uname(&name);
-
-    SIGAR_SSTRCPY(sysinfo->version, name.release);
-    SIGAR_SSTRCPY(sysinfo->vendor_name, name.sysname);
-    SIGAR_SSTRCPY(sysinfo->name, name.sysname);
-    SIGAR_SSTRCPY(sysinfo->machine, name.machine);
-    SIGAR_SSTRCPY(sysinfo->arch, name.machine);
-    SIGAR_SSTRCPY(sysinfo->patch_level, "unknown");
-
-    return SIGAR_OK;
-}
-
-#endif /* WIN32 */
-
 int sigar_proc_list_create(sigar_proc_list_t *proclist)
 {
     proclist->number = 0;

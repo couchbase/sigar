@@ -176,8 +176,6 @@ void sigar_strerror_set(sigar_t *sigar, char *msg);
 
 void sigar_strerror_printf(sigar_t *sigar, const char *format, ...);
 
-int sigar_sys_info_get_uname(sigar_sys_info_t *sysinfo);
-
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);
 

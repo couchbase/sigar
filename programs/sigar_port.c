@@ -184,7 +184,7 @@ static int find_interesting_procs(sigar_t *sigar, sigar_pid_t babysitter_pid,
             --child;
         }
 
-        while (child->ppid == ppid && child < procs_end) {
+        while (child < procs_end && child->ppid == ppid) {
             if (is_interesting_process(child->name) &&
                 interesting_count < NUM_INTERESTING_PROCS) {
 

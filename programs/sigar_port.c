@@ -14,6 +14,8 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+#include <errno.h>
+#include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -241,7 +243,29 @@ static int populate_interesting_procs(sigar_t *sigar,
     return stale;
 }
 
-int main(void)
+static int parse_pid(char *pidstr, sigar_pid_t *result)
+{
+    // The size and signed-ness of sigar_pid_t is different depending on the
+    // system, but it is an integral type. So we use a maximum size integer
+    // type to handle all systems uniformly.
+    uintmax_t pid;
+    char *pidend;
+
+    errno = 0;
+    pid = strtoumax(pidstr, &pidend, 10);
+    if (errno != 0 || *pidend != '\0') {
+        return 0;
+    }
+
+    // In general, this is incorrect, since we don't know if the value will
+    // fit into the type. And there's no easy way to check that it will given
+    // that we don't even know what sigar_pid_t is a typedef for. But since in
+    // our case it's ns_server that passes the value, we should be fine.
+    *result = (sigar_pid_t) pid;
+    return 1;
+}
+
+int main(int argc, char *argv[])
 {
     sigar_t *sigar;
     sigar_mem_t mem;
@@ -249,10 +273,6 @@ int main(void)
     sigar_cpu_t cpu;
     struct system_stats reply;
 
-    sigar_pid_t pid;
-    sigar_proc_state_t state;
-
-    sigar_pid_t child_vm_pid;
     sigar_pid_t babysitter_pid;
 
     int procs_stale = 1;
@@ -261,14 +281,11 @@ int main(void)
 
     int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
 
+    if (argc != 2 || !parse_pid(argv[1], &babysitter_pid)) {
+        exit(1);
+    }
+
     MUST_SUCCEED(sigar_open(&sigar));
-
-    pid = sigar_pid_get(sigar);
-    MUST_SUCCEED(sigar_proc_state_get(sigar, pid, &state));
-    child_vm_pid = state.ppid;
-
-    MUST_SUCCEED(sigar_proc_state_get(sigar, child_vm_pid, &state));
-    babysitter_pid = state.ppid;
 
 #ifdef _WIN32
     _setmode(1, _O_BINARY);

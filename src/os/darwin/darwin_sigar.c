@@ -21,6 +21,7 @@
 #include "sigar_util.h"
 #include "sigar_os.h"
 
+#include <unistd.h>
 #include <sys/param.h>
 #include <sys/mount.h>
 #if !(defined(__FreeBSD__) && (__FreeBSD_version >= 800000))
@@ -816,6 +817,8 @@ int sigar_os_proc_list_get(sigar_t *sigar,
 
     num = len/sizeof(*proc);
 
+    sigar_uid_t me = getuid();
+
     for (i=0; i<num; i++) {
         if (proc[i].KI_FLAG & P_SYSTEM) {
             continue;
@@ -823,6 +826,11 @@ int sigar_os_proc_list_get(sigar_t *sigar,
         if (proc[i].KI_PID == 0) {
             continue;
         }
+
+        if (proc[i].KI_UID != me) {
+            continue;
+        }
+
         SIGAR_PROC_LIST_GROW(proclist);
         proclist->data[proclist->number++] = proc[i].KI_PID;
     }

@@ -514,7 +514,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist)
 {
     DIR *dirp = opendir(PROCP_FS_ROOT);
-    struct dirent *ent, dbuf;
+    struct dirent *ent;
     register const int threadbadhack = !sigar->has_nptl;
 
     if (!dirp) {
@@ -525,11 +525,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
         sigar->proc_signal_offset = get_proc_signal_offset();
     }
 
-    while (readdir_r(dirp, &dbuf, &ent) == 0) {
-        if (!ent) {
-            break;
-        }
-
+    while ((ent = readdir(dirp)) != NULL) {
         if (!sigar_isdigit(*ent->d_name)) {
             continue;
         }

@@ -860,6 +860,70 @@ int sigar_os_proc_list_get(sigar_t *sigar,
     return SIGAR_OK;
 }
 
+static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
+                                            int nproc,
+                                            pid_t pid) {
+    for (int  i = 0; i < nproc; i++) {
+        if (proc[i].KI_PID == pid) {
+            return proc + i;
+        }
+    }
+    return NULL;
+}
+
+static int sigar_os_check_parents(const struct kinfo_proc* proc,
+                                  int nproc,
+                                  pid_t pid,
+                                  pid_t ppid) {
+    const struct kinfo_proc* p;
+    do {
+        p = lookup_proc(proc, nproc, pid);
+        if (p == NULL) {
+            return -1;
+        }
+
+        if (p->KI_PPID == ppid) {
+            return SIGAR_OK;
+        }
+        pid = p->KI_PPID;
+    } while (p->KI_PPID != 0);
+    return -1;
+}
+
+int sigar_os_proc_list_get_children(sigar_t* sigar,
+                                    sigar_pid_t ppid,
+                                    sigar_proc_list_t* proclist) {
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PROC, 0};
+    int i, num;
+    size_t len;
+    struct kinfo_proc* proc;
+
+    if (sysctl(mib, NMIB(mib), NULL, &len, NULL, 0) < 0) {
+        return errno;
+    }
+
+    proc = malloc(len);
+
+    if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
+        free(proc);
+        return errno;
+    }
+
+    num = len / sizeof(*proc);
+
+    for (i = 0; i < num; i++) {
+        if (sigar_os_check_parents(proc, num, proc[i].KI_PID, ppid) ==
+            SIGAR_OK) {
+            SIGAR_PROC_LIST_GROW(proclist);
+            proclist->data[proclist->number++] = proc[i].KI_PID;
+        }
+    }
+
+    free(proc);
+
+    return SIGAR_OK;
+}
+
 static int sigar_get_pinfo(sigar_t *sigar, sigar_pid_t pid)
 {
 #if defined(__OpenBSD__) || defined(__NetBSD__)

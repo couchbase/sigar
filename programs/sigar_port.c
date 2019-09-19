@@ -92,51 +92,43 @@ static int is_interesting_process(const char *name)
             strcmp(name, "epmd") != 0);
 }
 
-static int proc_ppid_compare(const void *va, const void *vb)
-{
-    const struct proc *a = va;
-    const struct proc *b = vb;
+/// Find all of the descendants of the babysitter process and populate the
+/// interesting_proc array with the more information about each process
+///
+/// \param sigar the library handle
+/// \param babysitter_pid the pid of the babysitter
+/// \param interesting_procs the array to populate
+/// \return The number of processes found
+static int find_interesting_procs(
+        sigar_t* sigar,
+        sigar_pid_t babysitter_pid,
+        struct proc interesting_procs[NUM_INTERESTING_PROCS]) {
+    sigar_proc_state_t proc_state;
+    sigar_proc_cpu_t proc_cpu;
 
-    if (a->ppid < b->ppid) {
-        return -1;
-    } else if (a->ppid > b->ppid) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-static int find_interesting_procs(sigar_t *sigar, sigar_pid_t babysitter_pid,
-                                  struct proc interesting_procs[NUM_INTERESTING_PROCS])
-{
-    unsigned long i;
-    int interesting_count = 0;
-
-    sigar_proc_list_t proc_list;
-
-    struct proc *procs;
-    struct proc *procs_end;
-
-    struct proc *babysitter_proc = NULL;
-
-    MUST_SUCCEED(sigar_proc_list_get(sigar, &proc_list));
-
-    if (proc_list.number == 0) {
-        goto find_interesting_procs_return;
-    }
-
-    procs = malloc(sizeof(struct proc) * proc_list.number);
-    if (procs == NULL) {
+    if (sigar_proc_state_get(sigar, babysitter_pid, &proc_state) != SIGAR_OK ||
+        sigar_proc_cpu_get(sigar, babysitter_pid, &proc_cpu) != SIGAR_OK) {
+        fprintf(stderr,
+                "Failed to lookup the babysitter process with pid %u",
+                babysitter_pid);
         exit(1);
     }
 
-    procs_end = procs;
+    int interesting_count = 0;
+    interesting_procs[interesting_count].pid = babysitter_pid;
+    interesting_procs[interesting_count].ppid = proc_state.ppid;
+    interesting_procs[interesting_count].start_time = proc_cpu.start_time;
+    strncpy(interesting_procs[interesting_count].name,
+            proc_state.name,
+            PROC_NAME_LEN);
+    interesting_count++;
 
-    for (i = 0; i < proc_list.number; ++i) {
+    sigar_proc_list_t proc_list;
+    MUST_SUCCEED(
+            sigar_proc_list_get_children(sigar, babysitter_pid, &proc_list));
+
+    for (unsigned long i = 0; i < proc_list.number; ++i) {
         sigar_pid_t pid = proc_list.data[i];
-
-        sigar_proc_state_t proc_state;
-        sigar_proc_cpu_t proc_cpu;
 
         if (sigar_proc_state_get(sigar, pid, &proc_state) != SIGAR_OK) {
             continue;
@@ -146,60 +138,19 @@ static int find_interesting_procs(sigar_t *sigar, sigar_pid_t babysitter_pid,
             continue;
         }
 
-        procs_end->pid = pid;
-        procs_end->ppid = proc_state.ppid;
-        procs_end->start_time = proc_cpu.start_time;
-        strncpy(procs_end->name, proc_state.name, PROC_NAME_LEN);
-
-        if (pid == babysitter_pid) {
-            babysitter_proc = procs_end;
-        }
-
-        ++procs_end;
-    }
-
-    // something went utterly wrong, we couldn't find babysitter
-    if (!babysitter_proc) {
-        exit(1);
-    }
-
-    interesting_procs[interesting_count++] = *babysitter_proc;
-
-    qsort(procs, procs_end - procs, sizeof(struct proc), proc_ppid_compare);
-
-    for (i = 0; i < interesting_count; ++i) {
-        sigar_pid_t ppid = interesting_procs[i].pid;
-        struct proc key = {0};
-        struct proc *child;
-
-        key.ppid = ppid;
-
-        child = bsearch(&key, procs, procs_end - procs, sizeof(struct proc),
-                        proc_ppid_compare);
-        if (!child) {
-            continue;
-        }
-
-        // which element of multiple equal elements returned is unspecified;
-        // so we need to check neighboring elements in both directions
-        while (child > procs && (child - 1)->ppid == ppid) {
-            --child;
-        }
-
-        while (child < procs_end && child->ppid == ppid) {
-            if (is_interesting_process(child->name) &&
-                interesting_count < NUM_INTERESTING_PROCS) {
-
-                interesting_procs[interesting_count++] = *child;
-            }
-
-            ++child;
+        if (is_interesting_process(proc_state.name) &&
+            interesting_count < NUM_INTERESTING_PROCS) {
+            interesting_procs[interesting_count].pid = pid;
+            interesting_procs[interesting_count].ppid = proc_state.ppid;
+            interesting_procs[interesting_count].start_time =
+                    proc_cpu.start_time;
+            strncpy(interesting_procs[interesting_count].name,
+                    proc_state.name,
+                    PROC_NAME_LEN);
+            interesting_count++;
         }
     }
 
-    free(procs);
-
-find_interesting_procs_return:
     MUST_SUCCEED(sigar_proc_list_destroy(sigar, &proc_list));
 
     return interesting_count;

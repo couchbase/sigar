@@ -650,6 +650,57 @@ static int proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
     return SIGAR_OK;
 }
 
+static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
+    do {
+        if (proc_stat_read(sigar, pid) != SIGAR_OK) {
+            return -1;
+        }
+
+        if (sigar->last_proc_stat.ppid == ppid) {
+            return SIGAR_OK;
+        }
+        pid = sigar->last_proc_stat.ppid;
+    } while (sigar->last_proc_stat.ppid != 0);
+    return -1;
+}
+
+int sigar_os_proc_list_get_children(sigar_t* sigar,
+                                    sigar_pid_t ppid,
+                                    sigar_proc_list_t* proclist) {
+    DIR* dirp = opendir(PROCP_FS_ROOT);
+    struct dirent* ent;
+    register const int threadbadhack = !sigar->has_nptl;
+
+    if (!dirp) {
+        return errno;
+    }
+
+    if (threadbadhack && (sigar->proc_signal_offset == -1)) {
+        sigar->proc_signal_offset = get_proc_signal_offset();
+    }
+
+    while ((ent = readdir(dirp)) != NULL) {
+        if (!sigar_isdigit(*ent->d_name)) {
+            continue;
+        }
+
+        if (threadbadhack &&
+            proc_isthread(sigar, ent->d_name, strlen(ent->d_name))) {
+            continue;
+        }
+
+        /* XXX: more sanity checking */
+        sigar_pid_t pid = strtoul(ent->d_name, NULL, 10);
+        if (sigar_os_check_parents(sigar, pid, ppid) == SIGAR_OK) {
+            SIGAR_PROC_LIST_GROW(proclist);
+            proclist->data[proclist->number++] = pid;
+        }
+    }
+
+    closedir(dirp);
+    return SIGAR_OK;
+}
+
 int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                        sigar_proc_mem_t *procmem)
 {

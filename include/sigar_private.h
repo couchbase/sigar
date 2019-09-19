@@ -179,6 +179,10 @@ void sigar_strerror_printf(sigar_t *sigar, const char *format, ...);
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);
 
+int sigar_os_proc_list_get_children(sigar_t* sigar,
+                                    sigar_pid_t ppid,
+                                    sigar_proc_list_t* proclist);
+
 int sigar_proc_list_create(sigar_proc_list_t *proclist);
 
 int sigar_proc_list_grow(sigar_proc_list_t *proclist);

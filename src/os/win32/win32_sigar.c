@@ -989,6 +989,43 @@ int sigar_os_proc_list_get(sigar_t *sigar,
     }
 }
 
+static int sigar_os_check_parents(sigar_t* sigar,
+                                  sigar_pid_t pid,
+                                  sigar_pid_t ppid) {
+    do {
+        if (get_proc_info(sigar, pid) != SIGAR_OK) {
+            return -1;
+        }
+
+        if (sigar->pinfo.ppid == ppid) {
+            return SIGAR_OK;
+        }
+        pid = sigar->pinfo.ppid;
+    } while (sigar->pinfo.ppid != 0);
+    return -1;
+}
+
+int sigar_os_proc_list_get_children(sigar_t* sigar,
+                                    sigar_pid_t ppid,
+                                    sigar_proc_list_t* proclist) {
+    sigar_proc_list_t allprocs;
+    sigar_proc_list_create(&allprocs);
+
+    int ret = sigar_os_proc_list_get(sigar, &allprocs);
+
+    if (ret == SIGAR_OK) {
+        for (int i = 0; i < allprocs.number; ++i) {
+            sigar_pid_t pid = allprocs.data[i];
+            if (sigar_os_check_parents(sigar, pid, ppid) == SIGAR_OK) {
+                SIGAR_PROC_LIST_GROW(proclist);
+                proclist->data[proclist->number++] = pid;
+            }
+        }
+    }
+    sigar_proc_list_destroy(sigar, &allprocs);
+    return ret;
+}
+
 #define PROCESS_DAC (PROCESS_QUERY_INFORMATION|PROCESS_VM_READ)
 
 static HANDLE open_process(sigar_pid_t pid)

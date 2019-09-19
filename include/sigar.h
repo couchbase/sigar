@@ -38,8 +38,6 @@ extern "C" {
 #define SIGAR_64BIT
 #endif
 
-#define SIGAR_F_U64 "%"PRIu64
-
    typedef int32_t sigar_int32_t;
    typedef int64_t sigar_int64_t;
    typedef uint32_t sigar_uint32_t;
@@ -159,6 +157,11 @@ typedef struct {
 
 SIGAR_DECLARE(int) sigar_proc_list_get(sigar_t *sigar,
                                        sigar_proc_list_t *proclist);
+
+SIGAR_DECLARE(int)
+sigar_proc_list_get_children(sigar_t* sigar,
+                             sigar_pid_t ppid,
+                             sigar_proc_list_t* proclist);
 
 SIGAR_DECLARE(int) sigar_proc_list_destroy(sigar_t *sigar,
                                            sigar_proc_list_t *proclist);

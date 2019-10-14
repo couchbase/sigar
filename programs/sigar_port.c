@@ -71,8 +71,6 @@ struct system_stats {
 
     uint64_t swap_total;
     uint64_t swap_used;
-    uint64_t swap_page_in;
-    uint64_t swap_page_out;
 
     uint64_t mem_total;
     uint64_t mem_used;
@@ -253,7 +251,7 @@ int main(int argc, char *argv[])
             break;
         }
         memset(&reply, 0, sizeof(reply));
-        reply.version = 3;
+        reply.version = 4;
         reply.struct_size = sizeof(reply);
 
         sigar_mem_get(sigar, &mem);
@@ -265,8 +263,6 @@ int main(int argc, char *argv[])
 
         reply.swap_total = swap.total;
         reply.swap_used = swap.used;
-        reply.swap_page_in = swap.page_in;
-        reply.swap_page_out = swap.page_out;
 
         reply.mem_total = mem.total;
         reply.mem_used = mem.used;

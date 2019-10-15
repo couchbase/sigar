@@ -68,6 +68,10 @@ struct system_stats {
 
     uint64_t cpu_total_ms;
     uint64_t cpu_idle_ms;
+    uint64_t cpu_user_ms;
+    uint64_t cpu_sys_ms;
+    uint64_t cpu_irq_ms;
+    uint64_t cpu_stolen_ms;
 
     uint64_t swap_total;
     uint64_t swap_used;
@@ -260,6 +264,10 @@ int main(int argc, char *argv[])
 
         reply.cpu_total_ms = cpu.total;
         reply.cpu_idle_ms = cpu.idle + cpu.wait;
+        reply.cpu_user_ms = cpu.user + cpu.nice;
+        reply.cpu_sys_ms = cpu.sys;
+        reply.cpu_irq_ms = cpu.irq + cpu.soft_irq;
+        reply.cpu_stolen_ms = cpu.stolen;
 
         reply.swap_total = swap.total;
         reply.swap_used = swap.used;

@@ -421,7 +421,7 @@ static void sigar_cpuid(sigar_uint32_t request,
                         sigar_cpuid_t *id)
 {
     /* http://svn.red-bean.com/repos/minor/trunk/gc/barriers-amd64.c */
-    asm volatile ("cpuid\n\t"
+    __asm__ volatile ("cpuid\n\t"
                   : "=a" (id->eax),
                     "=b" (id->ebx),
                     "=c" (id->ecx),

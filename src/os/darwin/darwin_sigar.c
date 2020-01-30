@@ -243,8 +243,10 @@ int sigar_os_open(sigar_t **sigar)
     (*sigar)->mach_port = mach_host_self();
 #  ifdef DARWIN_HAS_LIBPROC_H
     if (((*sigar)->libproc = dlopen("/usr/lib/libproc.dylib", 0))) {
-        (*sigar)->proc_pidinfo = dlsym((*sigar)->libproc, "proc_pidinfo");
-        (*sigar)->proc_pidfdinfo = dlsym((*sigar)->libproc, "proc_pidfdinfo");
+        (*sigar)->proc_pidinfo =
+                (proc_pidinfo_func_t)dlsym((*sigar)->libproc, "proc_pidinfo");
+        (*sigar)->proc_pidfdinfo = (proc_pidfdinfo_func_t)dlsym(
+                (*sigar)->libproc, "proc_pidfdinfo");
     }
 #  endif
 #else

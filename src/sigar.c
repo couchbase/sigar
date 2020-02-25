@@ -137,7 +137,7 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
     time_diff = time_now - prev->last_time;
     proccpu->last_time = prev->last_time = time_now;
 
-    if (time_diff == 0) {
+    if (time_diff < 1000) {
         /* we were just called within < 1 second ago. */
         memcpy(proccpu, prev, sizeof(*proccpu));
         return SIGAR_OK;

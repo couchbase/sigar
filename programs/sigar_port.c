@@ -168,7 +168,7 @@ static int populate_interesting_procs(sigar_t *sigar,
     sigar_proc_mem_t proc_mem;
     sigar_proc_cpu_t proc_cpu;
 
-    struct proc_stats *child;
+    struct proc_stats *child = reply->interesting_procs;
 
     for (i = 0; i < procs_count; ++i) {
         if (sigar_proc_mem_get(sigar, procs[i].pid, &proc_mem) != SIGAR_OK ||
@@ -178,8 +178,6 @@ static int populate_interesting_procs(sigar_t *sigar,
             stale = 1;
             continue;
         }
-
-        child = &reply->interesting_procs[i];
 
         child->pid = procs[i].pid;
         child->ppid = procs[i].ppid;
@@ -191,6 +189,8 @@ static int populate_interesting_procs(sigar_t *sigar,
         child->minor_faults = DEFAULT(proc_mem.minor_faults, 0);
         child->major_faults = DEFAULT(proc_mem.major_faults, 0);
         child->page_faults = DEFAULT(proc_mem.page_faults, 0);
+
+        child++;
     }
 
     return stale;

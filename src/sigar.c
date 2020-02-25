@@ -153,21 +153,20 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
         return status;
     }
 
-    memcpy(prev, proccpu, sizeof(*prev));
-
     if (proccpu->total < otime) {
         /* XXX this should not happen */
         otime = 0;
     }
 
     if (otime == 0) {
-        proccpu->percent = 0.0;
         /* first time called */
-        return SIGAR_OK;
+        proccpu->percent = 0.0;
+    } else {
+        total_diff = proccpu->total - otime;
+        proccpu->percent = total_diff / (double)time_diff;
     }
 
-    total_diff = proccpu->total - otime;
-    proccpu->percent = total_diff / (double)time_diff;
+    memcpy(prev, proccpu, sizeof(*prev));
 
     return SIGAR_OK;
 }

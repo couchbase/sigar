@@ -466,6 +466,13 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     else {
         swap->page_in = swap->page_out = -1;
     }
+
+    swap->allocstall = -1;
+    swap->allocstall_dma = -1;
+    swap->allocstall_dma32 = -1;
+    swap->allocstall_normal = -1;
+    swap->allocstall_movable = -1;
+
     return SIGAR_OK;
 }
 

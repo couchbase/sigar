@@ -312,6 +312,19 @@ static  sigar_uint64_t sigar_meminfo(char *buffer,
     return val;
 }
 
+static  sigar_uint64_t sigar_vmstat(char *buffer, char *attr)
+{
+    sigar_uint64_t val = -1;
+    char *ptr;
+
+    if ((ptr = strstr(buffer, attr))) {
+        ptr = sigar_skip_token(ptr);
+        val = strtoull(ptr, NULL, 10);
+    }
+
+    return val;
+}
+
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
     sigar_uint64_t buffers, cached, kern;
@@ -362,17 +375,25 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
 
     swap->page_in = swap->page_out = -1;
 
+    swap->allocstall = -1;
+    swap->allocstall_dma = -1;
+    swap->allocstall_dma32 = -1;
+    swap->allocstall_normal = -1;
+    swap->allocstall_movable = -1;
+
     status = sigar_file2str(PROC_VMSTAT,
                             buffer, sizeof(buffer));
 
     if (status == SIGAR_OK) {
         /* 2.6+ kernel */
-        if ((ptr = strstr(buffer, "\npswpin"))) {
-            ptr = sigar_skip_token(ptr);
-            swap->page_in = sigar_strtoull(ptr);
-            ptr = sigar_skip_token(ptr);
-            swap->page_out = sigar_strtoull(ptr);
-        }
+        swap->page_in = sigar_vmstat(buffer, "\npswpin");
+        swap->page_out = sigar_vmstat(buffer, "\npswpout");
+
+        swap->allocstall = sigar_vmstat(buffer, "\nallocstall");
+        swap->allocstall_dma = sigar_vmstat(buffer, "\nallocstall_dma");
+        swap->allocstall_dma32 = sigar_vmstat(buffer, "\nallocstall_dma32");
+        swap->allocstall_normal = sigar_vmstat(buffer, "\nallocstall_normal");
+        swap->allocstall_movable = sigar_vmstat(buffer, "\nallocstall_movable");
     }
     else {
         /* 2.2, 2.4 kernels */

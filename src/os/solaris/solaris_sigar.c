@@ -278,6 +278,12 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     swap->free  <<= sigar->pagesize;
     swap->used  = swap->total - swap->free;
 
+    swap->allocstall = -1;
+    swap->allocstall_dma = -1;
+    swap->allocstall_dma32 = -1;
+    swap->allocstall_normal = -1;
+    swap->allocstall_movable = -1;
+
     if (sigar_kstat_update(sigar) == -1) {
         return errno;
     }

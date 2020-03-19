@@ -113,7 +113,12 @@ typedef struct {
         used,
         free,
         page_in,
-        page_out;
+        page_out,
+        allocstall,             /* up until 4.10 */
+        allocstall_dma,         /* 4.10 onwards */
+        allocstall_dma32,       /* 4.10 onwards */
+        allocstall_normal,      /* 4.10 onwards */
+        allocstall_movable;     /* 4.10 onwards */
 } sigar_swap_t;
 
 SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap);

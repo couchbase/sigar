@@ -81,6 +81,8 @@ struct system_stats {
     uint64_t mem_actual_used;
     uint64_t mem_actual_free;
 
+    uint64_t allocstall;
+
     struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
 };
 
@@ -255,7 +257,7 @@ int main(int argc, char *argv[])
             break;
         }
         memset(&reply, 0, sizeof(reply));
-        reply.version = 4;
+        reply.version = 5;
         reply.struct_size = sizeof(reply);
 
         sigar_mem_get(sigar, &mem);
@@ -276,6 +278,19 @@ int main(int argc, char *argv[])
         reply.mem_used = mem.used;
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
+
+        if (swap.allocstall != -1) {
+            reply.allocstall = swap.allocstall;
+        } else if (swap.allocstall_dma != -1 &&
+                swap.allocstall_dma32 != -1 &&
+                swap.allocstall_normal != -1 &&
+                swap.allocstall_movable != -1) {
+            reply.allocstall = swap.allocstall_dma +
+                swap.allocstall_dma32 + swap.allocstall_normal +
+                swap.allocstall_movable;
+        } else {
+            reply.allocstall = -1;
+        }
 
         if (procs_stale || ticks_to_refresh-- == 0) {
             ticks_to_refresh = PROCS_REFRESH_INTERVAL;

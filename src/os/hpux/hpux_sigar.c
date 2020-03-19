@@ -126,6 +126,12 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     swap->page_in = vminfo.psv_spgin;
     swap->page_out = vminfo.psv_spgout;
 
+    swap->allocstall = -1;
+    swap->allocstall_dma = -1;
+    swap->allocstall_dma32 = -1;
+    swap->allocstall_normal = -1;
+    swap->allocstall_movable = -1;
+
     return SIGAR_OK;
 }
 

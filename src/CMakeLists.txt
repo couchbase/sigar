@@ -5,21 +5,7 @@ INCLUDE_DIRECTORIES(../include/)
 ## linux
 IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   SET(SIGAR_SRC os/linux/linux_sigar.c)
-
   INCLUDE_DIRECTORIES(os/linux/)
-
-  # Fedora 28+ has removed Sun RPC interface from glibc
-  # https://fedoraproject.org/wiki/Changes/SunRPCRemoval
-  CHECK_INCLUDE_FILES(rpc/rpc.h HAVE_RPC_RPC_H)
-  IF(NOT HAVE_RPC_RPC_H)
-    INCLUDE(FindPkgConfig)
-    PKG_SEARCH_MODULE(TIRPC libtirpc)
-    IF(TIRPC_FOUND)
-      SET(SIGAR_LINK_FLAGS ${TIRPC_LDFLAGS})
-      INCLUDE_DIRECTORIES(${TIRPC_INCLUDE_DIRS})
-    ENDIF(TIRPC_FOUND)
-  ENDIF(NOT HAVE_RPC_RPC_H)
-
 ENDIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
 ## macosx, freebsd

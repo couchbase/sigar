@@ -514,16 +514,6 @@ typedef struct {
     char vendor_code_name[SIGAR_SYS_INFO_LEN];
 } sigar_sys_info_t;
 
-
-#define SIGAR_FQDN_LEN 512
-
-SIGAR_DECLARE(int) sigar_rpc_ping(char *hostname,
-                                  int protocol,
-                                  unsigned long program,
-                                  unsigned long version);
-
-SIGAR_DECLARE(char *) sigar_rpc_strerror(int err);
-
 #ifdef __cplusplus
 }
 #endif

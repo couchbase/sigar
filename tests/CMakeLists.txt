@@ -1,6 +1,6 @@
 ADD_DEFINITIONS(-U NDEBUG)
 MACRO(SIGAR_TEST name)
-	ADD_EXECUTABLE(${name} ${name}.c)
+	cb_add_test_executable(${name} ${name}.c)
 	TARGET_LINK_LIBRARIES(${name}  sigar)
 	ADD_TEST(${name} ${name})
 ENDMACRO(SIGAR_TEST name)

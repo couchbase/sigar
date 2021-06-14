@@ -1,9 +1,4 @@
 PROJECT(sigar C)
-cmake_minimum_required(VERSION 2.6)
-
-IF (${CMAKE_MAJOR_VERSION} GREATER 2)
-    CMAKE_POLICY(SET CMP0042 NEW)
-ENDIF (${CMAKE_MAJOR_VERSION} GREATER 2)
 
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckFunctionExists)
@@ -12,13 +7,6 @@ INCLUDE(CTest)
 INCLUDE(InstallRequiredSystemLibraries)
 
 ENABLE_TESTING()
-
-#SET(CPACK_PACKAGE_VERSION_MAJOR "1")
-#SET(CPACK_PACKAGE_VERSION_MINOR "6")
-#SET(CPACK_PACKAGE_VERSION_PATCH "2")
-#SET(CPACK_PACKAGE_VENDOR "Hyperic")
-## SET(CPACK_*) before the INCLUDE(CPack)
-#INCLUDE(CPack)
 
 IF(WIN32)
 	## make sure we only use the smallest set of

@@ -624,6 +624,8 @@ int sigar_services_query(char *ptql,
                          sigar_ptql_error_t *error,
                          sigar_services_walker_t *walker);
 
+int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid);
+int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
 
 typedef struct {
     WORD product_major;

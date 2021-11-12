@@ -58,7 +58,7 @@ ENDIF(CMAKE_SYSTEM_NAME MATCHES "(AIX)" )
 IF(WIN32)
   ADD_DEFINITIONS(-DSIGAR_SHARED)
   ADD_DEFINITIONS(-D_CRT_NONSTDC_NO_DEPRECATE)
-  SET(SIGAR_SRC os/win32/peb.c os/win32/win32_sigar.c os/win32/wmi.cpp)
+  SET(SIGAR_SRC os/win32/peb.c os/win32/win32_sigar.c os/win32/wmi.cpp os/win32/win32_util.cc)
   INCLUDE_DIRECTORIES(os/win32)
 ENDIF(WIN32)
 

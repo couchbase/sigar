@@ -995,22 +995,6 @@ int sigar_os_proc_list_get(sigar_t *sigar,
     }
 }
 
-static int sigar_os_check_parents(sigar_t* sigar,
-                                  sigar_pid_t pid,
-                                  sigar_pid_t ppid) {
-    do {
-        if (get_proc_info(sigar, pid) != SIGAR_OK) {
-            return -1;
-        }
-
-        if (sigar->pinfo.ppid == ppid) {
-            return SIGAR_OK;
-        }
-        pid = sigar->pinfo.ppid;
-    } while (sigar->pinfo.ppid != 0);
-    return -1;
-}
-
 int sigar_os_proc_list_get_children(sigar_t* sigar,
                                     sigar_pid_t ppid,
                                     sigar_proc_list_t* proclist) {

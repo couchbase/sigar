@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2004-2009 Hyperic, Inc.
+ * Copyright (c) 2009 SpringSource, Inc.
+ * Copyright (c) 2009-2010 VMware, Inc.
+ * Copyright (c) 2021 Couchbase, Inc
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+// Utilities where we can use C++ for simplicity
+
+#include "sigar.h"
+#include "sigar_private.h"
+#include "sigar_os.h"
+#include <vector>
+
+extern "C"
+int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid) {
+    try {
+        std::vector<sigar_pid_t> pids;
+        do {
+            if (get_proc_info(sigar, pid) != SIGAR_OK) {
+                return -1;
+            }
+
+            if (sigar->pinfo.ppid == ppid) {
+                return SIGAR_OK;
+            }
+            pids.push_back(pid);
+            pid = sigar->pinfo.ppid;
+            if (std::find(pids.begin(), pids.end(), pid) != pids.end()) {
+                // There is a loop in the process chain
+                return -1;
+            }
+        } while (sigar->pinfo.ppid != 0);
+    } catch (const std::bad_alloc&) {
+        return -1;
+    }
+    // not found
+    return -1;
+}

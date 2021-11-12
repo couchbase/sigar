@@ -1,4 +1,4 @@
-PROJECT(sigar C)
+PROJECT(sigar C CXX)
 
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckFunctionExists)

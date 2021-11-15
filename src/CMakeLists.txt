@@ -8,52 +8,15 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
   INCLUDE_DIRECTORIES(os/linux/)
 ENDIF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
-## macosx, freebsd
-IF(CMAKE_SYSTEM_NAME MATCHES "(Darwin|FreeBSD)")
-  SET(SIGAR_SRC os/darwin/darwin_sigar.c)
-
-  INCLUDE_DIRECTORIES(os/darwin/)
-  IF(CMAKE_SYSTEM_NAME MATCHES "(Darwin)")
+## macosx
+IF (APPLE)
+    SET(SIGAR_SRC os/darwin/darwin_sigar.c)
+    INCLUDE_DIRECTORIES(os/darwin/)
     INCLUDE_DIRECTORIES(/Developer/Headers/FlatCarbon/)
     ADD_DEFINITIONS(-DDARWIN)
     ADD_DEFINITIONS(-DDARWIN_HAS_LIBPROC_H=1)
     SET(SIGAR_LINK_FLAGS "-framework CoreServices -framework IOKit")
-  ELSE(CMAKE_SYSTEM_NAME MATCHES "(Darwin)")
-    ## freebsd needs libkvm
-    SET(SIGAR_LINK_FLAGS "-lkvm")
-  ENDIF(CMAKE_SYSTEM_NAME MATCHES "(Darwin)")
-ENDIF(CMAKE_SYSTEM_NAME MATCHES "(Darwin|FreeBSD)")
-
-## solaris
-IF (CMAKE_SYSTEM_NAME MATCHES "(Solaris|SunOS)" )
-  SET(SIGAR_SRC
-	os/solaris/solaris_sigar.c
-	os/solaris/get_mib2.c
-	os/solaris/kstats.c
-	os/solaris/procfs.c
-  )
-
-  INCLUDE_DIRECTORIES(os/solaris/)
-  ADD_DEFINITIONS(-DSOLARIS)
-  ADD_DEFINITIONS(-DHAVE_LIBDLPI_H)
-  SET(SIGAR_LINK_FLAGS "-lkstat -ldl -lnsl -lsocket -lresolv -ldlpi")
-ENDIF(CMAKE_SYSTEM_NAME MATCHES "(Solaris|SunOS)" )
-
-## solaris
-IF (CMAKE_SYSTEM_NAME MATCHES "(hpux)" )
-  SET(SIGAR_SRC os/hpux/hpux_sigar.c)
-  INCLUDE_DIRECTORIES(os/hpux/)
-  ADD_DEFINITIONS(-DSIGAR_HPUX)
-  SET(SIGAR_LINK_FLAGS -lnm)
-ENDIF(CMAKE_SYSTEM_NAME MATCHES "(hpux)" )
-
-## aix
-IF (CMAKE_SYSTEM_NAME MATCHES "(AIX)" )
-  SET(SIGAR_SRC os/aix/aix_sigar.c)
-
-  INCLUDE_DIRECTORIES(os/aix/)
-  SET(SIGAR_LINK_FLAGS -lodm -lcfg)
-ENDIF(CMAKE_SYSTEM_NAME MATCHES "(AIX)" )
+ENDIF (APPLE)
 
 IF(WIN32)
   ADD_DEFINITIONS(-DSIGAR_SHARED)

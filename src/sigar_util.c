@@ -494,32 +494,6 @@ int sigar_cpu_core_count(sigar_t *sigar)
 #endif
 }
 
-int sigar_cpu_core_rollup(sigar_t *sigar)
-{
-#ifdef SIGAR_HAS_CPUID
-    int log_rollup =
-        SIGAR_LOG_IS_DEBUG(sigar) &&
-        (sigar->lcpu == -1);
-
-    (void)sigar_cpu_core_count(sigar);
-
-    if (sigar->cpu_list_cores) {
-        if (log_rollup && (sigar->lcpu > 1)) {
-            sigar_log_printf(sigar, SIGAR_LOG_DEBUG,
-                             "[cpu] treating cores as-is");
-        }
-    }
-    else {
-        if (log_rollup && (sigar->lcpu > 1)) {
-            sigar_log_printf(sigar, SIGAR_LOG_DEBUG,
-                             "[cpu] rolling up cores to sockets");
-            return 1;
-        }
-    }
-#endif
-    return 0;
-}
-
 #define IS_CPU_R(p) \
    ((*p == '(') && (*(p+1) == 'R') && (*(p+2) == ')'))
 

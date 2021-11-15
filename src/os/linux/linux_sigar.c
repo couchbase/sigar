@@ -807,10 +807,6 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     procstate->nice     = pstat->nice;
     procstate->processor = pstat->processor;
 
-    if (sigar_cpu_core_rollup(sigar)) {
-        procstate->processor /= sigar->lcpu;
-    }
-
     proc_status_get(sigar, pid, procstate);
 
     return SIGAR_OK;

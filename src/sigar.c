@@ -49,8 +49,6 @@ SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
         (*sigar)->log_level = -1; /* log nothing by default */
         (*sigar)->log_impl = NULL;
         (*sigar)->log_data = NULL;
-        (*sigar)->ptql_re_impl = NULL;
-        (*sigar)->ptql_re_data = NULL;
         (*sigar)->self_path = NULL;
         (*sigar)->fsdev = NULL;
         (*sigar)->pids = NULL;

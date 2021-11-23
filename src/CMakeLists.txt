@@ -5,7 +5,6 @@ INCLUDE_DIRECTORIES(../include/)
 SET(SIGAR_COMMON_SRC
     sigar.c
     sigar_cache.c
-    sigar_fileinfo.c
     sigar_format.c
     sigar_util.c
     )

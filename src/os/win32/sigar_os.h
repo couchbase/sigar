@@ -604,26 +604,6 @@ int sigar_parse_proc_args(sigar_t *sigar, WCHAR *buf,
                           sigar_proc_args_t *procargs);
 
 
-typedef struct {
-    DWORD size;
-    DWORD count;
-    ENUM_SERVICE_STATUS *services;
-    SC_HANDLE handle;
-} sigar_services_status_t;
-
-typedef struct sigar_services_walker_t sigar_services_walker_t;
-
-struct sigar_services_walker_t {
-    sigar_t *sigar;
-    int flags;
-    void *data; /* user data */
-    int (*add_service)(sigar_services_walker_t *walker, char *name);
-};
-
-int sigar_services_query(char *ptql,
-                         sigar_ptql_error_t *error,
-                         sigar_services_walker_t *walker);
-
 int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid);
 int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
 

@@ -36,6 +36,7 @@ IF (WIN32)
 ENDIF (WIN32)
 
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)
+target_include_directories(sigar INTERFACE ${sigar_SOURCE_DIR}/include)
 
 INSTALL(TARGETS sigar
 	RUNTIME DESTINATION bin

@@ -139,18 +139,6 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu);
 
 typedef struct {
-    char vendor[128];
-    char model[128];
-    int mhz;
-    int mhz_max;
-    int mhz_min;
-    sigar_uint64_t cache_size;
-    int total_sockets;
-    int total_cores;
-    int cores_per_socket;
-} sigar_cpu_info_t;
-
-typedef struct {
     double uptime;
 } sigar_uptime_t;
 
@@ -184,13 +172,6 @@ typedef struct {
 
 SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                                       sigar_proc_mem_t *procmem);
-
-typedef struct {
-    sigar_uid_t uid;
-    sigar_gid_t gid;
-    sigar_uid_t euid;
-    sigar_gid_t egid;
-} sigar_proc_cred_t;
 
 typedef struct {
     sigar_uint64_t
@@ -291,34 +272,7 @@ SIGAR_DECLARE(int)
 sigar_file_system_list_destroy(sigar_t *sigar,
                                sigar_file_system_list_t *fslist);
 
-typedef struct {
-    sigar_uint64_t reads;
-    sigar_uint64_t writes;
-    sigar_uint64_t write_bytes;
-    sigar_uint64_t read_bytes;
-    sigar_uint64_t rtime;
-    sigar_uint64_t wtime;
-    sigar_uint64_t qtime;
-    sigar_uint64_t time;
-    sigar_uint64_t snaptime;
-    double service_time;
-    double queue;
-} sigar_disk_usage_t;
-
-typedef struct {
-    sigar_disk_usage_t disk;
-    double use_percent;
-    sigar_uint64_t total;
-    sigar_uint64_t free;
-    sigar_uint64_t used;
-    sigar_uint64_t avail;
-    sigar_uint64_t files;
-    sigar_uint64_t free_files;
-} sigar_file_system_usage_t;
-
 #undef SIGAR_DISK_USAGE_T
-
-
 
 
 typedef struct {
@@ -336,11 +290,6 @@ typedef struct {
 } sigar_net_address_t;
 
 #define SIGAR_INET6_ADDRSTRLEN 46
-
-#define SIGAR_MAXDOMAINNAMELEN 256
-#define SIGAR_MAXHOSTNAMELEN 256
-
-
 
 /*
  * platforms define most of these "standard" flags,
@@ -481,38 +430,6 @@ struct sigar_net_connection_walker_t {
 
 SIGAR_DECLARE(int)
 sigar_net_connection_walk(sigar_net_connection_walker_t *walker);
-
-
-
-/* TCP-MIB */
-typedef struct {
-    sigar_uint64_t active_opens;
-    sigar_uint64_t passive_opens;
-    sigar_uint64_t attempt_fails;
-    sigar_uint64_t estab_resets;
-    sigar_uint64_t curr_estab;
-    sigar_uint64_t in_segs;
-    sigar_uint64_t out_segs;
-    sigar_uint64_t retrans_segs;
-    sigar_uint64_t in_errs;
-    sigar_uint64_t out_rsts;
-} sigar_tcp_t;
-
-
-#define SIGAR_SYS_INFO_LEN SIGAR_MAXHOSTNAMELEN /* more than enough */
-
-typedef struct {
-    char name[SIGAR_SYS_INFO_LEN]; /* canonicalized sysname */
-    char version[SIGAR_SYS_INFO_LEN]; /* utsname.release */
-    char arch[SIGAR_SYS_INFO_LEN];
-    char machine[SIGAR_SYS_INFO_LEN];
-    char description[SIGAR_SYS_INFO_LEN];
-    char patch_level[SIGAR_SYS_INFO_LEN];
-    char vendor[SIGAR_SYS_INFO_LEN];
-    char vendor_version[SIGAR_SYS_INFO_LEN];
-    char vendor_name[SIGAR_SYS_INFO_LEN];  /* utsname.sysname */
-    char vendor_code_name[SIGAR_SYS_INFO_LEN];
-} sigar_sys_info_t;
 
 #ifdef __cplusplus
 }

@@ -80,63 +80,8 @@
 #endif
 
 #include "sigar.h"
-
-#ifndef WIN32
-#if defined(__FreeBSD__) || defined(__OpenBSD__)
-# include <sys/param.h>
-# include <sys/mount.h>
-#else
-# include <sys/statvfs.h>
-# define HAVE_STATVFS
-#endif
 #include <errno.h>
-
 #include "sigar_private.h"
-#include "sigar_util.h"
-
-#define SIGAR_FS_BLOCKS_TO_BYTES(val, bsize) ((val * bsize) >> 1)
-
-int sigar_statvfs(sigar_t *sigar,
-                  const char *dirname,
-                  sigar_file_system_usage_t *fsusage)
-{
-    sigar_uint64_t val, bsize;
-#ifdef HAVE_STATVFS
-    struct statvfs buf;
-    int status =
-# if defined(__sun) && !defined(_LP64)
-        /* http://bugs.opensolaris.org/view_bug.do?bug_id=4462986 */
-        statvfs(dirname, (void *)&buf);
-# else
-        statvfs(dirname, &buf);
-# endif
-#else
-    struct statfs buf;
-    int status = statfs(dirname, &buf);
-#endif
-
-    if (status != 0) {
-        return errno;
-    }
-
-#ifdef HAVE_STATVFS
-    bsize = buf.f_frsize / 512;
-#else
-    bsize = buf.f_bsize / 512;
-#endif
-    val = buf.f_blocks;
-    fsusage->total = SIGAR_FS_BLOCKS_TO_BYTES(val, bsize);
-    val = buf.f_bfree;
-    fsusage->free  = SIGAR_FS_BLOCKS_TO_BYTES(val, bsize);
-    val = buf.f_bavail;
-    fsusage->avail = SIGAR_FS_BLOCKS_TO_BYTES(val, bsize);
-    fsusage->used  = fsusage->total - fsusage->free;
-    fsusage->files = buf.f_files;
-    fsusage->free_files = buf.f_ffree;
-
-    return SIGAR_OK;
-}
-#endif
 
 /*
  * whittled down version of apr/file_info/{unix,win32}/filestat.c

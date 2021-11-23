@@ -278,12 +278,6 @@ int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
     else \
         ifconfig->scope6 = SIGAR_IPV6_ADDR_ANY
 
-int sigar_user_id_get(sigar_t *sigar, const char *name, int *uid);
-
-int sigar_user_name_get(sigar_t *sigar, int uid, char *buf, int buflen);
-
-int sigar_group_name_get(sigar_t *sigar, int gid, char *buf, int buflen);
-
 #define SIGAR_PROC_ENV_KEY_LOOKUP() \
     if ((procenv->type == SIGAR_PROC_ENV_KEY) && \
         (pid == sigar->pid)) \
@@ -343,21 +337,5 @@ int sigar_get_iftype(const char *name, int *type, int *inst);
 #ifndef WIN32
 #include <netdb.h>
 #endif
-
-#define SIGAR_HOSTENT_LEN 512
-#if defined(_AIX)
-#define SIGAR_HAS_HOSTENT_DATA
-#endif
-
-typedef struct {
-    char buffer[SIGAR_HOSTENT_LEN];
-    int error;
-#ifndef WIN32
-    struct hostent hs;
-#endif
-#ifdef SIGAR_HAS_HOSTENT_DATA
-    struct hostent_data hd;
-#endif
-} sigar_hostent_t;
 
 #endif

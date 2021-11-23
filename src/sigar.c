@@ -1076,30 +1076,3 @@ sigar_net_interface_config_primary_get(sigar_t *sigar,
         return SIGAR_ENXIO;
     }
 }
-
-struct hostent *sigar_gethostbyname(const char *name,
-                                    sigar_hostent_t *data)
-{
-    struct hostent *hp = NULL;
-
-#if defined(__linux__)
-    gethostbyname_r(name, &data->hs,
-                    data->buffer, sizeof(data->buffer),
-                    &hp, &data->error);
-#elif defined(__sun)
-    hp = gethostbyname_r(name, &data->hs,
-                         data->buffer, sizeof(data->buffer),
-                         &data->error);
-#elif defined(SIGAR_HAS_HOSTENT_DATA)
-    if (gethostbyname_r(name, &data->hs, &data->hd) == 0) {
-        hp = &data->hs;
-    }
-    else {
-        data->error = h_errno;
-    }
-#else
-    hp = gethostbyname(name);
-#endif
-
-    return hp;
-}

@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-#include <sys/times.h>
 #include <sys/utsname.h>
 
 #include "sigar.h"
@@ -36,8 +35,6 @@
 #define PROC_VMSTAT  PROC_FS_ROOT "vmstat"
 #define PROC_MTRR    PROC_FS_ROOT "mtrr"
 #define PROC_STAT    PROC_FS_ROOT "stat"
-#define PROC_UPTIME  PROC_FS_ROOT "uptime"
-#define PROC_LOADAVG PROC_FS_ROOT "loadavg"
 
 #define PROC_PSTAT   "/stat"
 #define PROC_PSTATUS "/status"
@@ -929,11 +926,6 @@ static  unsigned int hex2int(const char *x, int len)
 }
 
 #define HEX_ENT_LEN 8
-
-#define ROUTE_FMT "%16s %128s %128s %X %"PRIu64" %"PRIu64"%"PRIu64" %128s %"PRIu64" %"PRIu64" %"PRIu64"\n"
-#define RTF_UP 0x0001
-
-
 
 static  void convert_hex_address(sigar_net_address_t *address,
                                              char *ptr, int len)

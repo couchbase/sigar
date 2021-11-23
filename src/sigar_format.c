@@ -26,6 +26,9 @@
 
 #include <errno.h>
 #include <stdio.h>
+#ifndef WIN32
+#include <arpa/inet.h>
+#endif
 
 static char *sigar_error_string(int err)
 {

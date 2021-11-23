@@ -92,28 +92,6 @@ TEST_F(Sigar, test_sigar_mem_get) {
     EXPECT_LT(0, mem.actual_used);
 }
 
-TEST_F(Sigar, test_sigar_net_connections_get) {
-    sigar_net_connection_list_t connlist;
-    int ret = sigar_net_connection_list_get(
-            instance,
-            &connlist,
-            SIGAR_NETCONN_SERVER | SIGAR_NETCONN_CLIENT | SIGAR_NETCONN_TCP);
-    ASSERT_EQ(SIGAR_OK, ret) << "sigar_net_connection_list_get: "
-                             << sigar_strerror(instance, ret);
-    ASSERT_LE(0, connlist.number);
-
-    for (unsigned long ii = 0; ii < connlist.number; ii++) {
-        sigar_net_connection_t con = connlist.data[ii];
-
-        ASSERT_GT(65536, con.local_port);
-        ASSERT_GT(65536, con.remote_port);
-        ASSERT_LE(0, con.type);
-        ASSERT_LE(0, con.state);
-    }
-
-    ASSERT_EQ(SIGAR_OK, sigar_net_connection_list_destroy(instance, &connlist));
-}
-
 TEST_F(Sigar, test_sigar_pid_get) {
     const auto pid = sigar_pid_get(instance);
     ASSERT_NE(0, pid);

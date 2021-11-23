@@ -68,10 +68,6 @@ sigar_int64_t sigar_time_now_millis(void);
 
 char *sigar_uitoa(char *buf, unsigned int n, int *len);
 
-int sigar_inet_ntoa(sigar_t *sigar,
-                    sigar_uint32_t address,
-                    char *addr_str);
-
 char *sigar_skip_token(char *p);
 
 int sigar_file2str(const char *fname, char *buffer, int buflen);

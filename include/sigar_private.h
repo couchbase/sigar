@@ -50,21 +50,14 @@
    int log_level; \
    void *log_data; \
    sigar_log_impl_t log_impl; \
-   unsigned int ncpu; \
    unsigned long version; \
    unsigned long boot_time; \
    int ticks; \
    sigar_pid_t pid; \
    char errbuf[256]; \
-   char *ifconf_buf; \
-   int ifconf_len; \
    char *self_path; \
    sigar_proc_list_t *pids; \
-   sigar_cache_t *fsdev; \
-   sigar_cache_t *proc_cpu; \
-   sigar_cache_t *net_listen; \
-   sigar_cache_t *net_services_tcp; \
-   sigar_cache_t *net_services_udp
+   sigar_cache_t *proc_cpu
 
 #ifdef DMALLOC
 /* linux has its own strdup macro, make sure we use dmalloc's */
@@ -135,12 +128,7 @@
 #define SIGAR_NSEC2MSEC(s) \
    ((sigar_uint64_t)(s) / ((sigar_uint64_t)1000000L))
 
-#define IFTYPE_LO  2
-#define IFTYPE_ETH 3
-
 #define SIGAR_LAST_PROC_EXPIRE 2
-
-#define SIGAR_FS_MAX 10
 
 #define SIGAR_CPU_INFO_MAX 4
 
@@ -149,16 +137,6 @@
 #define SIGAR_PROC_LIST_MAX 256
 
 #define SIGAR_PROC_ARGS_MAX 12
-
-#define SIGAR_NET_ROUTE_LIST_MAX 6
-
-#define SIGAR_NET_IFLIST_MAX 20
-
-#define SIGAR_NET_CONNLIST_MAX 20
-
-#define SIGAR_ARP_LIST_MAX 12
-
-#define SIGAR_WHO_LIST_MAX 12
 
 int sigar_os_open(sigar_t **sigar);
 
@@ -196,140 +174,6 @@ int sigar_proc_args_grow(sigar_proc_args_t *procargs);
     if (procargs->number >= procargs->size) { \
         sigar_proc_args_grow(procargs); \
     }
-
-int sigar_file_system_list_create(sigar_file_system_list_t *fslist);
-
-int sigar_file_system_list_grow(sigar_file_system_list_t *fslist);
-
-#define SIGAR_FILE_SYSTEM_LIST_GROW(fslist) \
-    if (fslist->number >= fslist->size) { \
-        sigar_file_system_list_grow(fslist); \
-    }
-
-int sigar_os_fs_type_get(sigar_file_system_t *fsp);
-
-/* os plugins that set fsp->type call fs_type_get directly */
-#define sigar_fs_type_init(fsp) \
-   fsp->type = SIGAR_FSTYPE_UNKNOWN; \
-   sigar_fs_type_get(fsp)
-
-void sigar_fs_type_get(sigar_file_system_t *fsp);
-
-int sigar_net_interface_list_create(sigar_net_interface_list_t *iflist);
-
-int sigar_net_interface_list_grow(sigar_net_interface_list_t *iflist);
-
-#define SIGAR_NET_IFLIST_GROW(iflist) \
-    if (iflist->number >= iflist->size) { \
-        sigar_net_interface_list_grow(iflist); \
-    }
-
-int sigar_net_connection_list_create(sigar_net_connection_list_t *connlist);
-
-int sigar_net_connection_list_grow(sigar_net_connection_list_t *connlist);
-
-#define SIGAR_NET_CONNLIST_GROW(connlist) \
-    if (connlist->number >= connlist->size) { \
-        sigar_net_connection_list_grow(connlist); \
-    }
-
-#define sigar_net_address_set(a, val) \
-    (a).addr.in = val; \
-    (a).family = SIGAR_AF_INET
-
-#define sigar_net_address6_set(a, val) \
-    memcpy(&((a).addr.in6), val, sizeof((a).addr.in6)); \
-    (a).family = SIGAR_AF_INET6
-
-#define SIGAR_IFHWADDRLEN 6
-
-#define sigar_net_address_mac_set(a, val, len) \
-    memcpy(&((a).addr.mac), val, len); \
-    (a).family = SIGAR_AF_LINK
-
-#define sigar_hwaddr_set_null(ifconfig) \
-    SIGAR_ZERO(&ifconfig->hwaddr.addr.mac); \
-    ifconfig->hwaddr.family = SIGAR_AF_LINK
-
-int sigar_net_interface_ipv6_config_get(sigar_t *sigar, const char *name,
-                                        sigar_net_interface_config_t *ifconfig);
-
-#define sigar_net_interface_ipv6_config_init(ifconfig) \
-    ifconfig->address6.family = SIGAR_AF_INET6; \
-    ifconfig->prefix6_length = 0; \
-    ifconfig->scope6 = 0
-
-#define SIGAR_SIN6(s) ((struct sockaddr_in6 *)(s))
-
-#define SIGAR_SIN6_ADDR(s) &SIGAR_SIN6(s)->sin6_addr
-
-#define sigar_net_interface_scope6_set(ifconfig, addr) \
-    if (IN6_IS_ADDR_LINKLOCAL(addr)) \
-        ifconfig->scope6 = SIGAR_IPV6_ADDR_LINKLOCAL; \
-    else if (IN6_IS_ADDR_SITELOCAL(addr)) \
-        ifconfig->scope6 = SIGAR_IPV6_ADDR_SITELOCAL; \
-    else if (IN6_IS_ADDR_V4COMPAT(addr)) \
-        ifconfig->scope6 = SIGAR_IPV6_ADDR_COMPATv4; \
-    else if (IN6_IS_ADDR_LOOPBACK(addr)) \
-        ifconfig->scope6 = SIGAR_IPV6_ADDR_LOOPBACK; \
-    else \
-        ifconfig->scope6 = SIGAR_IPV6_ADDR_ANY
-
-#define SIGAR_PROC_ENV_KEY_LOOKUP() \
-    if ((procenv->type == SIGAR_PROC_ENV_KEY) && \
-        (pid == sigar->pid)) \
-    { \
-        char *value = getenv(procenv->key); \
-        if (value != NULL) { \
-            procenv->env_getter(procenv->data, \
-                                procenv->key, \
-                                procenv->klen, \
-                                value, strlen(value)); \
-        } \
-        return SIGAR_OK; \
-    }
-
-#define SIGAR_DISK_STATS_INIT(disk) \
-    (disk)->reads = (disk)->writes = \
-    (disk)->read_bytes = (disk)->write_bytes = \
-    (disk)->rtime = (disk)->wtime = (disk)->qtime = (disk)->time = \
-    (disk)->queue = (disk)->service_time = SIGAR_FIELD_NOTIMPL; \
-    (disk)->snaptime = 0
-
-/* key used for filesystem (/) -> device (/dev/hda1) mapping */
-/* and disk_usage cache for service_time */
-#define SIGAR_FSDEV_ID(sb) \
-    (S_ISBLK((sb).st_mode) ? (sb).st_rdev : ((sb).st_ino + (sb).st_dev))
-
-#if defined(WIN32) || defined(NETWARE)
-int sigar_get_iftype(const char *name, int *type, int *inst);
-#endif
-
-#define SIGAR_NIC_LOOPBACK "Local Loopback"
-#define SIGAR_NIC_UNSPEC   "UNSPEC"
-#define SIGAR_NIC_SLIP     "Serial Line IP"
-#define SIGAR_NIC_CSLIP    "VJ Serial Line IP"
-#define SIGAR_NIC_SLIP6    "6-bit Serial Line IP"
-#define SIGAR_NIC_CSLIP6   "VJ 6-bit Serial Line IP"
-#define SIGAR_NIC_ADAPTIVE "Adaptive Serial Line IP"
-#define SIGAR_NIC_ETHERNET "Ethernet"
-#define SIGAR_NIC_ASH      "Ash"
-#define SIGAR_NIC_FDDI     "Fiber Distributed Data Interface"
-#define SIGAR_NIC_HIPPI    "HIPPI"
-#define SIGAR_NIC_AX25     "AMPR AX.25"
-#define SIGAR_NIC_ROSE     "AMPR ROSE"
-#define SIGAR_NIC_NETROM   "AMPR NET/ROM"
-#define SIGAR_NIC_X25      "generic X.25"
-#define SIGAR_NIC_TUNNEL   "IPIP Tunnel"
-#define SIGAR_NIC_PPP      "Point-to-Point Protocol"
-#define SIGAR_NIC_HDLC     "(Cisco)-HDLC"
-#define SIGAR_NIC_LAPB     "LAPB"
-#define SIGAR_NIC_ARCNET   "ARCnet"
-#define SIGAR_NIC_DLCI     "Frame Relay DLCI"
-#define SIGAR_NIC_FRAD     "Frame Relay Access Device"
-#define SIGAR_NIC_SIT      "IPv6-in-IPv4"
-#define SIGAR_NIC_IRDA     "IrLAP"
-#define SIGAR_NIC_EC       "Econet"
 
 #ifndef WIN32
 #include <netdb.h>

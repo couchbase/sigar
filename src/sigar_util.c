@@ -15,16 +15,9 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <assert.h>
-
 #include "sigar.h"
 #include "sigar_private.h"
 #include "sigar_util.h"
-#include "sigar_os.h"
 
 int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
 {
@@ -51,87 +44,6 @@ int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
 }
 
 /* common to win32 and linux */
-
-
-#ifdef WIN32
-#define vsnprintf _vsnprintf
-#endif
-
-#ifdef WIN32
-#   define rindex strrchr
-#endif
-
-SIGAR_DECLARE(void) sigar_log_printf(sigar_t *sigar, int level,
-                                     const char *format, ...)
-{
-    va_list args;
-    char buffer[8192];
-
-    if (level > sigar->log_level) {
-        return;
-    }
-
-    if (!sigar->log_impl) {
-        return;
-    }
-
-    va_start(args, format);
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
-
-    sigar->log_impl(sigar, sigar->log_data, level, buffer);
-}
-
-SIGAR_DECLARE(void) sigar_log(sigar_t *sigar, int level, char *message)
-{
-    if (level > sigar->log_level) {
-        return;
-    }
-
-    if (!sigar->log_impl) {
-        return;
-    }
-
-    sigar->log_impl(sigar, sigar->log_data, level, message);
-}
-
-SIGAR_DECLARE(void) sigar_log_impl_set(sigar_t *sigar, void *data,
-                                       sigar_log_impl_t impl)
-{
-    sigar->log_data = data;
-    sigar->log_impl = impl;
-}
-
-SIGAR_DECLARE(int) sigar_log_level_get(sigar_t *sigar)
-{
-    return sigar->log_level;
-}
-
-static const char *log_levels[] = {
-    "FATAL",
-    "ERROR",
-    "WARN",
-    "INFO",
-    "DEBUG",
-    "TRACE"
-};
-
-SIGAR_DECLARE(const char *) sigar_log_level_string_get(sigar_t *sigar)
-{
-    return log_levels[sigar->log_level];
-}
-
-SIGAR_DECLARE(void) sigar_log_level_set(sigar_t *sigar, int level)
-{
-    sigar->log_level = level;
-}
-
-SIGAR_DECLARE(void) sigar_log_impl_file(sigar_t *sigar, void *data,
-                                        int level, char *message)
-{
-    FILE *fp = (FILE*)data;
-    fprintf(fp, "[%s] %s\n", log_levels[level], message);
-}
 
 #ifndef WIN32
 #include <sys/time.h>

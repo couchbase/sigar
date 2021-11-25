@@ -26,6 +26,7 @@
 
 #include <errno.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 static char *sigar_error_string(int err)
 {

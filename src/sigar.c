@@ -42,9 +42,6 @@ SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
     int status = sigar_os_open(sigar);
 
     if (status == SIGAR_OK) {
-        (*sigar)->log_level = -1; /* log nothing by default */
-        (*sigar)->log_impl = NULL;
-        (*sigar)->log_data = NULL;
         (*sigar)->self_path = NULL;
         (*sigar)->pids = NULL;
         (*sigar)->proc_cpu = NULL;

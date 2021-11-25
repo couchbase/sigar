@@ -399,7 +399,6 @@ static int sigar_dllmod_init(sigar_t *sigar,
                              int all)
 {
     sigar_dll_func_t *funcs = &module->funcs[0];
-    int is_debug = SIGAR_LOG_IS_DEBUG(sigar);
     int rc, success;
 
     if (module->handle == INVALID_HANDLE_VALUE) {
@@ -417,15 +416,6 @@ static int sigar_dllmod_init(sigar_t *sigar,
         module->handle = INVALID_HANDLE_VALUE;
     }
 
-    if (is_debug) {
-        sigar_log_printf(sigar, SIGAR_LOG_DEBUG,
-                         "LoadLibrary(%s): %s",
-                         module->name,
-                         success ?
-                         "OK" :
-                         sigar_strerror(sigar, rc));
-    }
-
     if (!success) {
         return rc;
     }
@@ -435,15 +425,6 @@ static int sigar_dllmod_init(sigar_t *sigar,
 
         if (!(success = (funcs->func ? TRUE : FALSE))) {
             rc = GetLastError();
-        }
-
-        if (is_debug) {
-            sigar_log_printf(sigar, SIGAR_LOG_DEBUG,
-                             "GetProcAddress(%s:%s): %s",
-                             module->name, funcs->name,
-                             success ?
-                             "OK" :
-                             sigar_strerror(sigar, rc));
         }
 
         if (all && !success) {
@@ -562,7 +543,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     DLLMOD_COPY(kernel);
     DLLMOD_COPY(mpr);
 
-    sigar->log_level = -1; /* else below segfaults */
     /* XXX init early for use by javasigar.c */
     sigar_dllmod_init(sigar,
                       (sigar_dll_module_t *)&sigar->advapi,
@@ -836,12 +816,6 @@ static int sigar_cpu_perflib_get(sigar_t *sigar, sigar_cpu_t *cpu)
     cpu->nice = 0; /* no nice here */
     cpu->wait = 0; /*N/A?*/
     cpu->total = cpu->sys + cpu->user + cpu->idle + cpu->wait + cpu->irq;
-
-    if (status != SIGAR_OK) {
-        sigar_log_printf(sigar, SIGAR_LOG_WARN,
-                         "unable to determine idle cpu time: %s",
-                         sigar_strerror(sigar, status));
-    }
 
     return SIGAR_OK;
 }

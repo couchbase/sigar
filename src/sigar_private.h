@@ -19,8 +19,6 @@
 #ifndef SIGAR_PRIVATE_DOT_H
 #define SIGAR_PRIVATE_DOT_H
 
-#include "sigar_log.h"
-
 #include <stdlib.h>
 #include <string.h>
 #include <ctype.h>
@@ -47,9 +45,6 @@
  * feel free trav ;-)
  */
 #define SIGAR_T_BASE \
-   int log_level; \
-   void *log_data; \
-   sigar_log_impl_t log_impl; \
    unsigned long version; \
    unsigned long boot_time; \
    int ticks; \

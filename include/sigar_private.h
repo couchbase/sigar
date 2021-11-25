@@ -165,6 +165,12 @@ int sigar_proc_list_grow(sigar_proc_list_t *proclist);
         sigar_proc_list_grow(proclist); \
     }
 
+typedef struct {
+    unsigned long number;
+    unsigned long size;
+    char **data;
+} sigar_proc_args_t;
+
 int sigar_proc_args_create(sigar_proc_args_t *proclist);
 
 int sigar_proc_args_grow(sigar_proc_args_t *procargs);

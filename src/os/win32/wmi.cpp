@@ -24,6 +24,7 @@
 #include <comdef.h>
 #include <wbemidl.h>
 #include "sigar.h"
+#include "sigar_private.h"
 
 #pragma comment(lib, "wbemuuid.lib")
 

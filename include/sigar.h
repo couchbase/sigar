@@ -221,12 +221,6 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                                         sigar_proc_state_t *procstate);
 
-typedef struct {
-    unsigned long number;
-    unsigned long size;
-    char **data;
-} sigar_proc_args_t;
-
 #ifdef __cplusplus
 }
 #endif

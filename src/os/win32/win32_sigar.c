@@ -1029,17 +1029,6 @@ SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
 #define FILETIME2MSEC(ft) \
         NS100_2MSEC((((long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime))
 
-sigar_int64_t sigar_time_now_millis(void)
-{
-    SYSTEMTIME st;
-    FILETIME time;
-
-    GetSystemTime(&st);
-    SystemTimeToFileTime(&st, &time);
-
-    return sigar_FileTimeToTime(&time) / 1000;
-}
-
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime)
 {

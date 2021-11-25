@@ -6,7 +6,7 @@ SET(SIGAR_COMMON_SRC
     sigar.c
     sigar_cache.c
     sigar_format.c
-    sigar_util.c
+    sigar_util.cc
     sigar_private.h
     sigar_util.h
     )

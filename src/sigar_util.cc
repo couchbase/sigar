@@ -16,11 +16,11 @@
  */
 
 #include "sigar.h"
-#include "sigar_private.h"
 #include "sigar_util.h"
 
-int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
-{
+#include <chrono>
+
+int sigar_mem_calc_ram(sigar_t*, sigar_mem_t* mem) {
     sigar_int64_t total = mem->total / 1024, diff;
     sigar_uint64_t lram = (mem->total / (1024 * 1024));
     int ram = (int)lram; /* must cast after division */
@@ -33,24 +33,17 @@ int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
     mem->ram = ram;
 
     diff = total - (mem->actual_free / 1024);
-    mem->used_percent =
-        (double)(diff * 100) / total;
+    mem->used_percent = (double)(diff * 100) / total;
 
     diff = total - (mem->actual_used / 1024);
-    mem->free_percent =
-        (double)(diff * 100) / total;
+    mem->free_percent = (double)(diff * 100) / total;
 
     return ram;
 }
 
-/* common to win32 and linux */
-
-#ifndef WIN32
-#include <sys/time.h>
-sigar_int64_t sigar_time_now_millis(void)
-{
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return ((tv.tv_sec * SIGAR_USEC) + tv.tv_usec) / SIGAR_MSEC;
+sigar_int64_t sigar_time_now_millis() {
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   now.time_since_epoch())
+            .count();
 }
-#endif

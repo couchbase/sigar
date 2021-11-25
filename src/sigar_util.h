@@ -15,8 +15,11 @@
  * limitations under the License.
  */
 
-#ifndef SIGAR_UTIL_H
-#define SIGAR_UTIL_H
+#pragma once
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define SSTRLEN(s) \
     (sizeof(s)-1)
@@ -50,4 +53,6 @@ sigar_cache_entry_t *sigar_cache_find(sigar_cache_t *table,
 
 void sigar_cache_destroy(sigar_cache_t *table);
 
-#endif /* SIGAR_UTIL_H */
+#ifdef __cplusplus
+}
+#endif

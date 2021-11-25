@@ -7,12 +7,15 @@ SET(SIGAR_COMMON_SRC
     sigar_cache.c
     sigar_format.c
     sigar_util.c
+    sigar_private.h
+    sigar_util.h
     )
 
 ## linux
 IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
                 os/linux/linux_sigar.c
+                os/linux/sigar_os.h
                 os/linux/sigar_cgroup.cc)
     target_include_directories(sigar PRIVATE os/linux)
     target_include_directories(sigar SYSTEM PRIVATE AFTER
@@ -22,7 +25,10 @@ ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
 ## macosx
 IF (APPLE)
-    add_library(sigar SHARED ${SIGAR_COMMON_SRC} os/darwin/darwin_sigar.c sigar_control_group_not_supported.cc)
+    add_library(sigar SHARED ${SIGAR_COMMON_SRC}
+                os/darwin/darwin_sigar.c
+                os/darwin/sigar_os.h
+                sigar_control_group_not_supported.cc)
     target_include_directories(sigar PRIVATE os/darwin/)
     target_include_directories(sigar SYSTEM PRIVATE /Developer/Headers/FlatCarbon/)
     target_compile_definitions(sigar PRIVATE -DDARWIN -DDARWIN_HAS_LIBPROC_H=1)
@@ -32,6 +38,7 @@ ENDIF (APPLE)
 IF (WIN32)
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
                 os/win32/peb.c
+                os/win32/sigar_os.h
                 os/win32/win32_sigar.c
                 os/win32/wmi.cpp
                 os/win32/win32_util.cc
@@ -43,6 +50,7 @@ ENDIF (WIN32)
 
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)
 target_include_directories(sigar INTERFACE ${sigar_SOURCE_DIR}/include)
+target_include_directories(sigar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 INSTALL(TARGETS sigar
 	RUNTIME DESTINATION bin

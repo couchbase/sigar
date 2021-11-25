@@ -5,6 +5,7 @@ INSTALL(FILES sigar.h
 	sigar_private.h
 	sigar_util.h
     sigar_visibility.h
+    sigar_control_group.h
 	DESTINATION include/
 	)
 ENDIF (INSTALL_HEADER_FILES)

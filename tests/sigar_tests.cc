@@ -38,10 +38,11 @@
  */
 
 #include <folly/portability/GTest.h>
-#include <sigar.h>
-#include <thread>
-#include <chrono>
 #include <platform/dirutils.h>
+#include <sigar.h>
+#include <sigar_control_group.h>
+#include <chrono>
+#include <thread>
 
 class Sigar : public ::testing::Test {
 protected:
@@ -210,3 +211,28 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
     }
 }
 #endif
+
+TEST_F(Sigar, sigar_get_control_group_info) {
+    sigar_control_group_info_t info;
+    sigar_get_control_group_info(&info);
+
+#ifdef __linux__
+    ASSERT_EQ(1, info.supported);
+    ASSERT_TRUE((info.version == 1) || (info.version == 2));
+    ASSERT_LE(1, info.num_cpu);
+
+    // cgroup V2 returns "max" if no limit is set
+    if (info.memory_max > 0) {
+        ASSERT_LE(info.memory_current, info.memory_max);
+    } else {
+        EXPECT_EQ(2, info.version);
+    }
+
+    EXPECT_NE(0, info.memory_current);
+    EXPECT_NE(0, info.usage_usec);
+    EXPECT_NE(0, info.user_usec);
+    EXPECT_NE(0, info.system_usec);
+#else
+    ASSERT_EQ(0, info.supported);
+#endif
+}

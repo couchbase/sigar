@@ -53,18 +53,6 @@
    sigar_proc_list_t *pids; \
    sigar_cache_t *proc_cpu
 
-#ifdef DMALLOC
-/* linux has its own strdup macro, make sure we use dmalloc's */
-#define sigar_strdup(s) \
-    dmalloc_strndup(__FILE__, __LINE__, (s), -1, 0)
-#else
-#  ifdef WIN32
-#    define sigar_strdup(s) _strdup(s)
-#  else
-#    define sigar_strdup(s) strdup(s)
-#  endif
-#endif
-
 #define SIGAR_ZERO(s) \
     memset(s, '\0', sizeof(*(s)))
 

@@ -39,10 +39,6 @@
 #define PROC_PSTAT   "/stat"
 #define PROC_PSTATUS "/status"
 
-#define SYS_BLOCK "/sys/block"
-#define PROC_PARTITIONS PROC_FS_ROOT "partitions"
-#define PROC_DISKSTATS  PROC_FS_ROOT "diskstats"
-
 /*
  * /proc/self/stat fields:
  * 1 - pid
@@ -143,7 +139,6 @@ int sigar_os_open(sigar_t **sigar)
 {
     int i, status;
     int kernel_rev, has_nptl;
-    struct stat sb;
     struct utsname name;
 
     *sigar = malloc(sizeof(**sigar));
@@ -160,31 +155,9 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-
     (*sigar)->ram = -1;
-
     (*sigar)->proc_signal_offset = -1;
-
     (*sigar)->last_proc_stat.pid = -1;
-
-    (*sigar)->lcpu = -1;
-
-    if (stat(PROC_DISKSTATS, &sb) == 0) {
-        (*sigar)->iostat = IOSTAT_DISKSTATS;
-    }
-    else if (stat(SYS_BLOCK, &sb) == 0) {
-        (*sigar)->iostat = IOSTAT_SYS;
-    }
-    else if (stat(PROC_PARTITIONS, &sb) == 0) {
-        /* XXX file exists does not mean is has the fields */
-        (*sigar)->iostat = IOSTAT_PARTITIONS;
-    }
-    else {
-        (*sigar)->iostat = IOSTAT_NONE;
-    }
-
-    /* hook for using mirrored /proc/net/tcp file */
-    (*sigar)->proc_net = getenv("SIGAR_PROC_NET");
 
     uname(&name);
     /* 2.X.y.z -> just need X (unless there is ever a kernel version 3!) */

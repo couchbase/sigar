@@ -49,22 +49,12 @@ typedef struct {
     int processor;
 } linux_proc_stat_t;
 
-typedef enum {
-    IOSTAT_NONE,
-    IOSTAT_PARTITIONS, /* 2.4 */
-    IOSTAT_DISKSTATS, /* 2.6 */
-    IOSTAT_SYS /* 2.6 */
-} linux_iostat_e;
-
 struct sigar_t {
     SIGAR_T_BASE;
     int pagesize;
     int ram;
     int proc_signal_offset;
     linux_proc_stat_t last_proc_stat;
-    int lcpu;
-    linux_iostat_e iostat;
-    char *proc_net;
     /* Native POSIX Thread Library 2.6+ kernel */
     int has_nptl;
 };
@@ -73,8 +63,5 @@ struct sigar_t {
 /* use gnu version of strerror_r */
 #define HAVE_STRERROR_R_GLIBC
 #undef HAVE_READDIR_R
-#define HAVE_GETPWNAM_R
-#define HAVE_GETPWUID_R
-#define HAVE_GETGRGID_R
 
 #endif /* SIGAR_OS_H */

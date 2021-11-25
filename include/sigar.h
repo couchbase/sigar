@@ -227,12 +227,6 @@ typedef struct {
     char **data;
 } sigar_proc_args_t;
 
-typedef struct {
-    void *data; /* user data */
-
-    int (*module_getter)(void *, char *, int);
-} sigar_proc_modules_t;
-
 #ifdef __cplusplus
 }
 #endif

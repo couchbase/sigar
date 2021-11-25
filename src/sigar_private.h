@@ -15,9 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
-#ifndef SIGAR_PRIVATE_DOT_H
-#define SIGAR_PRIVATE_DOT_H
+#pragma once
 
 #include <stdlib.h>
 #include <string.h>
@@ -26,15 +24,7 @@
 #ifndef WIN32
 #include <unistd.h>
 #include <stddef.h>
-#ifndef DARWIN
 #include <strings.h>
-#endif
-#endif
-
-#ifdef DMALLOC
-#define _MEMORY_H /* exclude memory.h on solaris */
-#define DMALLOC_FUNC_CHECK
-#include <dmalloc.h>
 #endif
 
 /* common to all os sigar_t's */
@@ -84,12 +74,6 @@
 
 #ifndef strncaseEQ
 #define strncaseEQ(s1, s2, n) (strncasecmp(s1, s2, n) == 0)
-#endif
-
-#ifdef offsetof
-#define sigar_offsetof offsetof
-#else
-#define sigar_offsetof(type, field) ((size_t)(&((type *)0)->field))
 #endif
 
 #define SIGAR_MSEC 1000L
@@ -163,8 +147,3 @@ int sigar_proc_args_grow(sigar_proc_args_t *procargs);
         sigar_proc_args_grow(procargs); \
     }
 
-#ifndef WIN32
-#include <netdb.h>
-#endif
-
-#endif

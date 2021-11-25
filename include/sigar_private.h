@@ -53,7 +53,6 @@
    unsigned long version; \
    unsigned long boot_time; \
    int ticks; \
-   sigar_pid_t pid; \
    char errbuf[256]; \
    char *self_path; \
    sigar_proc_list_t *pids; \

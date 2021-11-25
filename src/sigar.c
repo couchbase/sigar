@@ -42,8 +42,6 @@ SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
     int status = sigar_os_open(sigar);
 
     if (status == SIGAR_OK) {
-        /* use env to revert to old behavior */
-        (*sigar)->pid = 0;
         (*sigar)->log_level = -1; /* log nothing by default */
         (*sigar)->log_impl = NULL;
         (*sigar)->log_data = NULL;
@@ -75,16 +73,14 @@ SIGAR_DECLARE(int) sigar_close(sigar_t *sigar)
 #include <process.h>
 #endif
 
-#ifndef __linux__ /* linux has a special case */
 SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t *sigar)
 {
-    if (!sigar->pid) {
-        sigar->pid = getpid();
-    }
-
-    return sigar->pid;
+    // There isn't much point of trying to cache the pid (it would break
+    // if the paren't ever called fork()). We don't use the variable
+    // internally, and if the caller don't want the overhead of a system
+    // call they can always cache it themselves
+    return getpid();
 }
-#endif
 
 /* XXX: add clear() function */
 /* XXX: check for stale-ness using start_time */

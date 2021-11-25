@@ -109,16 +109,6 @@ static int get_proc_signal_offset(void)
     return (fields - PROC_SIGNAL_IX) + 1;
 }
 
-sigar_pid_t sigar_pid_get(sigar_t *sigar)
-{
-    /* XXX cannot safely cache getpid unless using nptl */
-    /* we can however, cache it for optimizations in the
-     * case of proc_env_get for example.
-     */
-    sigar->pid = getpid();
-    return sigar->pid;
-}
-
 static int sigar_boot_time_get(sigar_t *sigar)
 {
     FILE *fp;

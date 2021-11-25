@@ -31,6 +31,7 @@
 
 #define pageshift(x) ((x) << sigar->pagesize)
 
+#define PROC_FS_ROOT "/proc/"
 #define PROC_MEMINFO PROC_FS_ROOT "meminfo"
 #define PROC_VMSTAT  PROC_FS_ROOT "vmstat"
 #define PROC_MTRR    PROC_FS_ROOT "mtrr"
@@ -38,6 +39,114 @@
 
 #define PROC_PSTAT   "/stat"
 #define PROC_PSTATUS "/status"
+
+#define sigar_strtoul(ptr) strtoul(ptr, &ptr, 10)
+
+#define sigar_strtoull(ptr) strtoull(ptr, &ptr, 10)
+
+#define sigar_isspace(c) (isspace(((unsigned char)(c))))
+
+#define sigar_isdigit(c) (isdigit(((unsigned char)(c))))
+
+#define UITOA_BUFFER_SIZE (sizeof(int) * 3 + 1)
+
+static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
+    char* start = buf + UITOA_BUFFER_SIZE - 1;
+
+    *start = 0;
+
+    do {
+        *--start = '0' + (n % 10);
+        ++*len;
+        n /= 10;
+    } while (n);
+
+    return start;
+}
+
+static char* sigar_skip_token(char* p) {
+    while (sigar_isspace(*p))
+        p++;
+    while (*p && !sigar_isspace(*p))
+        p++;
+    return p;
+}
+
+static char* sigar_proc_filename(char* buffer,
+                                 int buflen,
+                                 sigar_pid_t bigpid,
+                                 const char* fname,
+                                 int fname_len) {
+    int len = 0;
+    char* ptr = buffer;
+    unsigned int pid = (unsigned int)bigpid; /* XXX -- This isn't correct */
+    char pid_buf[UITOA_BUFFER_SIZE];
+    char* pid_str = sigar_uitoa(pid_buf, pid, &len);
+
+    assert((unsigned int)buflen >=
+           (SSTRLEN(PROC_FS_ROOT) + UITOA_BUFFER_SIZE + fname_len + 1));
+
+    memcpy(ptr, PROC_FS_ROOT, SSTRLEN(PROC_FS_ROOT));
+    ptr += SSTRLEN(PROC_FS_ROOT);
+
+    memcpy(ptr, pid_str, len);
+    ptr += len;
+
+    memcpy(ptr, fname, fname_len);
+    ptr += fname_len;
+    *ptr = '\0';
+
+    return buffer;
+}
+
+static int sigar_file2str(const char* fname, char* buffer, int buflen) {
+    int len, status;
+    int fd = open(fname, O_RDONLY);
+
+    if (fd < 0) {
+        return ENOENT;
+    }
+
+    if ((len = read(fd, buffer, buflen)) < 0) {
+        status = errno;
+    } else {
+        status = SIGAR_OK;
+        buffer[len] = '\0';
+    }
+    close(fd);
+
+    return status;
+}
+
+static int sigar_proc_file2str(char* buffer,
+                               int buflen,
+                               sigar_pid_t pid,
+                               const char* fname,
+                               int fname_len) {
+    int retval;
+
+    buffer = sigar_proc_filename(buffer, buflen, pid, fname, fname_len);
+
+    retval = sigar_file2str(buffer, buffer, buflen);
+
+    if (retval != SIGAR_OK) {
+        switch (retval) {
+        case ENOENT:
+            retval = ESRCH; /* no such process */
+        default:
+            break;
+        }
+    }
+
+    return retval;
+}
+
+#define SIGAR_PROC_FILE2STR(buffer, pid, fname) \
+    sigar_proc_file2str(buffer, sizeof(buffer), pid, fname, SSTRLEN(fname))
+
+#define SIGAR_SKIP_SPACE(ptr)   \
+    while (sigar_isspace(*ptr)) \
+    ++ptr
 
 /*
  * /proc/self/stat fields:
@@ -89,8 +198,8 @@ static int get_proc_signal_offset(void)
 {
     char buffer[BUFSIZ], *ptr=buffer;
     int fields = 0;
-    int status = sigar_file2str(PROCP_FS_ROOT "self/stat",
-                                buffer, sizeof(buffer));
+    int status =
+            sigar_file2str(PROC_FS_ROOT "self/stat", buffer, sizeof(buffer));
 
     if (status != SIGAR_OK) {
         return 1;
@@ -434,8 +543,8 @@ static  int proc_isthread(sigar_t *sigar, char *pidstr, int len)
     int fd, n, offset=sigar->proc_signal_offset;
 
     /* sprintf(buffer, "/proc/%s/stat", pidstr) */
-    memcpy(ptr, PROCP_FS_ROOT, SSTRLEN(PROCP_FS_ROOT));
-    ptr += SSTRLEN(PROCP_FS_ROOT);
+    memcpy(ptr, PROC_FS_ROOT, SSTRLEN(PROC_FS_ROOT));
+    ptr += SSTRLEN(PROC_FS_ROOT);
 
     memcpy(ptr, pidstr, len);
     ptr += len;
@@ -497,7 +606,7 @@ static  int proc_isthread(sigar_t *sigar, char *pidstr, int len)
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist)
 {
-    DIR *dirp = opendir(PROCP_FS_ROOT);
+    DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent *ent;
     register const int threadbadhack = !sigar->has_nptl;
 
@@ -651,7 +760,7 @@ static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
 int sigar_os_proc_list_get_children(sigar_t* sigar,
                                     sigar_pid_t ppid,
                                     sigar_proc_list_t* proclist) {
-    DIR* dirp = opendir(PROCP_FS_ROOT);
+    DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent* ent;
     register const int threadbadhack = !sigar->has_nptl;
 

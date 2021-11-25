@@ -26,87 +26,6 @@
 #include "sigar_util.h"
 #include "sigar_os.h"
 
-#ifndef WIN32
-
-#include <dirent.h>
-#include <sys/stat.h>
-
-char *sigar_uitoa(char *buf, unsigned int n, int *len)
-{
-    char *start = buf + UITOA_BUFFER_SIZE - 1;
-
-    *start = 0;
-
-    do {
-        *--start = '0' + (n % 10);
-        ++*len;
-        n /= 10;
-    } while (n);
-
-    return start;
-}
-
-char *sigar_skip_token(char *p)
-{
-    while (sigar_isspace(*p)) p++;
-    while (*p && !sigar_isspace(*p)) p++;
-    return p;
-}
-
-/* avoiding sprintf */
-
-char *sigar_proc_filename(char *buffer, int buflen,
-                          sigar_pid_t bigpid,
-                          const char *fname, int fname_len)
-{
-    int len = 0;
-    char *ptr = buffer;
-    unsigned int pid = (unsigned int)bigpid; /* XXX -- This isn't correct */
-    char pid_buf[UITOA_BUFFER_SIZE];
-    char *pid_str = sigar_uitoa(pid_buf, pid, &len);
-
-    assert((unsigned int)buflen >=
-           (SSTRLEN(PROCP_FS_ROOT) + UITOA_BUFFER_SIZE + fname_len + 1));
-
-    memcpy(ptr, PROCP_FS_ROOT, SSTRLEN(PROCP_FS_ROOT));
-    ptr += SSTRLEN(PROCP_FS_ROOT);
-
-    memcpy(ptr, pid_str, len);
-    ptr += len;
-
-    memcpy(ptr, fname, fname_len);
-    ptr += fname_len;
-    *ptr = '\0';
-
-    return buffer;
-}
-
-int sigar_proc_file2str(char *buffer, int buflen,
-                        sigar_pid_t pid,
-                        const char *fname,
-                        int fname_len)
-{
-    int retval;
-
-    buffer = sigar_proc_filename(buffer, buflen, pid,
-                                 fname, fname_len);
-
-    retval = sigar_file2str(buffer, buffer, buflen);
-
-    if (retval != SIGAR_OK) {
-        switch (retval) {
-          case ENOENT:
-            retval = ESRCH; /* no such process */
-          default:
-            break;
-        }
-    }
-
-    return retval;
-}
-
-#endif /* WIN32 */
-
 int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
 {
     sigar_int64_t total = mem->total / 1024, diff;
@@ -133,26 +52,6 @@ int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem)
 
 /* common to win32 and linux */
 
-int sigar_file2str(const char *fname, char *buffer, int buflen)
-{
-    int len, status;
-    int fd = open(fname, O_RDONLY);
-
-    if (fd < 0) {
-        return ENOENT;
-    }
-
-    if ((len = read(fd, buffer, buflen)) < 0) {
-        status = errno;
-    }
-    else {
-        status = SIGAR_OK;
-        buffer[len] = '\0';
-    }
-    close(fd);
-
-    return status;
-}
 
 #ifdef WIN32
 #define vsnprintf _vsnprintf

@@ -22,7 +22,6 @@
 #include <errno.h>
 #include <sys/param.h>
 #include <sys/stat.h>
-#include <sys/utsname.h>
 
 #include "sigar.h"
 #include "sigar_private.h"
@@ -192,28 +191,6 @@ static int sigar_proc_file2str(char* buffer,
  * ... more for newer RH
  */
 
-#define PROC_SIGNAL_IX 38
-
-static int get_proc_signal_offset(void)
-{
-    char buffer[BUFSIZ], *ptr=buffer;
-    int fields = 0;
-    int status =
-            sigar_file2str(PROC_FS_ROOT "self/stat", buffer, sizeof(buffer));
-
-    if (status != SIGAR_OK) {
-        return 1;
-    }
-
-    while (*ptr) {
-        if (*ptr++ == ' ') {
-            fields++;
-        }
-    }
-
-    return (fields - PROC_SIGNAL_IX) + 1;
-}
-
 static int sigar_boot_time_get(sigar_t *sigar)
 {
     FILE *fp;
@@ -247,9 +224,6 @@ static int sigar_boot_time_get(sigar_t *sigar)
 int sigar_os_open(sigar_t **sigar)
 {
     int i, status;
-    int kernel_rev, has_nptl;
-    struct utsname name;
-
     *sigar = malloc(sizeof(**sigar));
     if (*sigar == NULL) {
         return SIGAR_ENOMEM;
@@ -270,17 +244,6 @@ int sigar_os_open(sigar_t **sigar)
     (*sigar)->ram = -1;
     (*sigar)->proc_signal_offset = -1;
     (*sigar)->last_proc_stat.pid = -1;
-
-    uname(&name);
-    /* 2.X.y.z -> just need X (unless there is ever a kernel version 3!) */
-    kernel_rev = atoi(&name.release[2]);
-    if (kernel_rev >= 6) {
-        has_nptl = 1;
-    }
-    else {
-        has_nptl = getenv("SIGAR_HAS_NPTL") ? 1 : 0;
-    }
-    (*sigar)->has_nptl = has_nptl;
 
     return SIGAR_OK;
 }
@@ -523,109 +486,18 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
     return SIGAR_OK;
 }
 
-/*
- * seems the easiest/fastest way to tell if a process listed in /proc
- * is a thread is to check the "exit signal" flag in /proc/num/stat.
- * any value other than SIGCHLD seems to be a thread.  this make hulk mad.
- * redhat's procps patch (named "threadbadhack.pat") does not use
- * this flag to filter out threads.  instead does much more expensive
- * comparisions.  their patch also bubbles up thread cpu times to the main
- * process.  functionality we currently lack.
- * when nptl is in use, this is not the case and all threads spawned from
- * a process have the same pid.  however, it seems both old-style linux
- * threads and nptl threads can be run on the same machine.
- * there is also the "Tgid" field in /proc/self/status which could be used
- * to detect threads, but this is not available in older kernels.
- */
-static  int proc_isthread(sigar_t *sigar, char *pidstr, int len)
-{
-    char buffer[BUFSIZ], *ptr=buffer;
-    int fd, n, offset=sigar->proc_signal_offset;
-
-    /* sprintf(buffer, "/proc/%s/stat", pidstr) */
-    memcpy(ptr, PROC_FS_ROOT, SSTRLEN(PROC_FS_ROOT));
-    ptr += SSTRLEN(PROC_FS_ROOT);
-
-    memcpy(ptr, pidstr, len);
-    ptr += len;
-
-    memcpy(ptr, PROC_PSTAT, SSTRLEN(PROC_PSTAT));
-    ptr += SSTRLEN(PROC_PSTAT);
-
-    *ptr = '\0';
-
-    if ((fd = open(buffer, O_RDONLY)) < 0) {
-        /* unlikely if pid was from readdir proc */
-        return 0;
-    }
-
-    n = read(fd, buffer, sizeof(buffer));
-    close(fd);
-
-    if (n < 0) {
-        return 0; /* chances: slim..none */
-    }
-
-    buffer[n--] = '\0';
-
-    /* exit_signal is the second to last field so we look backwards.
-     * XXX if newer kernels drop more turds in this file we'll need
-     * to go the other way.  luckily linux has no real api for this shit.
-     */
-
-    /* skip trailing crap */
-    while ((n > 0) && !isdigit(buffer[n--])) ;
-
-    while (offset-- > 0) {
-        /* skip last field */
-        while ((n > 0) && isdigit(buffer[n--])) ;
-
-        /* skip whitespace */
-        while ((n > 0) && !isdigit(buffer[n--])) ;
-    }
-
-    if (n < 3) {
-        return 0; /* hulk smashed /proc? */
-    }
-
-    ptr = &buffer[n];
-    /*
-     * '17' == SIGCHLD == real process.
-     * '33' and '0' are threads
-     */
-    if ((*ptr++ == '1') &&
-        (*ptr++ == '7') &&
-        (*ptr++ == ' '))
-    {
-        return 0;
-    }
-
-    return 1;
-}
-
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist)
 {
     DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent *ent;
-    register const int threadbadhack = !sigar->has_nptl;
 
     if (!dirp) {
         return errno;
     }
 
-    if (threadbadhack && (sigar->proc_signal_offset == -1)) {
-        sigar->proc_signal_offset = get_proc_signal_offset();
-    }
-
     while ((ent = readdir(dirp)) != NULL) {
         if (!sigar_isdigit(*ent->d_name)) {
-            continue;
-        }
-
-        if (threadbadhack &&
-            proc_isthread(sigar, ent->d_name, strlen(ent->d_name)))
-        {
             continue;
         }
 
@@ -762,23 +634,13 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
                                     sigar_proc_list_t* proclist) {
     DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent* ent;
-    register const int threadbadhack = !sigar->has_nptl;
 
     if (!dirp) {
         return errno;
     }
 
-    if (threadbadhack && (sigar->proc_signal_offset == -1)) {
-        sigar->proc_signal_offset = get_proc_signal_offset();
-    }
-
     while ((ent = readdir(dirp)) != NULL) {
         if (!sigar_isdigit(*ent->d_name)) {
-            continue;
-        }
-
-        if (threadbadhack &&
-            proc_isthread(sigar, ent->d_name, strlen(ent->d_name))) {
             continue;
         }
 

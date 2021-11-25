@@ -9,6 +9,8 @@
  */
 #pragma once
 
+#include <sigar_control_group.h>
+
 #include <sigar.h>
 #include <stdio.h>
 
@@ -63,6 +65,9 @@ struct proc_stats {
     uint64_t page_faults;
 };
 
+// Version 6 added the control group information
+#define CURRENT_SYSTEM_STAT_VERSION 6
+
 struct system_stats {
     uint32_t version;
     uint32_t struct_size;
@@ -85,6 +90,7 @@ struct system_stats {
     uint64_t allocstall;
 
     struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
+    sigar_control_group_info_t control_group_info;
 };
 
 #ifdef __cplusplus

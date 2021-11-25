@@ -16,7 +16,6 @@
  */
 
 #include "sigar_port.h"
-
 #include <errno.h>
 #include <inttypes.h>
 #include <sigar.h>
@@ -91,7 +90,7 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
             break;
         }
         memset(&reply, 0, sizeof(reply));
-        reply.version = 5;
+        reply.version = CURRENT_SYSTEM_STAT_VERSION;
         reply.struct_size = sizeof(reply);
 
         sigar_mem_get(sigar, &mem);
@@ -132,6 +131,7 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
         procs_stale =
                 populate_interesting_procs(sigar, procs, procs_count, &reply);
 
+        sigar_get_control_group_info(&reply.control_group_info);
         fwrite(&reply, sizeof(reply), 1, out);
         fflush(out);
     }

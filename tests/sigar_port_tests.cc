@@ -50,6 +50,8 @@ TEST(SigarPort, SigarPortTest) {
     system_stats stats;
     ASSERT_EQ(1, fread(&stats, sizeof(stats), 1, myIn)) << strerror(errno);
 
+    EXPECT_EQ(CURRENT_SYSTEM_STAT_VERSION, stats.version);
+
     // do it one more time
     ASSERT_EQ(1, fwrite(&cmd, sizeof(cmd), 1, myOut)) << strerror(errno);
     ASSERT_EQ(0, fflush(myOut)) << strerror(errno);

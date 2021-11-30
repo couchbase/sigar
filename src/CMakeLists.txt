@@ -37,10 +37,8 @@ ENDIF (APPLE)
 
 IF (WIN32)
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/win32/peb.c
                 os/win32/sigar_os.h
                 os/win32/win32_sigar.c
-                os/win32/wmi.cpp
                 os/win32/win32_util.cc
                 sigar_control_group_not_supported.cc)
     target_compile_definitions(sigar PRIVATE -DSIGAR_SHARED -D_CRT_NONSTDC_NO_DEPRECATE)

@@ -110,8 +110,6 @@ int sigar_os_close(sigar_t *sigar);
 
 char *sigar_os_error_string(sigar_t *sigar, int err);
 
-char *sigar_strerror_get(int err, char *errbuf, int buflen);
-
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);
 

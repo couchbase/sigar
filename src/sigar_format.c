@@ -44,6 +44,27 @@ static char *sigar_error_string(int err)
     }
 }
 
+static char *sigar_strerror_get(int err, char *errbuf, int buflen)
+{
+#ifdef WIN32
+    /* force english error message */
+    DWORD len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                        FORMAT_MESSAGE_IGNORE_INSERTS,
+                        NULL,
+                        err,
+                        MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
+                        (LPTSTR)errbuf,
+                        (DWORD)buflen,
+                        NULL);
+#else
+    int ret = strerror_r(err, errbuf, buflen);
+    if (ret != EINVAL) {
+        SIGAR_STRNCPY(errbuf, "Unknown error", buflen);
+    }
+#endif
+    return errbuf;
+}
+
 SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err)
 {
     char *buf;
@@ -65,25 +86,3 @@ SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err)
 
     return sigar_strerror_get(err, sigar->errbuf, sizeof(sigar->errbuf));
 }
-
-char *sigar_strerror_get(int err, char *errbuf, int buflen)
-{
-#ifdef WIN32
-    /* force english error message */
-    DWORD len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                        NULL,
-                        err,
-                        MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
-                        (LPTSTR)errbuf,
-                        (DWORD)buflen,
-                        NULL);
-#else
-    int ret = strerror_r(err, errbuf, buflen);
-    if (ret != EINVAL) {
-        SIGAR_STRNCPY(errbuf, "Unknown error", buflen);
-    }
-#endif
-    return errbuf;
-}
-

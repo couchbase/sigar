@@ -167,6 +167,12 @@
 
 #endif
 
+#define SIGAR_PROC_STATE_SLEEP  'S'
+#define SIGAR_PROC_STATE_RUN    'R'
+#define SIGAR_PROC_STATE_STOP   'T'
+#define SIGAR_PROC_STATE_ZOMBIE 'Z'
+#define SIGAR_PROC_STATE_IDLE   'D'
+
 #ifndef DARWIN
 
 #define PROCFS_STATUS(status) \

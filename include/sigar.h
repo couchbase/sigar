@@ -194,12 +194,6 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
                                       sigar_proc_cpu_t *proccpu);
 
-#define SIGAR_PROC_STATE_SLEEP  'S'
-#define SIGAR_PROC_STATE_RUN    'R'
-#define SIGAR_PROC_STATE_STOP   'T'
-#define SIGAR_PROC_STATE_ZOMBIE 'Z'
-#define SIGAR_PROC_STATE_IDLE   'D'
-
 #define SIGAR_PROC_NAME_LEN 128
 
 typedef struct {

@@ -97,11 +97,6 @@ char *sigar_strerror_get(int err, char *errbuf, int buflen)
     return errbuf;
 }
 
-void sigar_strerror_set(sigar_t *sigar, char *msg)
-{
-    SIGAR_SSTRCPY(sigar->errbuf, msg);
-}
-
 #ifdef WIN32
 #define vsnprintf _vsnprintf
 #endif

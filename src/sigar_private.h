@@ -112,8 +112,6 @@ char *sigar_os_error_string(sigar_t *sigar, int err);
 
 char *sigar_strerror_get(int err, char *errbuf, int buflen);
 
-void sigar_strerror_set(sigar_t *sigar, char *msg);
-
 void sigar_strerror_printf(sigar_t *sigar, const char *format, ...);
 
 int sigar_os_proc_list_get(sigar_t *sigar,

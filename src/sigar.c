@@ -35,7 +35,6 @@
 #include "sigar_private.h"
 #include "sigar_util.h"
 #include "sigar_os.h"
-#include "sigar_format.h"
 
 SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
 {

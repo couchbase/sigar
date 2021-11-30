@@ -21,7 +21,6 @@
 #include "sigar_pdh.h"
 #include "sigar_os.h"
 #include "sigar_util.h"
-#include "sigar_format.h"
 #include <shellapi.h>
 #include <assert.h>
 

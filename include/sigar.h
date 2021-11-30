@@ -30,13 +30,6 @@
 extern "C" {
 #endif
 
-#if defined(_LP64)         || \
-    defined(__LP64__)      || \
-    defined(__64BIT__)     || \
-    defined(__powerpc64__) || \
-    defined(__osf__)
-#define SIGAR_64BIT
-#endif
 
    typedef int32_t sigar_int32_t;
    typedef int64_t sigar_int64_t;

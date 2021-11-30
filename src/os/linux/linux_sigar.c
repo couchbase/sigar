@@ -142,6 +142,9 @@ int sigar_os_open(sigar_t **sigar)
     struct utsname name;
 
     *sigar = malloc(sizeof(**sigar));
+    if (*sigar == NULL) {
+        return SIGAR_ENOMEM;
+    }
 
     (*sigar)->pagesize = 0;
     i = getpagesize();

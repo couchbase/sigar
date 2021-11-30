@@ -60,6 +60,8 @@ extern "C" {
 #   define SIGAR_ENXIO  ENXIO
 #endif
 
+#define SIGAR_ENOMEM ENOMEM
+
 #define SIGAR_DECLARE(type) SIGAR_PUBLIC_API type
 
 #if defined(PATH_MAX)

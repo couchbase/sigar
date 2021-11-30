@@ -230,6 +230,9 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     *sigar = malloc(sizeof(**sigar));
+    if (*sigar == NULL) {
+        return SIGAR_ENOMEM;
+    }
 
 #ifdef DARWIN
     (*sigar)->mach_port = mach_host_self();

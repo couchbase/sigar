@@ -517,6 +517,10 @@ int sigar_os_open(sigar_t **sigar_ptr)
     sigar_t *sigar;
 
     *sigar_ptr = sigar = malloc(sizeof(*sigar));
+    if (sigar == NULL) {
+        return SIGAR_ENOMEM;
+    }
+
     sigar->machine = ""; /* local machine */
     sigar->using_wide = 0; /*XXX*/
 

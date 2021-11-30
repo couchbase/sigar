@@ -321,13 +321,13 @@ typedef struct {
     int ppid;
     int priority;
     time_t mtime;
-    sigar_uint64_t size;
-    sigar_uint64_t resident;
+    uint64_t size;
+    uint64_t resident;
     char name[SIGAR_PROC_NAME_LEN];
     char state;
-    sigar_uint64_t handles;
-    sigar_uint64_t threads;
-    sigar_uint64_t page_faults;
+    uint64_t handles;
+    uint64_t threads;
+    uint64_t page_faults;
 } sigar_win32_pinfo_t;
 
 typedef struct {
@@ -590,7 +590,7 @@ struct sigar_t {
 extern "C" {
 #endif
 
-sigar_uint64_t sigar_FileTimeToTime(FILETIME *ft);
+uint64_t sigar_FileTimeToTime(FILETIME *ft);
 
 int sigar_wsa_init(sigar_t *sigar);
 

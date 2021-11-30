@@ -30,12 +30,6 @@
 extern "C" {
 #endif
 
-
-   typedef int32_t sigar_int32_t;
-   typedef int64_t sigar_int64_t;
-   typedef uint32_t sigar_uint32_t;
-   typedef uint64_t sigar_uint64_t;
-
 #define SIGAR_FIELD_NOTIMPL -1
 
 #define SIGAR_OK 0
@@ -66,7 +60,7 @@ extern "C" {
 #endif
 
 #ifdef WIN32
-typedef sigar_uint64_t sigar_pid_t;
+typedef uint64_t sigar_pid_t;
 typedef unsigned long sigar_uid_t;
 typedef unsigned long sigar_gid_t;
 #else
@@ -89,7 +83,7 @@ SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err);
 /* system memory info */
 
 typedef struct {
-    sigar_uint64_t
+    uint64_t
         ram,
         total,
         used,
@@ -103,7 +97,7 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem);
 
 typedef struct {
-    sigar_uint64_t
+    uint64_t
         total,
         used,
         free,
@@ -119,7 +113,7 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap);
 
 typedef struct {
-    sigar_uint64_t
+    uint64_t
         user,
         sys,
         nice,
@@ -156,7 +150,7 @@ SIGAR_DECLARE(int) sigar_proc_list_destroy(sigar_t *sigar,
 
 
 typedef struct {
-    sigar_uint64_t
+    uint64_t
         size,
         resident,
         share,
@@ -169,7 +163,7 @@ SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                                       sigar_proc_mem_t *procmem);
 
 typedef struct {
-    sigar_uint64_t
+    uint64_t
         start_time,
         user,
         sys,
@@ -182,12 +176,12 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
 
 typedef struct {
     /* must match sigar_proc_time_t fields */
-    sigar_uint64_t
+    uint64_t
         start_time,
         user,
         sys,
         total;
-    sigar_uint64_t last_time;
+    uint64_t last_time;
     double percent;
 } sigar_proc_cpu_t;
 
@@ -204,7 +198,7 @@ typedef struct {
     int priority;
     int nice;
     int processor;
-    sigar_uint64_t threads;
+    uint64_t threads;
 } sigar_proc_state_t;
 
 SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,

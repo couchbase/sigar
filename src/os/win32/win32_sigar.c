@@ -119,7 +119,7 @@ typedef enum {
 
 #define PERF_VAL64(ix) \
     perf_offsets[ix] ? \
-        *((sigar_uint64_t *)((BYTE *)counter_block + perf_offsets[ix])) : 0
+        *((uint64_t *)((BYTE *)counter_block + perf_offsets[ix])) : 0
 
 /* 1/100ns units to milliseconds */
 #define NS100_2MSEC(t) ((t) / 10000)
@@ -140,9 +140,9 @@ static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
 }
 
 
-sigar_uint64_t sigar_FileTimeToTime(FILETIME *ft)
+uint64_t sigar_FileTimeToTime(FILETIME *ft)
 {
-    sigar_uint64_t time;
+    uint64_t time;
     time = ft->dwHighDateTime;
     time = time << 32;
     time |= ft->dwLowDateTime;
@@ -278,7 +278,7 @@ static int get_mem_counters(sigar_t *sigar, sigar_swap_t *swap, sigar_mem_t *mem
             break;
           case 76: /* "System Cache Resident Bytes" aka file cache */
             if (mem) {
-                sigar_uint64_t kern = *((DWORD *)(data + offset));
+                uint64_t kern = *((DWORD *)(data + offset));
                 mem->actual_free = mem->free + kern;
                 mem->actual_used = mem->used - kern;
                 return SIGAR_OK;

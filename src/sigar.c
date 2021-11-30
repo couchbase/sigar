@@ -85,8 +85,8 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
 {
     sigar_cache_entry_t *entry;
     sigar_proc_cpu_t *prev;
-    sigar_uint64_t otime, time_now = sigar_time_now_millis();
-    sigar_uint64_t time_diff, total_diff;
+    uint64_t otime, time_now = sigar_time_now_millis();
+    uint64_t time_diff, total_diff;
     int status;
 
     if (!sigar->proc_cpu) {

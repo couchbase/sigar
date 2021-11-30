@@ -85,7 +85,7 @@ static void sigar_cache_rehash(sigar_cache_t *table)
 
         while (entry) {
             sigar_cache_entry_t *next = entry->next;
-            sigar_uint64_t hash = entry->id % new_size;
+            uint64_t hash = entry->id % new_size;
 
             entry->next = new_entries[hash];
             new_entries[hash] = entry;
@@ -102,7 +102,7 @@ static void sigar_cache_rehash(sigar_cache_t *table)
     t->entries + (k % t->size)
 
 sigar_cache_entry_t *sigar_cache_find(sigar_cache_t *table,
-                                      sigar_uint64_t key)
+                                      uint64_t key)
 {
     sigar_cache_entry_t *entry, **ptr;
 
@@ -120,7 +120,7 @@ sigar_cache_entry_t *sigar_cache_find(sigar_cache_t *table,
 
 /* create entry if it does not exist */
 sigar_cache_entry_t *sigar_cache_get(sigar_cache_t *table,
-                                     sigar_uint64_t key)
+                                     uint64_t key)
 {
     sigar_cache_entry_t *entry, **ptr;
 

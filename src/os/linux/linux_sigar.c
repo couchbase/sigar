@@ -16,12 +16,13 @@
  * limitations under the License.
  */
 
+#include <assert.h>
 #include <dirent.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <errno.h>
-#include <sys/param.h>
-#include <sys/stat.h>
+#include <time.h>
 
 #include "sigar.h"
 #include "sigar_private.h"
@@ -263,7 +264,7 @@ static int get_ram(sigar_t *sigar, sigar_mem_t *mem)
     char buffer[BUFSIZ], *ptr;
     FILE *fp;
     int total = 0;
-    sigar_uint64_t sys_total = (mem->total / (1024 * 1024));
+    uint64_t sys_total = (mem->total / (1024 * 1024));
 
     if (sigar->ram > 0) {
         /* return cached value */
@@ -323,10 +324,10 @@ static int get_ram(sigar_t *sigar, sigar_mem_t *mem)
 
 #define MEMINFO_PARAM(a) a ":", SSTRLEN(a ":")
 
-static  sigar_uint64_t sigar_meminfo(char *buffer,
+static  uint64_t sigar_meminfo(char *buffer,
                                                  char *attr, int len)
 {
-    sigar_uint64_t val = 0;
+    uint64_t val = 0;
     char *ptr, *tok;
 
     if ((ptr = strstr(buffer, attr))) {
@@ -346,9 +347,9 @@ static  sigar_uint64_t sigar_meminfo(char *buffer,
     return val;
 }
 
-static  sigar_uint64_t sigar_vmstat(char *buffer, char *attr)
+static  uint64_t sigar_vmstat(char *buffer, char *attr)
 {
-    sigar_uint64_t val = -1;
+    uint64_t val = -1;
     char *ptr;
 
     if ((ptr = strstr(buffer, attr))) {
@@ -361,7 +362,7 @@ static  sigar_uint64_t sigar_vmstat(char *buffer, char *attr)
 
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    sigar_uint64_t buffers, cached, kern;
+    uint64_t buffers, cached, kern;
     char buffer[BUFSIZ];
 
     int status = sigar_file2str(PROC_MEMINFO,

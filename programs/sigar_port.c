@@ -43,7 +43,7 @@
 struct proc {
     sigar_pid_t pid;
     sigar_pid_t ppid;
-    sigar_uint64_t start_time;
+    uint64_t start_time;
     char name[PROC_NAME_LEN];
 };
 

@@ -21,8 +21,8 @@
 #include <chrono>
 
 int sigar_mem_calc_ram(sigar_t*, sigar_mem_t* mem) {
-    sigar_int64_t total = mem->total / 1024, diff;
-    sigar_uint64_t lram = (mem->total / (1024 * 1024));
+    int64_t total = mem->total / 1024, diff;
+    uint64_t lram = (mem->total / (1024 * 1024));
     int ram = (int)lram; /* must cast after division */
     int remainder = ram % 8;
 
@@ -41,7 +41,7 @@ int sigar_mem_calc_ram(sigar_t*, sigar_mem_t* mem) {
     return ram;
 }
 
-sigar_int64_t sigar_time_now_millis() {
+int64_t sigar_time_now_millis() {
     auto now = std::chrono::system_clock::now();
     return std::chrono::duration_cast<std::chrono::milliseconds>(
                    now.time_since_epoch())

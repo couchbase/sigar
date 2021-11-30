@@ -416,7 +416,7 @@ static int sigar_vmstat(sigar_t *sigar, struct uvmexp *vmstat)
 
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    sigar_uint64_t kern = 0;
+    uint64_t kern = 0;
 #ifdef DARWIN
     vm_statistics_data_t vmstat;
     uint64_t mem_total;
@@ -577,7 +577,7 @@ static int sigar_swap_fs_get(sigar_t *sigar, sigar_swap_t *swap) /* <= 10.3 */
     char swapfile[SSTRLEN(VM_DIR) + SSTRLEN("/") + SSTRLEN(SWAPFILE) + 12];
     struct stat swapstat;
     struct statfs vmfs;
-    sigar_uint64_t val, bsize;
+    uint64_t val, bsize;
 
     swap->used = swap->total = swap->free = 0;
 
@@ -1130,7 +1130,7 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
 }
 
 #define tv2msec(tv) \
-   (((sigar_uint64_t)tv.tv_sec * SIGAR_MSEC) + (((sigar_uint64_t)tv.tv_usec) / 1000))
+   (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
 
 #ifdef DARWIN
 #define tval2msec(tval) \

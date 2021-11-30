@@ -13,37 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#pragma once
 
-#ifndef SIGAR_OS_H
-#define SIGAR_OS_H
-
-#include <assert.h>
-
-#include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <ctype.h>
-#include <time.h>
-
-#include <netinet/in.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
+#include "sigar.h"
+#include "sigar_private.h"
 
 typedef struct {
     sigar_pid_t pid;
     time_t mtime;
-    sigar_uint64_t vsize;
-    sigar_uint64_t rss;
-    sigar_uint64_t minor_faults;
-    sigar_uint64_t major_faults;
-    sigar_uint64_t ppid;
+    uint64_t vsize;
+    uint64_t rss;
+    uint64_t minor_faults;
+    uint64_t major_faults;
+    uint64_t ppid;
     int tty;
     int priority;
     int nice;
-    sigar_uint64_t start_time;
-    sigar_uint64_t utime;
-    sigar_uint64_t stime;
+    uint64_t start_time;
+    uint64_t utime;
+    uint64_t stime;
     char name[SIGAR_PROC_NAME_LEN];
     char state;
     int processor;
@@ -55,5 +43,3 @@ struct sigar_t {
     int ram;
     linux_proc_stat_t last_proc_stat;
 };
-
-#endif /* SIGAR_OS_H */

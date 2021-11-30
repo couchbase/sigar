@@ -81,18 +81,18 @@
 #define SIGAR_NSEC 1000000000L
 
 #define SIGAR_SEC2NANO(s) \
-    ((sigar_uint64_t)(s) * (sigar_uint64_t)SIGAR_NSEC)
+    ((uint64_t)(s) * (uint64_t)SIGAR_NSEC)
 
 /* cpu ticks to milliseconds */
 #define SIGAR_TICK2MSEC(s) \
-   ((sigar_uint64_t)(s) * ((sigar_uint64_t)SIGAR_MSEC / (double)sigar->ticks))
+   ((uint64_t)(s) * ((uint64_t)SIGAR_MSEC / (double)sigar->ticks))
 
 #define SIGAR_TICK2NSEC(s) \
-   ((sigar_uint64_t)(s) * ((sigar_uint64_t)SIGAR_NSEC / (double)sigar->ticks))
+   ((uint64_t)(s) * ((uint64_t)SIGAR_NSEC / (double)sigar->ticks))
 
 /* nanoseconds to milliseconds */
 #define SIGAR_NSEC2MSEC(s) \
-   ((sigar_uint64_t)(s) / ((sigar_uint64_t)1000000L))
+   ((uint64_t)(s) / ((uint64_t)1000000L))
 
 #define SIGAR_LAST_PROC_EXPIRE 2
 

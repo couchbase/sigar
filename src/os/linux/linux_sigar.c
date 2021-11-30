@@ -242,7 +242,6 @@ int sigar_os_open(sigar_t **sigar)
 
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
     (*sigar)->ram = -1;
-    (*sigar)->proc_signal_offset = -1;
     (*sigar)->last_proc_stat.pid = -1;
 
     return SIGAR_OK;

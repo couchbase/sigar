@@ -16,19 +16,9 @@
  * limitations under the License.
  */
 
-#include <errno.h>
 #include <stdio.h>
-
-#ifndef WIN32
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#endif
-#if defined(__OpenBSD__) || defined(__FreeBSD__)
-#include <netinet/in.h>
-#endif
-#ifndef WIN32
-#include <arpa/inet.h>
+#ifdef WIN32
+#include <process.h>
 #endif
 
 #include "sigar.h"
@@ -64,10 +54,6 @@ SIGAR_DECLARE(int) sigar_close(sigar_t *sigar)
 
     return sigar_os_close(sigar);
 }
-
-#ifdef WIN32
-#include <process.h>
-#endif
 
 SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t *sigar)
 {

@@ -57,9 +57,4 @@ struct sigar_t {
     linux_proc_stat_t last_proc_stat;
 };
 
-#define HAVE_STRERROR_R
-/* use gnu version of strerror_r */
-#define HAVE_STRERROR_R_GLIBC
-#undef HAVE_READDIR_R
-
 #endif /* SIGAR_OS_H */

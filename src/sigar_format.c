@@ -18,12 +18,21 @@
 
 /* Utility functions to provide string formatting of SIGAR data */
 
+// Undefine _GNU_SOURCE to ensure we get the strerror_r as defined by the
+// Standard
+#ifdef __linux__
+#undef _GNU_SOURCE
+#ifndef _POSIX_C_SOURCE
+#define _POSIX_C_SOURCE 200112L
+#endif
+#endif
+#include <string.h>
+#include <errno.h>
+
 #include "sigar.h"
 #include "sigar_private.h"
 #include "sigar_util.h"
 #include "sigar_os.h"
-
-#include <stdio.h>
 
 static char *sigar_error_string(int err)
 {
@@ -59,39 +68,21 @@ SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err)
 
 char *sigar_strerror_get(int err, char *errbuf, int buflen)
 {
-    char *buf = NULL;
 #ifdef WIN32
-    DWORD len;
-
-    len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+    /* force english error message */
+    DWORD len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
                         FORMAT_MESSAGE_IGNORE_INSERTS,
                         NULL,
                         err,
-                        MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT), /* force english */
+                        MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
                         (LPTSTR)errbuf,
                         (DWORD)buflen,
                         NULL);
 #else
-
-#if defined(HAVE_STRERROR_R) && defined(HAVE_STRERROR_R_GLIBC)
-    /*
-     * strerror_r man page says:
-     * "The GNU version may, but need not, use the user supplied buffer"
-     */
-    buf = strerror_r(err, errbuf, buflen);
-#elif defined(HAVE_STRERROR_R)
-    if (strerror_r(err, errbuf, buflen) < 0) {
-        buf = "Unknown Error";
+    int ret = strerror_r(err, errbuf, buflen);
+    if (ret != EINVAL) {
+        SIGAR_STRNCPY(errbuf, "Unknown error", buflen);
     }
-#else
-    /* strerror() is thread safe on solaris and hpux */
-    buf = strerror(err);
-#endif
-
-    if (buf != NULL) {
-        SIGAR_STRNCPY(errbuf, buf, buflen);
-    }
-
 #endif
     return errbuf;
 }

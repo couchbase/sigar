@@ -23,6 +23,8 @@
 #include "sigar_util.h"
 #include <shellapi.h>
 #include <assert.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
@@ -127,6 +129,16 @@ typedef enum {
 
 #define MS_LOOPBACK_ADAPTER "Microsoft Loopback Adapter"
 #define NETIF_LA "la"
+
+static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
+{
+    va_list args;
+
+    va_start(args, format);
+    _vsnprintf(sigar->errbuf, sizeof(sigar->errbuf), format, args);
+    va_end(args);
+}
+
 
 sigar_uint64_t sigar_FileTimeToTime(FILETIME *ft)
 {

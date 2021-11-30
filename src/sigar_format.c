@@ -24,7 +24,6 @@
 #include "sigar_os.h"
 
 #include <stdio.h>
-#include <stdarg.h>
 
 static char *sigar_error_string(int err)
 {
@@ -97,15 +96,3 @@ char *sigar_strerror_get(int err, char *errbuf, int buflen)
     return errbuf;
 }
 
-#ifdef WIN32
-#define vsnprintf _vsnprintf
-#endif
-
-void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
-{
-    va_list args;
-
-    va_start(args, format);
-    vsnprintf(sigar->errbuf, sizeof(sigar->errbuf), format, args);
-    va_end(args);
-}

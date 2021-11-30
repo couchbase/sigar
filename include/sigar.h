@@ -156,18 +156,6 @@ SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                                       sigar_proc_mem_t *procmem);
 
 typedef struct {
-    uint64_t
-        start_time,
-        user,
-        sys,
-        total;
-} sigar_proc_time_t;
-
-// Not used externally
-int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
-                                       sigar_proc_time_t *proctime);
-
-typedef struct {
     /* must match sigar_proc_time_t fields */
     uint64_t
         start_time,

@@ -141,3 +141,14 @@ int sigar_proc_args_grow(sigar_proc_args_t *procargs);
         sigar_proc_args_grow(procargs); \
     }
 
+typedef struct {
+    uint64_t
+            start_time,
+            user,
+            sys,
+            total;
+} sigar_proc_time_t;
+
+// Not used externally
+int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
+                        sigar_proc_time_t *proctime);

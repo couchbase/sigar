@@ -825,7 +825,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
 
     num = len/sizeof(*proc);
 
-    sigar_uid_t me = getuid();
+    uid_t me = getuid();
 
     for (i=0; i<num; i++) {
         if (proc[i].KI_FLAG & P_SYSTEM) {

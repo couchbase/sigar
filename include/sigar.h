@@ -25,6 +25,7 @@
 #include <sigar_visibility.h>
 #include <stdint.h>
 #include <inttypes.h>
+#include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,13 +62,8 @@ extern "C" {
 
 #ifdef WIN32
 typedef uint64_t sigar_pid_t;
-typedef unsigned long sigar_uid_t;
-typedef unsigned long sigar_gid_t;
 #else
-#include <sys/types.h>
 typedef pid_t sigar_pid_t;
-typedef uid_t sigar_uid_t;
-typedef gid_t sigar_gid_t;
 #endif
 
 typedef struct sigar_t sigar_t;
@@ -127,9 +123,6 @@ typedef struct {
 
 SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu);
 
-typedef struct {
-    double uptime;
-} sigar_uptime_t;
 
 typedef struct {
     unsigned long number;

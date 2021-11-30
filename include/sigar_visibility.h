@@ -14,14 +14,11 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
-#ifndef SIGAR_VISIBILITY_H
-#define SIGAR_VISIBILITY_H 1
+#pragma once
 
 #ifdef BUILDING_SIGAR
 
-#if defined (__SUNPRO_C) && (__SUNPRO_C >= 0x550)
-#define SIGAR_PUBLIC_API __global
-#elif defined __GNUC__
+#if defined(__GNUC__)
 #define SIGAR_PUBLIC_API __attribute__ ((visibility("default")))
 #elif defined(_MSC_VER)
 #define SIGAR_PUBLIC_API __declspec(dllexport)
@@ -39,5 +36,3 @@
 #endif
 
 #endif
-
-#endif /* SIGAR_VISIBILITY_H */

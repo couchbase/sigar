@@ -23,11 +23,9 @@
 #define WIN32_LEAN_AND_MEAN
 #endif
 
-#include <winsock2.h>
 #include <windows.h>
 #include <winreg.h>
 #include <winperf.h>
-#include <ws2tcpip.h>
 #include <stddef.h>
 #include <sys/types.h>
 #include <malloc.h>
@@ -35,8 +33,6 @@
 #include <errno.h>
 #include <tlhelp32.h>
 #include <stdint.h>
-
-#include <iptypes.h>
 
 #include "sigar_util.h"
 
@@ -59,40 +55,6 @@
     (lpa[0] = '\0', WideCharToMultiByte(CP_ACP, 0, \
                                         lpw, -1, (LPSTR)lpa, chars, \
                                         NULL, NULL))
-
-/* iptypes.h from vc7, not available in vc6 */
-/* copy from PSDK if using vc6 */
-#include "iptypes.h"
-
-#include <iprtrmib.h>
-
-/* undocumented structures */
-typedef struct {
-    DWORD   dwState;
-    DWORD   dwLocalAddr;
-    DWORD   dwLocalPort;
-    DWORD   dwRemoteAddr;
-    DWORD   dwRemotePort;
-    DWORD   dwProcessId;
-} MIB_TCPEXROW, *PMIB_TCPEXROW;
-
-typedef struct {
-    DWORD dwNumEntries;
-    MIB_TCPEXROW table[ANY_SIZE];
-} MIB_TCPEXTABLE, *PMIB_TCPEXTABLE;
-
-typedef struct {
-    DWORD dwLocalAddr;
-    DWORD dwLocalPort;
-    DWORD dwProcessId;
-} MIB_UDPEXROW, *PMIB_UDPEXROW;
-
-typedef struct {
-    DWORD dwNumEntries;
-    MIB_UDPEXROW table[ANY_SIZE];
-} MIB_UDPEXTABLE, *PMIB_UDPEXTABLE;
-
-/* end undocumented structures */
 
 /* no longer in the standard header files */
 typedef struct {

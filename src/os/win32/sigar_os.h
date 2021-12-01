@@ -242,31 +242,8 @@ struct sigar_t {
 extern "C" {
 #endif
 
-uint64_t sigar_FileTimeToTime(FILETIME *ft);
-
-int sigar_proc_args_peb_get(sigar_t *sigar, HANDLE proc,
-                            sigar_proc_args_t *procargs);
-
-int sigar_proc_env_peb_get(sigar_t *sigar, HANDLE proc,
-                           WCHAR *env, DWORD envlen);
-
-int sigar_parse_proc_args(sigar_t *sigar, WCHAR *buf,
-                          sigar_proc_args_t *procargs);
-
-
 int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid);
 int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
-
-typedef struct {
-    WORD product_major;
-    WORD product_minor;
-    WORD product_build;
-    WORD product_revision;
-    WORD file_major;
-    WORD file_minor;
-    WORD file_build;
-    WORD file_revision;
-} sigar_file_version_t;
 
 #ifdef __cplusplus
 }

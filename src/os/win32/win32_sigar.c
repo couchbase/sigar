@@ -137,7 +137,7 @@ static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
 }
 
 
-uint64_t sigar_FileTimeToTime(FILETIME *ft)
+static uint64_t sigar_FileTimeToTime(FILETIME *ft)
 {
     uint64_t time;
     time = ft->dwHighDateTime;

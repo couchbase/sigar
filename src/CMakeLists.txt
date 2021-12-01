@@ -43,7 +43,7 @@ IF (WIN32)
                 sigar_control_group_not_supported.cc)
     target_compile_definitions(sigar PRIVATE -DSIGAR_SHARED -D_CRT_NONSTDC_NO_DEPRECATE)
     target_include_directories(sigar PRIVATE os/win32)
-    target_link_libraries(sigar ws2_32 netapi32 version)
+    target_link_libraries(sigar ws2_32 netapi32 version kernel32)
 ENDIF (WIN32)
 
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)

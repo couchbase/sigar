@@ -125,10 +125,6 @@ typedef BOOL (CALLBACK *psapi_enum_processes)(DWORD *,
                                               DWORD,
                                               DWORD *);
 
-/* kernel32.dll */
-typedef BOOL (CALLBACK *kernel_memory_status)(MEMORYSTATUSEX *);
-
-
 #define SIGAR_DLLFUNC(api, name) \
     struct { \
          const char *name; \
@@ -154,14 +150,6 @@ typedef struct {
     sigar_dll_func_t end;
 } sigar_psapi_t;
 
-typedef struct {
-    sigar_dll_handle_t handle;
-
-    SIGAR_DLLFUNC(kernel, memory_status);
-
-    sigar_dll_func_t end;
-} sigar_kernel_t;
-
 struct sigar_t {
     SIGAR_T_BASE;
     char *machine;
@@ -172,7 +160,6 @@ struct sigar_t {
     DWORD perfbuf_size;
     sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;
-    sigar_kernel_t kernel;
     sigar_win32_pinfo_t pinfo;
 
     int ht_enabled;

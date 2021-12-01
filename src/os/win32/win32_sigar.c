@@ -327,13 +327,6 @@ static sigar_psapi_t sigar_psapi = {
     { NULL, NULL }
 };
 
-static sigar_psapi_t sigar_kernel = {
-    "kernel32.dll",
-    NULL,
-    { "GlobalMemoryStatusEx", NULL },
-    { NULL, NULL }
-};
-
 #define DLLMOD_COPY(name) \
     memcpy(&(sigar->name), &sigar_##name, sizeof(sigar_##name))
 
@@ -476,7 +469,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
-    DLLMOD_COPY(kernel);
 
     sigar->pinfo.pid = -1;
     sigar->lcpu = -1;
@@ -498,7 +490,6 @@ int sigar_os_close(sigar_t *sigar)
 
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);
-    DLLMOD_FREE(kernel);
 
     if (sigar->perfbuf) {
         free(sigar->perfbuf);
@@ -521,34 +512,18 @@ char *sigar_os_error_string(sigar_t *sigar, int err)
     return NULL;
 }
 
-#define sigar_GlobalMemoryStatusEx \
-    sigar->kernel.memory_status.func
-
 SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    DLLMOD_INIT(kernel, TRUE);
+    MEMORYSTATUSEX memstat;
+    memstat.dwLength = sizeof(memstat);
 
-    if (sigar_GlobalMemoryStatusEx) {
-        MEMORYSTATUSEX memstat;
-
-        memstat.dwLength = sizeof(memstat);
-
-        if (!sigar_GlobalMemoryStatusEx(&memstat)) {
-            return GetLastError();
-        }
-
-        mem->total = memstat.ullTotalPhys;
-        mem->free  = memstat.ullAvailPhys;
-    }
-    else {
-        MEMORYSTATUS memstat;
-        GlobalMemoryStatus(&memstat);
-        mem->total = memstat.dwTotalPhys;
-        mem->free  = memstat.dwAvailPhys;
+    if (!GlobalMemoryStatusEx(&memstat)) {
+        return GetLastError();
     }
 
+    mem->total = memstat.ullTotalPhys;
+    mem->free  = memstat.ullAvailPhys;
     mem->used = mem->total - mem->free;
-
     mem->actual_free = mem->free;
     mem->actual_used = mem->used;
     /* set actual_{free,used} */
@@ -561,27 +536,15 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 
 SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
 {
-    DLLMOD_INIT(kernel, TRUE);
+    MEMORYSTATUSEX memstat;
+    memstat.dwLength = sizeof(memstat);
 
-    if (sigar_GlobalMemoryStatusEx) {
-        MEMORYSTATUSEX memstat;
-
-        memstat.dwLength = sizeof(memstat);
-
-        if (!sigar_GlobalMemoryStatusEx(&memstat)) {
-            return GetLastError();
-        }
-
-        swap->total = memstat.ullTotalPageFile;
-        swap->free  = memstat.ullAvailPageFile;
-    }
-    else {
-        MEMORYSTATUS memstat;
-        GlobalMemoryStatus(&memstat);
-        swap->total = memstat.dwTotalPageFile;
-        swap->free  = memstat.dwAvailPageFile;
+    if (!GlobalMemoryStatusEx(&memstat)) {
+        return GetLastError();
     }
 
+    swap->total = memstat.ullTotalPageFile;
+    swap->free  = memstat.ullAvailPageFile;
     swap->used = swap->total - swap->free;
 
     if (get_mem_counters(sigar, swap, NULL) != SIGAR_OK) {

@@ -136,16 +136,6 @@ typedef struct {
     sigar_dll_func_t funcs[12];
 } sigar_dll_module_t;
 
-/* advapi32.dll */
-typedef BOOL (CALLBACK *advapi_convert_string_sid)(LPCSTR,
-                                                   PSID *);
-
-typedef BOOL (CALLBACK *advapi_query_service_status)(SC_HANDLE,
-                                                     SC_STATUS_TYPE,
-                                                     LPBYTE,
-                                                     DWORD,
-                                                     LPDWORD);
-
 /* ntdll.dll */
 typedef DWORD (CALLBACK *ntdll_query_sys_info)(DWORD,
                                                PVOID,
@@ -186,15 +176,6 @@ typedef BOOL (CALLBACK *kernel_memory_status)(MEMORYSTATUSEX *);
 typedef struct {
     sigar_dll_handle_t handle;
 
-    SIGAR_DLLFUNC(advapi, convert_string_sid);
-    SIGAR_DLLFUNC(advapi, query_service_status);
-
-    sigar_dll_func_t end;
-} sigar_advapi_t;
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
     SIGAR_DLLFUNC(ntdll, query_sys_info);
     SIGAR_DLLFUNC(ntdll, query_proc_info);
 
@@ -227,7 +208,6 @@ struct sigar_t {
     HKEY handle;
     char *perfbuf;
     DWORD perfbuf_size;
-    sigar_advapi_t advapi;
     sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;
     sigar_kernel_t kernel;

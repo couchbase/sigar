@@ -310,14 +310,6 @@ SIGAR_DECLARE(sigar_t *) sigar_new(void)
     return sigar;
 }
 
-static sigar_advapi_t sigar_advapi = {
-    "advapi32.dll",
-    NULL,
-    { "ConvertStringSidToSidA", NULL },
-    { "QueryServiceStatusEx", NULL },
-    { NULL, NULL }
-};
-
 static sigar_ntdll_t sigar_ntdll = {
     "ntdll.dll",
     NULL,
@@ -482,15 +474,9 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     get_sysinfo(sigar);
 
-    DLLMOD_COPY(advapi);
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
     DLLMOD_COPY(kernel);
-
-    /* XXX init early for use by javasigar.c */
-    sigar_dllmod_init(sigar,
-                      (sigar_dll_module_t *)&sigar->advapi,
-                      FALSE);
 
     sigar->pinfo.pid = -1;
     sigar->lcpu = -1;
@@ -510,7 +496,6 @@ int sigar_os_close(sigar_t *sigar)
 {
     int retval;
 
-    DLLMOD_FREE(advapi);
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);
     DLLMOD_FREE(kernel);

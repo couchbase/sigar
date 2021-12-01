@@ -127,9 +127,6 @@ typedef enum {
 #define PERF_VAL_CPU(ix) \
     NS100_2MSEC(PERF_VAL(ix))
 
-#define MS_LOOPBACK_ADAPTER "Microsoft Loopback Adapter"
-#define NETIF_LA "la"
-
 static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
 {
     va_list args;
@@ -559,10 +556,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
                       (sigar_dll_module_t *)&sigar->advapi,
                       FALSE);
 
-    sigar->netif_mib_rows = NULL;
-    sigar->netif_addr_rows = NULL;
-    sigar->netif_adapters = NULL;
-    sigar->netif_names = NULL;
     sigar->pinfo.pid = -1;
     sigar->ws_version = 0;
     sigar->lcpu = -1;
@@ -599,22 +592,6 @@ int sigar_os_close(sigar_t *sigar)
 
     if (sigar->ws_version != 0) {
         WSACleanup();
-    }
-
-    if (sigar->netif_mib_rows) {
-        sigar_cache_destroy(sigar->netif_mib_rows);
-    }
-
-    if (sigar->netif_addr_rows) {
-        sigar_cache_destroy(sigar->netif_addr_rows);
-    }
-
-    if (sigar->netif_adapters) {
-        sigar_cache_destroy(sigar->netif_adapters);
-    }
-
-    if (sigar->netif_names) {
-        sigar_cache_destroy(sigar->netif_names);
     }
 
     free(sigar);

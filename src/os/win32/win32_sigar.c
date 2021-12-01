@@ -310,14 +310,6 @@ SIGAR_DECLARE(sigar_t *) sigar_new(void)
     return sigar;
 }
 
-static sigar_ntdll_t sigar_ntdll = {
-    "ntdll.dll",
-    NULL,
-    { "NtQuerySystemInformation", NULL },
-    { "NtQueryInformationProcess", NULL },
-    { NULL, NULL }
-};
-
 static sigar_psapi_t sigar_psapi = {
     "psapi.dll",
     NULL,
@@ -467,7 +459,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     get_sysinfo(sigar);
 
-    DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
 
     sigar->pinfo.pid = -1;
@@ -479,16 +470,10 @@ int sigar_os_open(sigar_t **sigar_ptr)
     return result;
 }
 
-void dllmod_init_ntdll(sigar_t *sigar)
-{
-    DLLMOD_INIT(ntdll, FALSE);
-}
-
 int sigar_os_close(sigar_t *sigar)
 {
     int retval;
 
-    DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);
 
     if (sigar->perfbuf) {
@@ -552,11 +537,11 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
         swap->page_out = SIGAR_FIELD_NOTIMPL;
     }
 
-    swap->allocstall = -1;
-    swap->allocstall_dma = -1;
-    swap->allocstall_dma32 = -1;
-    swap->allocstall_normal = -1;
-    swap->allocstall_movable = -1;
+    swap->allocstall = SIGAR_FIELD_NOTIMPL;
+    swap->allocstall_dma = SIGAR_FIELD_NOTIMPL;
+    swap->allocstall_dma32 = SIGAR_FIELD_NOTIMPL;
+    swap->allocstall_normal = SIGAR_FIELD_NOTIMPL;
+    swap->allocstall_movable = SIGAR_FIELD_NOTIMPL;
 
     return SIGAR_OK;
 }
@@ -604,9 +589,6 @@ static PERF_INSTANCE_DEFINITION *get_cpu_instance(sigar_t *sigar,
 
 #define SPPI_MAX 128 /* XXX unhardcode; should move off this api anyhow */
 
-#define sigar_NtQuerySystemInformation \
-   sigar->ntdll.query_sys_info.func
-
 static int get_idle_cpu(sigar_t *sigar, sigar_cpu_t *cpu,
                         DWORD idx,
                         PERF_COUNTER_BLOCK *counter_block,
@@ -616,80 +598,41 @@ static int get_idle_cpu(sigar_t *sigar, sigar_cpu_t *cpu,
 
     if (perf_offsets[PERF_IX_CPU_IDLE]) {
         cpu->idle = PERF_VAL_CPU(PERF_IX_CPU_IDLE);
-    }
-    else {
-        /* windows NT and 2000 do not have an Idle counter */
-        DLLMOD_INIT(ntdll, FALSE);
-        if (sigar_NtQuerySystemInformation) {
-            DWORD retval, num;
-            SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION info[SPPI_MAX];
-            /* into the lungs of hell */
-            sigar_NtQuerySystemInformation(SystemProcessorPerformanceInformation,
-                                           &info, sizeof(info), &retval);
+    } else {
+        DWORD retval, num;
+        SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION info[SPPI_MAX];
+        /* into the lungs of hell */
+        NtQuerySystemInformation(SystemProcessorPerformanceInformation,
+                                 &info,
+                                 sizeof(info),
+                                 &retval);
 
-            if (!retval) {
-                return GetLastError();
-            }
-            num = retval/sizeof(info[0]);
-
-            if (idx == -1) {
-                int i;
-                for (i=0; i<num; i++) {
-                    cpu->idle += NS100_2MSEC(info[i].IdleTime.QuadPart);
-                }
-            }
-            else if (idx < num) {
-                cpu->idle = NS100_2MSEC(info[idx].IdleTime.QuadPart);
-            }
-            else {
-                return ERROR_INVALID_DATA;
-            }
+        if (!retval) {
+            return GetLastError();
         }
-        else {
-            return ERROR_INVALID_FUNCTION;
+        num = retval / sizeof(info[0]);
+
+        if (idx == -1) {
+            for (int i = 0; i < num; i++) {
+                cpu->idle += NS100_2MSEC(info[i].IdleTime.QuadPart);
+            }
+        } else if (idx < num) {
+            cpu->idle = NS100_2MSEC(info[idx].IdleTime.QuadPart);
+        } else {
+            return ERROR_INVALID_DATA;
         }
     }
 
     return SIGAR_OK;
 }
 
-static int sigar_cpu_perflib_get(sigar_t *sigar, sigar_cpu_t *cpu)
-{
-    int status;
-    PERF_INSTANCE_DEFINITION *inst;
-    PERF_COUNTER_BLOCK *counter_block;
-    DWORD perf_offsets[PERF_IX_CPU_MAX], err;
-
-    SIGAR_ZERO(cpu);
-    memset(&perf_offsets, 0, sizeof(perf_offsets));
-
-    inst = get_cpu_instance(sigar, (DWORD*)&perf_offsets, 0, &err);
-
-    if (!inst) {
-        return err;
-    }
-
-    /* first instance is total, rest are per-cpu */
-    counter_block = PdhGetCounterBlock(inst);
-
-    cpu->sys  = PERF_VAL_CPU(PERF_IX_CPU_SYS);
-    cpu->user = PERF_VAL_CPU(PERF_IX_CPU_USER);
-    status = get_idle_cpu(sigar, cpu, -1, counter_block, perf_offsets);
-    cpu->irq = PERF_VAL_CPU(PERF_IX_CPU_IRQ);
-    cpu->nice = 0; /* no nice here */
-    cpu->wait = 0; /*N/A?*/
-    cpu->total = cpu->sys + cpu->user + cpu->idle + cpu->wait + cpu->irq;
-
-    return SIGAR_OK;
-}
-
-static int sigar_cpu_ntsys_get(sigar_t *sigar, sigar_cpu_t *cpu)
+SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 {
     DWORD retval, num;
     int i;
     SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION info[SPPI_MAX];
     /* into the lungs of hell */
-    sigar_NtQuerySystemInformation(SystemProcessorPerformanceInformation,
+    NtQuerySystemInformation(SystemProcessorPerformanceInformation,
                                    &info, sizeof(info), &retval);
 
     if (!retval) {
@@ -709,18 +652,6 @@ static int sigar_cpu_ntsys_get(sigar_t *sigar, sigar_cpu_t *cpu)
 
     return SIGAR_OK;
 }
-
-SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
-{
-    DLLMOD_INIT(ntdll, FALSE);
-    if (sigar_NtQuerySystemInformation) {
-        return sigar_cpu_ntsys_get(sigar, cpu);
-    }
-    else {
-        return sigar_cpu_perflib_get(sigar, cpu);
-    }
-}
-
 
 #define PERF_TITLE_UPTIME_KEY 674 /* System Up Time */
 

@@ -98,18 +98,6 @@ typedef struct {
     sigar_dll_func_t funcs[12];
 } sigar_dll_module_t;
 
-/* ntdll.dll */
-typedef DWORD (CALLBACK *ntdll_query_sys_info)(DWORD,
-                                               PVOID,
-                                               ULONG,
-                                               PULONG);
-
-typedef DWORD (CALLBACK *ntdll_query_proc_info)(HANDLE,
-                                                DWORD,
-                                                PVOID,
-                                                ULONG,
-                                                PULONG);
-
 /* psapi.dll */
 typedef BOOL (CALLBACK *psapi_enum_modules)(HANDLE,
                                             HMODULE *,
@@ -134,15 +122,6 @@ typedef BOOL (CALLBACK *psapi_enum_processes)(DWORD *,
 typedef struct {
     sigar_dll_handle_t handle;
 
-    SIGAR_DLLFUNC(ntdll, query_sys_info);
-    SIGAR_DLLFUNC(ntdll, query_proc_info);
-
-    sigar_dll_func_t end;
-} sigar_ntdll_t;
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
     SIGAR_DLLFUNC(psapi, enum_modules);
     SIGAR_DLLFUNC(psapi, enum_processes);
     SIGAR_DLLFUNC(psapi, get_module_name);
@@ -158,7 +137,6 @@ struct sigar_t {
     HKEY handle;
     char *perfbuf;
     DWORD perfbuf_size;
-    sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;
     sigar_win32_pinfo_t pinfo;
 

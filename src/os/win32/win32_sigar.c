@@ -436,12 +436,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     version.dwOSVersionInfoSize = sizeof(version);
     GetVersionEx(&version);
 
-    /*
-     * 4 == NT 4.0
-     * 5 == 2000, XP, 2003 Server
-     */
-    sigar->winnt = (version.dwMajorVersion == 4);
-
     if (USING_WIDE_S(sigar)) {
         WCHAR wmachine[MAX_PATH+1];
 
@@ -462,7 +456,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     DLLMOD_COPY(psapi);
 
     sigar->pinfo.pid = -1;
-    sigar->lcpu = -1;
 
     /* increase process visibility */
     sigar_enable_privilege(SE_DEBUG_NAME);

@@ -139,10 +139,6 @@ struct sigar_t {
     DWORD perfbuf_size;
     sigar_psapi_t psapi;
     sigar_win32_pinfo_t pinfo;
-
-    int ht_enabled;
-    int lcpu; //number of logical cpus
-    int winnt;
 };
 
 #ifdef __cplusplus

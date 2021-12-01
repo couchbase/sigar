@@ -344,13 +344,6 @@ static sigar_psapi_t sigar_psapi = {
     { NULL, NULL }
 };
 
-static sigar_psapi_t sigar_winsta = {
-    "winsta.dll",
-    NULL,
-    { "WinStationQueryInformationW", NULL },
-    { NULL, NULL }
-};
-
 static sigar_psapi_t sigar_kernel = {
     "kernel32.dll",
     NULL,
@@ -509,7 +502,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     DLLMOD_COPY(advapi);
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
-    DLLMOD_COPY(winsta);
     DLLMOD_COPY(kernel);
     DLLMOD_COPY(mpr);
 
@@ -540,7 +532,6 @@ int sigar_os_close(sigar_t *sigar)
     DLLMOD_FREE(advapi);
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);
-    DLLMOD_FREE(winsta);
     DLLMOD_FREE(kernel);
     DLLMOD_FREE(mpr);
 

@@ -308,14 +308,6 @@ typedef BOOL (CALLBACK *psapi_enum_processes)(DWORD *,
                                               DWORD,
                                               DWORD *);
 
-/* winsta.dll */
-typedef BOOLEAN (CALLBACK *winsta_query_info)(HANDLE,
-                                              ULONG,
-                                              WINSTATION_INFO_CLASS,
-                                              PVOID,
-                                              ULONG,
-                                              PULONG);
-
 /* kernel32.dll */
 typedef BOOL (CALLBACK *kernel_memory_status)(MEMORYSTATUSEX *);
 
@@ -371,14 +363,6 @@ typedef struct {
 typedef struct {
     sigar_dll_handle_t handle;
 
-    SIGAR_DLLFUNC(winsta, query_info);
-
-    sigar_dll_func_t end;
-} sigar_winsta_t;
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
     SIGAR_DLLFUNC(kernel, memory_status);
 
     sigar_dll_func_t end;
@@ -404,7 +388,6 @@ struct sigar_t {
     sigar_advapi_t advapi;
     sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;
-    sigar_winsta_t winsta;
     sigar_kernel_t kernel;
     sigar_mpr_t mpr;
     sigar_win32_pinfo_t pinfo;

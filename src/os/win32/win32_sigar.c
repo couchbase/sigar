@@ -351,13 +351,6 @@ static sigar_psapi_t sigar_kernel = {
     { NULL, NULL }
 };
 
-static sigar_mpr_t sigar_mpr = {
-    "mpr.dll",
-    NULL,
-    { "WNetGetConnectionA", NULL },
-    { NULL, NULL }
-};
-
 #define DLLMOD_COPY(name) \
     memcpy(&(sigar->name), &sigar_##name, sizeof(sigar_##name))
 
@@ -503,7 +496,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
     DLLMOD_COPY(kernel);
-    DLLMOD_COPY(mpr);
 
     /* XXX init early for use by javasigar.c */
     sigar_dllmod_init(sigar,
@@ -533,7 +525,6 @@ int sigar_os_close(sigar_t *sigar)
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);
     DLLMOD_FREE(kernel);
-    DLLMOD_FREE(mpr);
 
     if (sigar->perfbuf) {
         free(sigar->perfbuf);

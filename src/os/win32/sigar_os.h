@@ -19,12 +19,6 @@
 #ifndef SIGAR_OS_H
 #define SIGAR_OS_H
 
-#ifndef __GNUC__
-#if _MSC_VER <= 1200
-#define SIGAR_USING_MSC6 /* Visual Studio version 6 */
-#endif
-#endif
-
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -69,44 +63,6 @@
 /* iptypes.h from vc7, not available in vc6 */
 /* copy from PSDK if using vc6 */
 #include "iptypes.h"
-
-#ifdef SIGAR_USING_MSC6
-
-/* from winbase.h not in vs6.0 */
-typedef struct {
-    DWORD dwLength;
-    DWORD dwMemoryLoad;
-    DWORDLONG ullTotalPhys;
-    DWORDLONG ullAvailPhys;
-    DWORDLONG ullTotalPageFile;
-    DWORDLONG ullAvailPageFile;
-    DWORDLONG ullTotalVirtual;
-    DWORDLONG ullAvailVirtual;
-    DWORDLONG ullAvailExtendedVirtual;
-} MEMORYSTATUSEX;
-
-/* service manager stuff not in vs6.0 */
-typedef struct _SERVICE_STATUS_PROCESS {
-    DWORD dwServiceType;
-    DWORD dwCurrentState;
-    DWORD dwControlsAccepted;
-    DWORD dwWin32ExitCode;
-    DWORD dwServiceSpecificExitCode;
-    DWORD dwCheckPoint;
-    DWORD dwWaitHint;
-    DWORD dwProcessId;
-    DWORD dwServiceFlags;
-} SERVICE_STATUS_PROCESS;
-
-typedef enum {
-    SC_STATUS_PROCESS_INFO = 0
-} SC_STATUS_TYPE;
-
-#ifndef ERROR_DATATYPE_MISMATCH
-#define ERROR_DATATYPE_MISMATCH 1629L
-#endif
-
-#endif /* _MSC_VER */
 
 #include <iprtrmib.h>
 

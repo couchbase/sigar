@@ -82,53 +82,6 @@ typedef struct {
     uint64_t page_faults;
 } sigar_win32_pinfo_t;
 
-typedef struct {
-    const char *name;
-    HINSTANCE handle;
-} sigar_dll_handle_t;
-
-typedef struct {
-    const char *name;
-    FARPROC func;
-} sigar_dll_func_t;
-
-typedef struct {
-    const char *name;
-    HINSTANCE handle;
-    sigar_dll_func_t funcs[12];
-} sigar_dll_module_t;
-
-/* psapi.dll */
-typedef BOOL (CALLBACK *psapi_enum_modules)(HANDLE,
-                                            HMODULE *,
-                                            DWORD,
-                                            LPDWORD);
-
-typedef DWORD (CALLBACK *psapi_get_module_name)(HANDLE,
-                                                HMODULE,
-                                                LPTSTR,
-                                                DWORD);
-
-typedef BOOL (CALLBACK *psapi_enum_processes)(DWORD *,
-                                              DWORD,
-                                              DWORD *);
-
-#define SIGAR_DLLFUNC(api, name) \
-    struct { \
-         const char *name; \
-         api##_##name func; \
-    } name
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
-    SIGAR_DLLFUNC(psapi, enum_modules);
-    SIGAR_DLLFUNC(psapi, enum_processes);
-    SIGAR_DLLFUNC(psapi, get_module_name);
-
-    sigar_dll_func_t end;
-} sigar_psapi_t;
-
 struct sigar_t {
     SIGAR_T_BASE;
     char *machine;
@@ -137,7 +90,6 @@ struct sigar_t {
     HKEY handle;
     char *perfbuf;
     DWORD perfbuf_size;
-    sigar_psapi_t psapi;
     sigar_win32_pinfo_t pinfo;
 };
 

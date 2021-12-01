@@ -310,75 +310,6 @@ SIGAR_DECLARE(sigar_t *) sigar_new(void)
     return sigar;
 }
 
-static sigar_psapi_t sigar_psapi = {
-    "psapi.dll",
-    NULL,
-    { "EnumProcessModules", NULL },
-    { "EnumProcesses", NULL },
-    { "GetModuleFileNameExA", NULL },
-    { NULL, NULL }
-};
-
-#define DLLMOD_COPY(name) \
-    memcpy(&(sigar->name), &sigar_##name, sizeof(sigar_##name))
-
-#define DLLMOD_INIT(name, all) \
-    sigar_dllmod_init(sigar, (sigar_dll_module_t *)&(sigar->name), all)
-
-#define DLLMOD_FREE(name) \
-    sigar_dllmod_free((sigar_dll_module_t *)&(sigar->name))
-
-static void sigar_dllmod_free(sigar_dll_module_t *module)
-{
-    if (module->handle) {
-        FreeLibrary(module->handle);
-        module->handle = NULL;
-    }
-}
-
-static int sigar_dllmod_init(sigar_t *sigar,
-                             sigar_dll_module_t *module,
-                             int all)
-{
-    sigar_dll_func_t *funcs = &module->funcs[0];
-    int rc, success;
-
-    if (module->handle == INVALID_HANDLE_VALUE) {
-        return ENOENT; /* XXX better rc */
-    }
-
-    if (module->handle) {
-        return SIGAR_OK;
-    }
-
-    module->handle = LoadLibrary(module->name);
-    if (!(success = (module->handle ? TRUE : FALSE))) {
-        rc = GetLastError();
-        /* dont try again */
-        module->handle = INVALID_HANDLE_VALUE;
-    }
-
-    if (!success) {
-        return rc;
-    }
-
-    while (funcs->name) {
-        funcs->func = GetProcAddress(module->handle, funcs->name);
-
-        if (!(success = (funcs->func ? TRUE : FALSE))) {
-            rc = GetLastError();
-        }
-
-        if (all && !success) {
-            return rc;
-        }
-
-        funcs++;
-    }
-
-    return SIGAR_OK;
-}
-
 static int sigar_enable_privilege(char *name)
 {
     int status;
@@ -453,8 +384,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     get_sysinfo(sigar);
 
-    DLLMOD_COPY(psapi);
-
     sigar->pinfo.pid = -1;
 
     /* increase process visibility */
@@ -466,8 +395,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 int sigar_os_close(sigar_t *sigar)
 {
     int retval;
-
-    DLLMOD_FREE(psapi);
 
     if (sigar->perfbuf) {
         free(sigar->perfbuf);
@@ -648,115 +575,41 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 
 #define PERF_TITLE_UPTIME_KEY 674 /* System Up Time */
 
-
 #define get_process_object(sigar, err) \
     get_perf_object(sigar, PERF_TITLE_PROC_KEY, err)
 
-static int sigar_proc_list_get_perf(sigar_t *sigar,
-                                    sigar_proc_list_t *proclist)
-{
+int sigar_os_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
+    DWORD retval, *pids;
+    DWORD size = 0, i;
 
-    PERF_OBJECT_TYPE *object;
-    PERF_INSTANCE_DEFINITION *inst;
-    PERF_COUNTER_DEFINITION *counter;
-    DWORD i, err;
-    DWORD perf_offsets[PERF_IX_MAX];
-
-    perf_offsets[PERF_IX_PID] = 0;
-
-    object = get_process_object(sigar, &err);
-
-    if (!object) {
-        return err;
-    }
-
-    /*
-     * note we assume here:
-     *  block->NumObjectTypes == 1
-     *  object->ObjectNameTitleIndex == PERF_TITLE_PROC
-     *
-     * which should always be the case.
-     */
-
-    for (i=0, counter = PdhFirstCounter(object);
-         i<object->NumCounters;
-         i++, counter = PdhNextCounter(counter))
-    {
-        DWORD offset = counter->CounterOffset;
-
-        switch (counter->CounterNameTitleIndex) {
-          case PERF_TITLE_PID:
-            perf_offsets[PERF_IX_PID] = offset;
-            break;
+    do {
+        /* re-use the perfbuf */
+        if (size == 0) {
+            size = perfbuf_init(sigar);
+        } else {
+            size = perfbuf_grow(sigar);
         }
-    }
 
-    for (i=0, inst = PdhFirstInstance(object);
-         i<object->NumInstances;
-         i++, inst = PdhNextInstance(inst))
-    {
-        PERF_COUNTER_BLOCK *counter_block = PdhGetCounterBlock(inst);
-        DWORD pid = PERF_VAL(PERF_IX_PID);
+        if (!EnumProcesses(
+                    (DWORD*)sigar->perfbuf, sigar->perfbuf_size, &retval)) {
+            return GetLastError();
+        }
+    } while (retval == sigar->perfbuf_size); // unlikely
 
+    pids = (DWORD*)sigar->perfbuf;
+
+    size = retval / sizeof(DWORD);
+
+    for (i = 0; i < size; i++) {
+        DWORD pid = pids[i];
         if (pid == 0) {
             continue; /* dont include the system Idle process */
         }
-
         SIGAR_PROC_LIST_GROW(proclist);
-
         proclist->data[proclist->number++] = pid;
     }
 
     return SIGAR_OK;
-}
-
-#define sigar_EnumProcesses \
-    sigar->psapi.enum_processes.func
-
-int sigar_os_proc_list_get(sigar_t *sigar,
-                           sigar_proc_list_t *proclist)
-{
-    DLLMOD_INIT(psapi, FALSE);
-
-    if (sigar_EnumProcesses) {
-        DWORD retval, *pids;
-        DWORD size = 0, i;
-
-        do {
-            /* re-use the perfbuf */
-            if (size == 0) {
-                size = perfbuf_init(sigar);
-            }
-            else {
-                size = perfbuf_grow(sigar);
-            }
-
-            if (!sigar_EnumProcesses((DWORD *)sigar->perfbuf,
-                                     sigar->perfbuf_size,
-                                     &retval))
-            {
-                return GetLastError();
-            }
-        } while (retval == sigar->perfbuf_size); //unlikely
-
-        pids = (DWORD *)sigar->perfbuf;
-
-        size = retval / sizeof(DWORD);
-
-        for (i=0; i<size; i++) {
-            DWORD pid = pids[i];
-            if (pid == 0) {
-                continue; /* dont include the system Idle process */
-            }
-            SIGAR_PROC_LIST_GROW(proclist);
-            proclist->data[proclist->number++] = pid;
-        }
-
-        return SIGAR_OK;
-    }
-    else {
-        return sigar_proc_list_get_perf(sigar, proclist);
-    }
 }
 
 int sigar_os_proc_list_get_children(sigar_t* sigar,

@@ -488,8 +488,6 @@ struct sigar_t {
     sigar_mpr_t mpr;
     sigar_win32_pinfo_t pinfo;
 
-    WORD ws_version;
-    int ws_error;
     int ht_enabled;
     int lcpu; //number of logical cpus
     int winnt;
@@ -500,8 +498,6 @@ extern "C" {
 #endif
 
 uint64_t sigar_FileTimeToTime(FILETIME *ft);
-
-int sigar_wsa_init(sigar_t *sigar);
 
 int sigar_proc_args_peb_get(sigar_t *sigar, HANDLE proc,
                             sigar_proc_args_t *procargs);

@@ -445,23 +445,6 @@ static int sigar_dllmod_init(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-int sigar_wsa_init(sigar_t *sigar)
-{
-    if (sigar->ws_version == 0) {
-        WSADATA data;
-
-        if (WSAStartup(MAKEWORD(2, 0), &data)) {
-            sigar->ws_error = WSAGetLastError();
-            WSACleanup();
-            return sigar->ws_error;
-        }
-
-        sigar->ws_version = data.wVersion;
-    }
-
-    return SIGAR_OK;
-}
-
 static int sigar_enable_privilege(char *name)
 {
     int status;
@@ -557,7 +540,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
                       FALSE);
 
     sigar->pinfo.pid = -1;
-    sigar->ws_version = 0;
     sigar->lcpu = -1;
 
     /* increase process visibility */
@@ -589,10 +571,6 @@ int sigar_os_close(sigar_t *sigar)
     }
 
     retval = RegCloseKey(sigar->handle);
-
-    if (sigar->ws_version != 0) {
-        WSACleanup();
-    }
 
     free(sigar);
 

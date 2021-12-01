@@ -8,6 +8,18 @@ INCLUDE(InstallRequiredSystemLibraries)
 
 ENABLE_TESTING()
 
+# The unit test tries to load the shared object, and this
+# fails on windows as we don't add a "runtime path" for the
+# linker to find sigar.dll. The easiest workaround is
+# to put them in the same directory and it should work out
+# of the box. The other components which currently link
+# with sigar tries to look for the library in the src directory
+# so the easiest fix is to ensure that the other binaries
+# also end up there
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/src)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/src)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/src)
+
 IF(WIN32)
 	## make sure we only use the smallest set of
 	## headers on win32. Otherwise we get clashes

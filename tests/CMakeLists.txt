@@ -5,4 +5,6 @@ target_link_libraries(sigar_tests
                       Folly::folly
                       GTest::gtest
                       GTest::gtest_main)
-add_test(sigar_tests sigar_tests)
+add_test(NAME sigar-unit-tests
+         WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}
+         COMMAND sigar_tests)

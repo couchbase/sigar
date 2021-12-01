@@ -310,15 +310,6 @@ SIGAR_DECLARE(sigar_t *) sigar_new(void)
     return sigar;
 }
 
-static sigar_wtsapi_t sigar_wtsapi = {
-    "wtsapi32.dll",
-    NULL,
-    { "WTSEnumerateSessionsA", NULL },
-    { "WTSFreeMemory", NULL },
-    { "WTSQuerySessionInformationA", NULL },
-    { NULL, NULL }
-};
-
 static sigar_advapi_t sigar_advapi = {
     "advapi32.dll",
     NULL,
@@ -491,7 +482,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     get_sysinfo(sigar);
 
-    DLLMOD_COPY(wtsapi);
     DLLMOD_COPY(advapi);
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
@@ -520,7 +510,6 @@ int sigar_os_close(sigar_t *sigar)
 {
     int retval;
 
-    DLLMOD_FREE(wtsapi);
     DLLMOD_FREE(advapi);
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);

@@ -70,84 +70,6 @@
 /* copy from PSDK if using vc6 */
 #include "iptypes.h"
 
-/* from wtsapi32.h not in vs6.0 */
-typedef enum {
-    WTSInitialProgram,
-    WTSApplicationName,
-    WTSWorkingDirectory,
-    WTSOEMId,
-    WTSSessionId,
-    WTSUserName,
-    WTSWinStationName,
-    WTSDomainName,
-    WTSConnectState,
-    WTSClientBuildNumber,
-    WTSClientName,
-    WTSClientDirectory,
-    WTSClientProductId,
-    WTSClientHardwareId,
-    WTSClientAddress,
-    WTSClientDisplay,
-    WTSClientProtocolType,
-} WTS_INFO_CLASS;
-
-typedef enum _WTS_CONNECTSTATE_CLASS {
-    WTSActive,
-    WTSConnected,
-    WTSConnectQuery,
-    WTSShadow,
-    WTSDisconnected,
-    WTSIdle,
-    WTSListen,
-    WTSReset,
-    WTSDown,
-    WTSInit
-} WTS_CONNECTSTATE_CLASS;
-
-#define WTS_PROTOCOL_TYPE_CONSOLE 0
-#define WTS_PROTOCOL_TYPE_ICA     1
-#define WTS_PROTOCOL_TYPE_RDP     2
-
-typedef struct _WTS_SESSION_INFO {
-    DWORD SessionId;
-    LPTSTR pWinStationName;
-    DWORD State;
-} WTS_SESSION_INFO, *PWTS_SESSION_INFO;
-
-typedef struct _WTS_PROCESS_INFO {
-    DWORD SessionId;
-    DWORD ProcessId;
-    LPSTR pProcessName;
-    PSID pUserSid;
-} WTS_PROCESS_INFO, *PWTS_PROCESS_INFO;
-
-typedef struct _WTS_CLIENT_ADDRESS {
-    DWORD AddressFamily;
-    BYTE Address[20];
-} WTS_CLIENT_ADDRESS, *PWTS_CLIENT_ADDRESS;
-
-/* the WINSTATION_INFO stuff here is undocumented
- * got the howto from google groups:
- * http://redirx.com/?31gy
- */
-typedef enum _WINSTATION_INFO_CLASS {
-    WinStationInformation = 8
-} WINSTATION_INFO_CLASS;
-
-typedef struct _WINSTATION_INFO {
-    BYTE Reserved1[72];
-    ULONG SessionId;
-    BYTE Reserved2[4];
-    FILETIME ConnectTime;
-    FILETIME DisconnectTime;
-    FILETIME LastInputTime;
-    FILETIME LoginTime;
-    BYTE Reserved3[1096];
-    FILETIME CurrentTime;
-} WINSTATION_INFO, *PWINSTATION_INFO;
-
-/* end wtsapi32.h */
-
 #ifdef SIGAR_USING_MSC6
 
 /* from winbase.h not in vs6.0 */
@@ -258,19 +180,6 @@ typedef struct {
     sigar_dll_func_t funcs[12];
 } sigar_dll_module_t;
 
-/* wtsapi.dll */
-typedef BOOL (CALLBACK *wtsapi_enum_sessions)(HANDLE,
-                                              DWORD,
-                                              DWORD,
-                                              PWTS_SESSION_INFO *,
-                                              DWORD *);
-
-typedef void (CALLBACK *wtsapi_free_mem)(PVOID);
-
-typedef BOOL (CALLBACK *wtsapi_query_session)(HANDLE,
-                                              DWORD,
-                                              WTS_INFO_CLASS,
-                                              LPSTR *, DWORD *);
 /* advapi32.dll */
 typedef BOOL (CALLBACK *advapi_convert_string_sid)(LPCSTR,
                                                    PSID *);
@@ -321,16 +230,6 @@ typedef BOOL (CALLBACK *kernel_memory_status)(MEMORYSTATUSEX *);
 typedef struct {
     sigar_dll_handle_t handle;
 
-    SIGAR_DLLFUNC(wtsapi, enum_sessions);
-    SIGAR_DLLFUNC(wtsapi, free_mem);
-    SIGAR_DLLFUNC(wtsapi, query_session);
-
-    sigar_dll_func_t end;
-} sigar_wtsapi_t;
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
     SIGAR_DLLFUNC(advapi, convert_string_sid);
     SIGAR_DLLFUNC(advapi, query_service_status);
 
@@ -372,7 +271,6 @@ struct sigar_t {
     HKEY handle;
     char *perfbuf;
     DWORD perfbuf_size;
-    sigar_wtsapi_t wtsapi;
     sigar_advapi_t advapi;
     sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;

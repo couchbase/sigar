@@ -300,16 +300,6 @@ static void get_sysinfo(sigar_t *sigar)
     sigar->pagesize = sysinfo.dwPageSize;
 }
 
-/* for C# bindings */
-SIGAR_DECLARE(sigar_t *) sigar_new(void)
-{
-    sigar_t *sigar;
-    if (sigar_open(&sigar) != SIGAR_OK) {
-        return NULL;
-    }
-    return sigar;
-}
-
 static int sigar_enable_privilege(char *name)
 {
     int status;

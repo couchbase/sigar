@@ -319,26 +319,6 @@ static sigar_wtsapi_t sigar_wtsapi = {
     { NULL, NULL }
 };
 
-static sigar_iphlpapi_t sigar_iphlpapi = {
-    "iphlpapi.dll",
-    NULL,
-    { "GetIpForwardTable", NULL },
-    { "GetIpAddrTable", NULL },
-    { "GetIfTable", NULL },
-    { "GetIfEntry", NULL },
-    { "GetNumberOfInterfaces", NULL },
-    { "GetTcpTable", NULL },
-    { "GetUdpTable", NULL },
-    { "AllocateAndGetTcpExTableFromStack", NULL },
-    { "AllocateAndGetUdpExTableFromStack", NULL },
-    { "GetTcpStatistics", NULL },
-    { "GetNetworkParams", NULL },
-    { "GetAdaptersInfo", NULL },
-    { "GetAdaptersAddresses", NULL },
-    { "GetIpNetTable", NULL },
-    { NULL, NULL }
-};
-
 static sigar_advapi_t sigar_advapi = {
     "advapi32.dll",
     NULL,
@@ -526,7 +506,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
     get_sysinfo(sigar);
 
     DLLMOD_COPY(wtsapi);
-    DLLMOD_COPY(iphlpapi);
     DLLMOD_COPY(advapi);
     DLLMOD_COPY(ntdll);
     DLLMOD_COPY(psapi);
@@ -558,7 +537,6 @@ int sigar_os_close(sigar_t *sigar)
     int retval;
 
     DLLMOD_FREE(wtsapi);
-    DLLMOD_FREE(iphlpapi);
     DLLMOD_FREE(advapi);
     DLLMOD_FREE(ntdll);
     DLLMOD_FREE(psapi);

@@ -43,7 +43,6 @@
 #include <stdint.h>
 
 #include <iptypes.h>
-#include <iphlpapi.h>
 
 #include "sigar_util.h"
 
@@ -272,58 +271,6 @@ typedef BOOL (CALLBACK *wtsapi_query_session)(HANDLE,
                                               DWORD,
                                               WTS_INFO_CLASS,
                                               LPSTR *, DWORD *);
-/* iphlpapi.dll */
-
-typedef DWORD (CALLBACK *iphlpapi_get_ipforward_table)(PMIB_IPFORWARDTABLE,
-                                                       PULONG,
-                                                       BOOL);
-
-typedef DWORD (CALLBACK *iphlpapi_get_ipaddr_table)(PMIB_IPADDRTABLE,
-                                                    PULONG,
-                                                    BOOL);
-
-typedef DWORD (CALLBACK *iphlpapi_get_if_table)(PMIB_IFTABLE,
-                                                PULONG,
-                                                BOOL);
-
-typedef DWORD (CALLBACK *iphlpapi_get_if_entry)(PMIB_IFROW);
-
-typedef DWORD (CALLBACK *iphlpapi_get_num_if)(PDWORD);
-
-typedef DWORD (CALLBACK *iphlpapi_get_tcp_table)(PMIB_TCPTABLE,
-                                                 PDWORD,
-                                                 BOOL);
-
-typedef DWORD (CALLBACK *iphlpapi_get_udp_table)(PMIB_UDPTABLE,
-                                                 PDWORD,
-                                                 BOOL);
-
-typedef DWORD (CALLBACK *iphlpapi_get_tcpx_table)(PMIB_TCPEXTABLE *,
-                                                  BOOL,
-                                                  HANDLE,
-                                                  DWORD,
-                                                  DWORD);
-
-typedef DWORD (CALLBACK *iphlpapi_get_udpx_table)(PMIB_UDPEXTABLE *,
-                                                  BOOL,
-                                                  HANDLE,
-                                                  DWORD,
-                                                  DWORD);
-
-typedef DWORD (CALLBACK *iphlpapi_get_tcp_stats)(PMIB_TCPSTATS);
-
-typedef DWORD (CALLBACK *iphlpapi_get_net_params)(PFIXED_INFO,
-                                                  PULONG);
-
-typedef DWORD (CALLBACK *iphlpapi_get_adapters_info)(PIP_ADAPTER_INFO,
-                                                     PULONG);
-
-typedef ULONG (CALLBACK *iphlpapi_get_adapters_addrs)(ULONG,
-                                                      ULONG,
-                                                      PVOID,
-                                                      PIP_ADAPTER_ADDRESSES,
-                                                      PULONG);
-
 /* advapi32.dll */
 typedef BOOL (CALLBACK *advapi_convert_string_sid)(LPCSTR,
                                                    PSID *);
@@ -333,10 +280,6 @@ typedef BOOL (CALLBACK *advapi_query_service_status)(SC_HANDLE,
                                                      LPBYTE,
                                                      DWORD,
                                                      LPDWORD);
-
-typedef DWORD (CALLBACK *iphlpapi_get_ipnet_table)(PMIB_IPNETTABLE,
-                                                   PDWORD,
-                                                   BOOL);
 
 /* ntdll.dll */
 typedef DWORD (CALLBACK *ntdll_query_sys_info)(DWORD,
@@ -400,27 +343,6 @@ typedef struct {
 typedef struct {
     sigar_dll_handle_t handle;
 
-    SIGAR_DLLFUNC(iphlpapi, get_ipforward_table);
-    SIGAR_DLLFUNC(iphlpapi, get_ipaddr_table);
-    SIGAR_DLLFUNC(iphlpapi, get_if_table);
-    SIGAR_DLLFUNC(iphlpapi, get_if_entry);
-    SIGAR_DLLFUNC(iphlpapi, get_num_if);
-    SIGAR_DLLFUNC(iphlpapi, get_tcp_table);
-    SIGAR_DLLFUNC(iphlpapi, get_udp_table);
-    SIGAR_DLLFUNC(iphlpapi, get_tcpx_table);
-    SIGAR_DLLFUNC(iphlpapi, get_udpx_table);
-    SIGAR_DLLFUNC(iphlpapi, get_tcp_stats);
-    SIGAR_DLLFUNC(iphlpapi, get_net_params);
-    SIGAR_DLLFUNC(iphlpapi, get_adapters_info);
-    SIGAR_DLLFUNC(iphlpapi, get_adapters_addrs);
-    SIGAR_DLLFUNC(iphlpapi, get_ipnet_table);
-
-    sigar_dll_func_t end;
-} sigar_iphlpapi_t;
-
-typedef struct {
-    sigar_dll_handle_t handle;
-
     SIGAR_DLLFUNC(advapi, convert_string_sid);
     SIGAR_DLLFUNC(advapi, query_service_status);
 
@@ -479,7 +401,6 @@ struct sigar_t {
     char *perfbuf;
     DWORD perfbuf_size;
     sigar_wtsapi_t wtsapi;
-    sigar_iphlpapi_t iphlpapi;
     sigar_advapi_t advapi;
     sigar_ntdll_t ntdll;
     sigar_psapi_t psapi;

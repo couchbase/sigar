@@ -157,7 +157,8 @@ TEST_F(Sigar, test_sigar_swap_get) {
 
 #ifndef WIN32
 TEST_F(Sigar, test_sigar_proc_list_get_children) {
-    auto pids = cb::io::mkdtemp("t_pchilds_s");
+    auto pidfile = cb::io::mkdtemp("t_pchilds_s");
+    std::vector<pid_t> pids;
     // create some childs and register all of them
     for (int ii = 0; ii < 3; ++ii) {
         auto pid = fork();
@@ -165,7 +166,7 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
             // create a grandchild
             switch (fork()) {
             case 0:
-                createPidFileAndWait(pids);
+                createPidFileAndWait(pidfile);
                 // NOT REACHED
 
             case (pid_t)-1:
@@ -176,19 +177,20 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
             }
 
             // child
-            createPidFileAndWait(pids);
+            createPidFileAndWait(pidfile);
             // Not reached
         } else if (pid == -1) {
             perror("fork()");
             exit(EXIT_FAILURE);
         }
+        pids.push_back(pid);
     }
 
     // Wait until they're all running
     std::vector<std::string> files;
     while (files.size() < 6) {
         // check if any processes died!
-        files = cb::io::findFilesContaining(pids, "pid");
+        files = cb::io::findFilesContaining(pidfile, "pid");
     }
 
     // We've got all of the processes running.. now lets check if sigar gives me
@@ -200,6 +202,11 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
 
     EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
     sigar_proc_list_destroy(instance, &proc_list);
-    cb::io::rmrf(pids);
+    cb::io::rmrf(pidfile);
+    // reap the zombies
+    for (const auto pid : pids) {
+        int exitcode;
+        waitpid(pid, &exitcode, 0);
+    }
 }
 #endif

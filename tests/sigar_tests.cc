@@ -37,11 +37,14 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <boost/filesystem.hpp>
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
+#include <platform/process_monitor.h>
 #include <sigar.h>
 #include <sigar_control_group.h>
 #include <chrono>
+#include <condition_variable>
 #include <thread>
 
 class Sigar : public ::testing::Test {
@@ -54,14 +57,6 @@ protected:
     void TearDown() override {
         Test::TearDown();
         sigar_close(instance);
-    }
-
-    void createPidFileAndWait(const std::string& pids) {
-        const auto pidfile = cb::io::mktemp(pids + "/pid_");
-        while (cb::io::isFile(pidfile)) {
-            std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        }
-        exit(EXIT_SUCCESS);
     }
 
     sigar_t* instance = nullptr;
@@ -156,42 +151,22 @@ TEST_F(Sigar, test_sigar_swap_get) {
     ASSERT_EQ(swap.total, swap.used + swap.free);
 }
 
-#ifndef WIN32
 TEST_F(Sigar, test_sigar_proc_list_get_children) {
-    auto pidfile = cb::io::mkdtemp("t_pchilds_s");
-    std::vector<pid_t> pids;
-    // create some childs and register all of them
-    for (int ii = 0; ii < 3; ++ii) {
-        auto pid = fork();
-        if (pid == 0) {
-            // create a grandchild
-            switch (fork()) {
-            case 0:
-                createPidFileAndWait(pidfile);
-                // NOT REACHED
-
-            case (pid_t)-1:
-                perror("fork()");
-                exit(EXIT_FAILURE);
-            default:
-                    ;
-            }
-
-            // child
-            createPidFileAndWait(pidfile);
-            // Not reached
-        } else if (pid == -1) {
-            perror("fork()");
-            exit(EXIT_FAILURE);
-        }
-        pids.push_back(pid);
-    }
+    auto binary = boost::filesystem::current_path() / "sigar_tests_child";
+    auto directory = boost::filesystem::path(
+            cb::io::mkdtemp((boost::filesystem::current_path() / "sigar_tests")
+                                    .generic_string()));
+    std::vector<std::string> cmdline = {{binary.generic_string(),
+                                         "--directory",
+                                         directory.generic_string(),
+                                         "--create-child=5"}};
+    auto child = ProcessMonitor::create(cmdline, [](const auto&) {});
 
     // Wait until they're all running
     std::vector<std::string> files;
     while (files.size() < 6) {
         // check if any processes died!
-        files = cb::io::findFilesContaining(pidfile, "pid");
+        files = cb::io::findFilesContaining(directory.generic_string(), "pid");
     }
 
     // We've got all of the processes running.. now lets check if sigar gives me
@@ -203,14 +178,12 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
 
     EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
     sigar_proc_list_destroy(instance, &proc_list);
-    cb::io::rmrf(pidfile);
-    // reap the zombies
-    for (const auto pid : pids) {
-        int exitcode;
-        waitpid(pid, &exitcode, 0);
+    remove_all(directory);
+
+    while (child->isRunning()) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
 }
-#endif
 
 TEST_F(Sigar, sigar_get_control_group_info) {
     sigar_control_group_info_t info;

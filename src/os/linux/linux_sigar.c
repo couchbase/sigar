@@ -385,29 +385,6 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     return SIGAR_OK;
 }
 
-static void get_cpu_metrics(sigar_t *sigar, sigar_cpu_t *cpu, char *line)
-{
-    char *ptr = sigar_skip_token(line); /* "cpu%d" */
-
-    cpu->user += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->nice += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->sys  += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->idle += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    if (*ptr == ' ') {
-        /* 2.6+ kernels only */
-        cpu->wait += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-        cpu->irq += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-        cpu->soft_irq += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    }
-    if (*ptr == ' ') {
-        /* 2.6.11+ kernels only */
-        cpu->stolen += SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    }
-    cpu->total =
-        cpu->user + cpu->nice + cpu->sys + cpu->idle +
-        cpu->wait + cpu->irq + cpu->soft_irq + cpu->stolen;
-}
-
 int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 {
     char buffer[BUFSIZ];
@@ -417,8 +394,20 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
         return status;
     }
 
-    SIGAR_ZERO(cpu);
-    get_cpu_metrics(sigar, cpu, buffer);
+    // The first line in /proc/stat looks like:
+    // cpu user nice system idle iowait irq softirq steal guest guest_nice
+    // (The amount of time, measured in units of USER_HZ)
+    char *ptr = sigar_skip_token(buffer);
+    cpu->user = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->nice = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->sys = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->idle = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->wait = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->irq = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->soft_irq = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->stolen = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
+    cpu->total = cpu->user + cpu->nice + cpu->sys + cpu->idle + cpu->wait +
+                 cpu->irq + cpu->soft_irq + cpu->stolen;
 
     return SIGAR_OK;
 }

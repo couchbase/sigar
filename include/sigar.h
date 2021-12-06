@@ -185,6 +185,12 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                                         sigar_proc_state_t *procstate);
 
+
+#ifdef __linux__
+// To allow mocking around with the linux tests just add a prefix
+SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

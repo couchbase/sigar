@@ -11,6 +11,7 @@ target_link_libraries(sigar_tests
                       GTest::gtest_main)
 add_sanitizers(sigar_tests)
 add_dependencies(sigar_tests sigar_tests_child)
+target_compile_definitions(sigar_tests PRIVATE SOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}")
 
 add_test(NAME sigar-unit-tests
          WORKING_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}

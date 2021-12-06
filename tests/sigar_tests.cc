@@ -209,3 +209,20 @@ TEST_F(Sigar, sigar_get_control_group_info) {
     ASSERT_EQ(0, info.supported);
 #endif
 }
+
+#ifdef __linux__
+TEST_F(Sigar, MB49911) {
+    sigar_set_procfs_root(SOURCE_ROOT);
+    sigar_cpu_t cpu;
+    EXPECT_EQ(SIGAR_OK, sigar_cpu_get(instance, &cpu));
+    EXPECT_EQ(88917270, cpu.user);
+    EXPECT_EQ(11349280, cpu.sys);
+    EXPECT_EQ(240, cpu.nice);
+    EXPECT_EQ(7945213060, cpu.idle);
+    EXPECT_EQ(1651470, cpu.wait);
+    EXPECT_EQ(0, cpu.irq);
+    EXPECT_EQ(209860, cpu.soft_irq);
+    EXPECT_EQ(0, cpu.stolen);
+    EXPECT_EQ(8047341180, cpu.total);
+}
+#endif

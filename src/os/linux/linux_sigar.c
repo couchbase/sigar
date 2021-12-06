@@ -50,6 +50,13 @@
 
 #define UITOA_BUFFER_SIZE (sizeof(int) * 3 + 1)
 
+const char* mock_root = NULL;
+
+// To allow mocking around with the linux tests just add a prefix
+SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
+    mock_root = root;
+}
+
 static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
     char* start = buf + UITOA_BUFFER_SIZE - 1;
 
@@ -100,14 +107,26 @@ static char* sigar_proc_filename(char* buffer,
 }
 
 static int sigar_file2str(const char* fname, char* buffer, int buflen) {
-    int len, status;
-    int fd = open(fname, O_RDONLY);
+    int fd;
+    if (mock_root) {
+        char mock_name[BUFSIZ];
+        const char* ptr = mock_name;
+        snprintf(mock_name,
+                 sizeof(mock_name),
+                 "%s/mock/linux%s",
+                 mock_root,
+                 fname);
+        fd = open(ptr, O_RDONLY);
+    } else {
+        fd = open(fname, O_RDONLY);
+    }
 
     if (fd < 0) {
         return ENOENT;
     }
 
-    if ((len = read(fd, buffer, buflen)) < 0) {
+    int len, status;
+    if ((len = read(fd, buffer, buflen - 1)) < 0) {
         status = errno;
     } else {
         status = SIGAR_OK;

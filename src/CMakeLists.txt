@@ -14,7 +14,7 @@ SET(SIGAR_COMMON_SRC
 ## linux
 IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/linux/linux_sigar.c
+                os/linux/linux_sigar.cc
                 os/linux/sigar_os.h
                 os/linux/sigar_cgroup.cc)
     target_include_directories(sigar PRIVATE os/linux)

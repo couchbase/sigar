@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-#include <assert.h>
 #include <dirent.h>
-#include <errno.h>
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include <cassert>
+#include <cerrno>
+#include <cstdio>
+#include <cstdlib>
+#include <ctime>
 
 #include "sigar.h"
 #include "sigar_private.h"
@@ -49,7 +49,7 @@
 
 #define UITOA_BUFFER_SIZE (sizeof(int) * 3 + 1)
 
-const char* mock_root = NULL;
+const char* mock_root = nullptr;
 
 // To allow mocking around with the linux tests just add a prefix
 SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
@@ -234,7 +234,7 @@ static int sigar_boot_time_get(sigar_t *sigar)
 
     if (!found) {
         /* should never happen */
-        sigar->boot_time = time(NULL);
+        sigar->boot_time = time(nullptr);
     }
 
     return SIGAR_OK;
@@ -243,8 +243,8 @@ static int sigar_boot_time_get(sigar_t *sigar)
 int sigar_os_open(sigar_t **sigar)
 {
     int i, status;
-    *sigar = malloc(sizeof(**sigar));
-    if (*sigar == NULL) {
+    *sigar = static_cast<sigar_t*>(malloc(sizeof(sigar_t)));
+    if (*sigar == nullptr) {
         return SIGAR_ENOMEM;
     }
 
@@ -273,12 +273,12 @@ int sigar_os_close(sigar_t *sigar)
 
 char *sigar_os_error_string(sigar_t *sigar, int err)
 {
-    return NULL;
+    return nullptr;
 }
 
 #define MEMINFO_PARAM(a) a ":", SSTRLEN(a ":")
 
-static uint64_t sigar_meminfo(const char* buffer, const char* attr, int len) {
+static uint64_t sigar_meminfo(char* buffer, const char* attr, int len) {
     uint64_t val = 0;
     char *ptr, *tok;
 
@@ -299,13 +299,13 @@ static uint64_t sigar_meminfo(const char* buffer, const char* attr, int len) {
     return val;
 }
 
-static uint64_t sigar_vmstat(const char* buffer, const char* attr) {
+static uint64_t sigar_vmstat(char* buffer, const char* attr) {
     uint64_t val = -1;
     char *ptr;
 
     if ((ptr = strstr(buffer, attr))) {
         ptr = sigar_skip_token(ptr);
-        val = strtoull(ptr, NULL, 10);
+        val = strtoull(ptr, nullptr, 10);
     }
 
     return val;
@@ -419,7 +419,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
         return errno;
     }
 
-    while ((ent = readdir(dirp)) != NULL) {
+    while ((ent = readdir(dirp)) != nullptr) {
         if (!sigar_isdigit(*ent->d_name)) {
             continue;
         }
@@ -428,8 +428,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
 
         SIGAR_PROC_LIST_GROW(proclist);
 
-        proclist->data[proclist->number++] =
-            strtoul(ent->d_name, NULL, 10);
+        proclist->data[proclist->number++] = strtoul(ent->d_name, nullptr, 10);
     }
 
     closedir(dirp);
@@ -444,7 +443,7 @@ static int proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
     linux_proc_stat_t *pstat = &sigar->last_proc_stat;
     int status;
 
-    time_t timenow = time(NULL);
+    time_t timenow = time(nullptr);
 
     /*
      * short-lived cache read/parse of last /proc/pid/stat
@@ -544,7 +543,7 @@ static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
             return -1;
         }
 
-        if (sigar->last_proc_stat.ppid == ppid) {
+        if (sigar->last_proc_stat.ppid == uint64_t(ppid)) {
             return SIGAR_OK;
         }
         pid = sigar->last_proc_stat.ppid;
@@ -562,13 +561,13 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
         return errno;
     }
 
-    while ((ent = readdir(dirp)) != NULL) {
+    while ((ent = readdir(dirp)) != nullptr) {
         if (!sigar_isdigit(*ent->d_name)) {
             continue;
         }
 
         /* XXX: more sanity checking */
-        sigar_pid_t pid = strtoul(ent->d_name, NULL, 10);
+        sigar_pid_t pid = strtoul(ent->d_name, nullptr, 10);
         if (sigar_os_check_parents(sigar, pid, ppid) == SIGAR_OK) {
             SIGAR_PROC_LIST_GROW(proclist);
             proclist->data[proclist->number++] = pid;

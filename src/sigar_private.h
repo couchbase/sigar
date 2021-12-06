@@ -27,6 +27,10 @@
 #include <strings.h>
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* common to all os sigar_t's */
 /* XXX: this is ugly; but don't want the same stuffs
  * duplicated on 4 platforms and am too lazy to change
@@ -152,3 +156,7 @@ typedef struct {
 // Not used externally
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime);
+
+#ifdef __cplusplus
+}
+#endif

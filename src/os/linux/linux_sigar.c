@@ -413,7 +413,7 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 
 int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
 {
-    char buffer[BUFSIZ], *ptr;
+    char buffer[BUFSIZ];
 
     /* XXX: we open/parse the same file here as sigar_mem_get */
     int status = sigar_file2str(PROC_MEMINFO,
@@ -438,31 +438,18 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     status = sigar_file2str(PROC_VMSTAT,
                             buffer, sizeof(buffer));
 
-    if (status == SIGAR_OK) {
-        /* 2.6+ kernel */
-        swap->page_in = sigar_vmstat(buffer, "\npswpin");
-        swap->page_out = sigar_vmstat(buffer, "\npswpout");
-
-        swap->allocstall = sigar_vmstat(buffer, "\nallocstall");
-        swap->allocstall_dma = sigar_vmstat(buffer, "\nallocstall_dma");
-        swap->allocstall_dma32 = sigar_vmstat(buffer, "\nallocstall_dma32");
-        swap->allocstall_normal = sigar_vmstat(buffer, "\nallocstall_normal");
-        swap->allocstall_movable = sigar_vmstat(buffer, "\nallocstall_movable");
+    if (status != SIGAR_OK) {
+        return status;
     }
-    else {
-        /* 2.2, 2.4 kernels */
-        status = sigar_file2str(PROC_STAT,
-                                buffer, sizeof(buffer));
-        if (status != SIGAR_OK) {
-            return status;
-        }
 
-        if ((ptr = strstr(buffer, "\nswap"))) {
-            ptr = sigar_skip_token(ptr);
-            swap->page_in = sigar_strtoull(ptr);
-            swap->page_out = sigar_strtoull(ptr);
-        }
-    }
+    swap->page_in = sigar_vmstat(buffer, "\npswpin");
+    swap->page_out = sigar_vmstat(buffer, "\npswpout");
+
+    swap->allocstall = sigar_vmstat(buffer, "\nallocstall");
+    swap->allocstall_dma = sigar_vmstat(buffer, "\nallocstall_dma");
+    swap->allocstall_dma32 = sigar_vmstat(buffer, "\nallocstall_dma32");
+    swap->allocstall_normal = sigar_vmstat(buffer, "\nallocstall_normal");
+    swap->allocstall_movable = sigar_vmstat(buffer, "\nallocstall_movable");
 
     return SIGAR_OK;
 }
@@ -729,14 +716,8 @@ static int proc_status_get(sigar_t *sigar, sigar_pid_t pid,
     }
 
     ptr = strstr(buffer, "\nThreads:");
-    if (ptr) {
-        /* 2.6+ kernel only */
-        ptr = sigar_skip_token(ptr);
-        procstate->threads = sigar_strtoul(ptr);
-    }
-    else {
-        procstate->threads = SIGAR_FIELD_NOTIMPL;
-    }
+    ptr = sigar_skip_token(ptr);
+    procstate->threads = sigar_strtoul(ptr);
 
     return SIGAR_OK;
 }

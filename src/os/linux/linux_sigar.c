@@ -278,9 +278,7 @@ char *sigar_os_error_string(sigar_t *sigar, int err)
 
 #define MEMINFO_PARAM(a) a ":", SSTRLEN(a ":")
 
-static  uint64_t sigar_meminfo(char *buffer,
-                                                 char *attr, int len)
-{
+static uint64_t sigar_meminfo(const char* buffer, const char* attr, int len) {
     uint64_t val = 0;
     char *ptr, *tok;
 
@@ -301,8 +299,7 @@ static  uint64_t sigar_meminfo(char *buffer,
     return val;
 }
 
-static  uint64_t sigar_vmstat(char *buffer, char *attr)
-{
+static uint64_t sigar_vmstat(const char* buffer, const char* attr) {
     uint64_t val = -1;
     char *ptr;
 

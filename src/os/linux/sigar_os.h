@@ -40,6 +40,5 @@ typedef struct {
 struct sigar_t {
     SIGAR_T_BASE;
     int pagesize;
-    int ram;
     linux_proc_stat_t last_proc_stat;
 };

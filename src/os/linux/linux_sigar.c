@@ -34,7 +34,6 @@
 #define PROC_FS_ROOT "/proc/"
 #define PROC_MEMINFO PROC_FS_ROOT "meminfo"
 #define PROC_VMSTAT  PROC_FS_ROOT "vmstat"
-#define PROC_MTRR    PROC_FS_ROOT "mtrr"
 #define PROC_STAT    PROC_FS_ROOT "stat"
 
 #define PROC_PSTAT   "/stat"
@@ -261,7 +260,6 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-    (*sigar)->ram = -1;
     (*sigar)->last_proc_stat.pid = -1;
 
     return SIGAR_OK;
@@ -276,69 +274,6 @@ int sigar_os_close(sigar_t *sigar)
 char *sigar_os_error_string(sigar_t *sigar, int err)
 {
     return NULL;
-}
-
-static int get_ram(sigar_t *sigar, sigar_mem_t *mem)
-{
-    char buffer[BUFSIZ], *ptr;
-    FILE *fp;
-    int total = 0;
-    uint64_t sys_total = (mem->total / (1024 * 1024));
-
-    if (sigar->ram > 0) {
-        /* return cached value */
-        mem->ram = sigar->ram;
-        return SIGAR_OK;
-    }
-
-    if (sigar->ram == 0) {
-        return ENOENT;
-    }
-
-    /*
-     * Memory Type Range Registers
-     * write-back registers add up to the total.
-     * Well, they are supposed to add up, but seen
-     * at least one configuration where that is not the
-     * case.
-     */
-    if (!(fp = fopen(PROC_MTRR, "r"))) {
-        return errno;
-    }
-
-    while ((ptr = fgets(buffer, sizeof(buffer), fp))) {
-        if (!(ptr = strstr(ptr, "size="))) {
-            continue;
-        }
-
-        if (!strstr(ptr, "write-back")) {
-            continue;
-        }
-
-        ptr += 5;
-        while (sigar_isspace(*ptr)) {
-            ++ptr;
-        }
-
-        total += atoi(ptr);
-    }
-
-    fclose(fp);
-
-    if ((total - sys_total) > 256) {
-        /* mtrr write-back registers are way off
-         * kernel should not be using more that 256MB of mem
-         */
-        total = 0; /* punt */
-    }
-
-    if (total == 0) {
-        return ENOENT;
-    }
-
-    mem->ram = sigar->ram = total;
-
-    return SIGAR_OK;
 }
 
 #define MEMINFO_PARAM(a) a ":", SSTRLEN(a ":")
@@ -403,10 +338,6 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
     mem->actual_used = mem->used - kern;
 
     sigar_mem_calc_ram(sigar, mem);
-
-    if (get_ram(sigar, mem) != SIGAR_OK) {
-        /* XXX other options on failure? */
-    }
 
     return SIGAR_OK;
 }

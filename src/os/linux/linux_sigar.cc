@@ -16,13 +16,20 @@
  * limitations under the License.
  */
 
+// The linux implementation consumes the files in the /proc filesystem per
+// the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
+
+#include <boost/filesystem/path.hpp>
 #include <dirent.h>
 #include <fcntl.h>
+#include <platform/dirutils.h>
 #include <cassert>
 #include <cerrno>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
+#include <functional>
+#include <charconv>
 
 #include "sigar.h"
 #include "sigar_private.h"
@@ -32,12 +39,9 @@
 #define pageshift(x) ((x) << sigar->pagesize)
 
 #define PROC_FS_ROOT "/proc/"
-#define PROC_MEMINFO PROC_FS_ROOT "meminfo"
-#define PROC_VMSTAT  PROC_FS_ROOT "vmstat"
 #define PROC_STAT    PROC_FS_ROOT "stat"
 
 #define PROC_PSTAT   "/stat"
-#define PROC_PSTATUS "/status"
 
 #define sigar_strtoul(ptr) strtoul(ptr, &ptr, 10)
 
@@ -54,6 +58,26 @@ const char* mock_root = nullptr;
 // To allow mocking around with the linux tests just add a prefix
 SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
     mock_root = root;
+}
+
+void sigar_tokenize_file_line_by_line(
+        sigar_pid_t pid,
+        const char* filename,
+        std::function<bool(const std::vector<std::string_view>&)> callback,
+        char delim = ' ') {
+    boost::filesystem::path name;
+    if (mock_root) {
+        name = boost::filesystem::path{mock_root} / "mock" / "linux" / "proc";
+    } else {
+        name = boost::filesystem::path{"/proc"};
+    }
+
+    if (pid) {
+        name = name / std::to_string(pid);
+    }
+
+    name = name / filename;
+    cb::io::tokenizeFileLineByLine(name, callback, delim, false);
 }
 
 static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
@@ -166,75 +190,25 @@ static int sigar_proc_file2str(char* buffer,
     while (sigar_isspace(*ptr)) \
     ++ptr
 
-/*
- * /proc/self/stat fields:
- * 1 - pid
- * 2 - comm
- * 3 - state
- * 4 - ppid
- * 5 - pgrp
- * 6 - session
- * 7 - tty_nr
- * 8 - tpgid
- * 9 - flags
- * 10 - minflt
- * 11 - cminflt
- * 12 - majflt
- * 13 - cmajflt
- * 14 - utime
- * 15 - stime
- * 16 - cutime
- * 17 - cstime
- * 18 - priority
- * 19 - nice
- * 20 - 0 (removed field)
- * 21 - itrealvalue
- * 22 - starttime
- * 23 - vsize
- * 24 - rss
- * 25 - rlim
- * 26 - startcode
- * 27 - endcode
- * 28 - startstack
- * 29 - kstkesp
- * 30 - kstkeip
- * 31 - signal
- * 32 - blocked
- * 33 - sigignore
- * 34 - sigcache
- * 35 - wchan
- * 36 - nswap
- * 37 - cnswap
- * 38 - exit_signal <-- looking for this.
- * 39 - processor
- * ... more for newer RH
- */
-
 static int sigar_boot_time_get(sigar_t *sigar)
 {
-    FILE *fp;
-    char buffer[BUFSIZ], *ptr;
-    int found = 0;
-
-    if (!(fp = fopen(PROC_STAT, "r"))) {
-        return errno;
-    }
-
-    while ((ptr = fgets(buffer, sizeof(buffer), fp))) {
-        if (strnEQ(ptr, "btime", 5)) {
-            if ((ptr = sigar_skip_token(ptr))) {
-                sigar->boot_time = sigar_strtoul(ptr);
-                found = 1;
-            }
-            break;
-        }
-    }
-
-    fclose(fp);
-
-    if (!found) {
-        /* should never happen */
-        sigar->boot_time = time(nullptr);
+    try {
+        sigar_tokenize_file_line_by_line(
+                0,
+                "stat",
+                [sigar](const auto& vec) {
+                    if (vec.size() > 1 && vec.front() == "btime") {
+                        sigar->boot_time = std::stoull(std::string(vec[1]));
+                        return false;
+                    }
+                    return true;
+                },
+                ' ');
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
     }
 
     return SIGAR_OK;
@@ -275,137 +249,195 @@ const char* sigar_os_error_string(sigar_t* sigar, int err) {
     return nullptr;
 }
 
-#define MEMINFO_PARAM(a) a ":", SSTRLEN(a ":")
-
-static uint64_t sigar_meminfo(char* buffer, const char* attr, int len) {
-    uint64_t val = 0;
-    char *ptr, *tok;
-
-    if ((ptr = strstr(buffer, attr))) {
-        ptr += len;
-        val = strtoull(ptr, &tok, 0);
-        while (*tok == ' ') {
-            ++tok;
-        }
-        if (*tok == 'k') {
-            val *= 1024;
-        }
-        else if (*tok == 'M') {
-            val *= (1024 * 1024);
-        }
+static uint64_t stoull(std::string_view value) {
+    auto pos = value.find_first_not_of(' ');
+    if (pos != std::string_view::npos) {
+        value.remove_prefix(pos);
     }
 
-    return val;
-}
+    uint64_t ret;
+    auto [ptr, ec] = std::from_chars(value.begin(), value.end(), ret);
+    if (ec == std::errc()) {
+        if (ptr < value.end()) {
+            while (*ptr == ' ') {
+                ++ptr;
+            }
+            switch (*ptr) {
+            case 'k':
+                return ret * 1024;
+            case 'M':
+                return ret * 1024 * 1024;
+            }
+        }
 
-static uint64_t sigar_vmstat(char* buffer, const char* attr) {
-    uint64_t val = -1;
-    char *ptr;
-
-    if ((ptr = strstr(buffer, attr))) {
-        ptr = sigar_skip_token(ptr);
-        val = strtoull(ptr, nullptr, 10);
+        return ret;
     }
-
-    return val;
+    return -1;
 }
 
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
-    uint64_t buffers, cached, kern;
-    char buffer[BUFSIZ];
+    *mem = {};
+    uint64_t buffers = 0;
+    uint64_t cached = 0;
+    try {
+        sigar_tokenize_file_line_by_line(
+                0,
+                "meminfo",
+                [mem, &buffers, &cached](const auto& vec) {
+                    if (vec.size() < 2) {
+                        return true;
+                    }
+                    if (vec.front() == "MemTotal") {
+                        mem->total = stoull(vec[1]);
+                        return true;
+                    }
+                    if (vec.front() == "MemFree") {
+                        mem->free = stoull(vec[1]);
+                        return true;
+                    }
+                    if (vec.front() == "Buffers") {
+                        buffers = stoull(vec[1]);
+                        return true;
+                    }
+                    if (vec.front() == "Cached") {
+                        cached = stoull(vec[1]);
+                        return true;
+                    }
 
-    int status = sigar_file2str(PROC_MEMINFO,
-                                buffer, sizeof(buffer));
+                    return true;
+                },
+                ':');
 
-    if (status != SIGAR_OK) {
-        return status;
+        mem->used = mem->total - mem->free;
+        auto kern = buffers + cached;
+        mem->actual_free = mem->free + kern;
+        mem->actual_used = mem->used - kern;
+
+        sigar_mem_calc_ram(sigar, mem);
+
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
     }
-
-    mem->total  = sigar_meminfo(buffer, MEMINFO_PARAM("MemTotal"));
-    mem->free   = sigar_meminfo(buffer, MEMINFO_PARAM("MemFree"));
-    mem->used   = mem->total - mem->free;
-
-    buffers = sigar_meminfo(buffer, MEMINFO_PARAM("Buffers"));
-    cached  = sigar_meminfo(buffer, MEMINFO_PARAM("Cached"));
-
-    kern = buffers + cached;
-    mem->actual_free = mem->free + kern;
-    mem->actual_used = mem->used - kern;
-
-    sigar_mem_calc_ram(sigar, mem);
 
     return SIGAR_OK;
 }
 
 int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
 {
-    char buffer[BUFSIZ];
+    *swap = {};
+    try {
+        sigar_tokenize_file_line_by_line(
+                0,
+                "meminfo",
+                [swap](const auto& vec) {
+                    if (vec.size() < 2) {
+                        return true;
+                    }
+                    if (vec.front() == "SwapTotal") {
+                        swap->total = stoull(vec[1]);
+                        return true;
+                    }
+                    if (vec.front() == "SwapFree") {
+                        swap->free = stoull(vec[1]);
+                        return true;
+                    }
+                    return true;
+                },
+                ':');
 
-    /* XXX: we open/parse the same file here as sigar_mem_get */
-    int status = sigar_file2str(PROC_MEMINFO,
-                                buffer, sizeof(buffer));
+        swap->used = swap->total - swap->free;
+        swap->page_in = swap->page_out = -1;
+        swap->allocstall = SIGAR_FIELD_NOTIMPL;
+        sigar_tokenize_file_line_by_line(
+                0,
+                "vmstat",
+                [swap](const auto& vec) {
+                    if (vec.size() < 2) {
+                        return true;
+                    }
 
-    if (status != SIGAR_OK) {
-        return status;
+                    if (vec.front() == "pswpin") {
+                        swap->page_in = stoull(vec[1]);
+                    } else if (vec.front() == "pswpout") {
+                        swap->page_out = stoull(vec[1]);
+                    } else if (vec.front() == "allocstall") {
+                        swap->allocstall = stoull(vec[1]);
+                    } else if (vec.front() == "allocstall_dma") {
+                        swap->allocstall_dma = stoull(vec[1]);
+                    } else if (vec.front() == "allocstall_dma32") {
+                        swap->allocstall_dma32 = stoull(vec[1]);
+                    } else if (vec.front() == "allocstall_normal") {
+                        swap->allocstall_normal = stoull(vec[1]);
+                    } else if (vec.front() == "allocstall_movable") {
+                        swap->allocstall_movable = stoull(vec[1]);
+                    }
+
+                    return true;
+                },
+                ' ');
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
     }
-
-    swap->total  = sigar_meminfo(buffer, MEMINFO_PARAM("SwapTotal"));
-    swap->free   = sigar_meminfo(buffer, MEMINFO_PARAM("SwapFree"));
-    swap->used   = swap->total - swap->free;
-
-    swap->page_in = swap->page_out = -1;
-
-    swap->allocstall = -1;
-    swap->allocstall_dma = -1;
-    swap->allocstall_dma32 = -1;
-    swap->allocstall_normal = -1;
-    swap->allocstall_movable = -1;
-
-    status = sigar_file2str(PROC_VMSTAT,
-                            buffer, sizeof(buffer));
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    swap->page_in = sigar_vmstat(buffer, "\npswpin");
-    swap->page_out = sigar_vmstat(buffer, "\npswpout");
-
-    swap->allocstall = sigar_vmstat(buffer, "\nallocstall");
-    swap->allocstall_dma = sigar_vmstat(buffer, "\nallocstall_dma");
-    swap->allocstall_dma32 = sigar_vmstat(buffer, "\nallocstall_dma32");
-    swap->allocstall_normal = sigar_vmstat(buffer, "\nallocstall_normal");
-    swap->allocstall_movable = sigar_vmstat(buffer, "\nallocstall_movable");
 
     return SIGAR_OK;
 }
 
 int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 {
-    char buffer[BUFSIZ];
-    int status = sigar_file2str(PROC_STAT, buffer, sizeof(buffer));
+    *cpu = {};
+    int status = ENOENT;
+    try {
+        sigar_tokenize_file_line_by_line(
+                0,
+                "stat",
+                [cpu, &status, sigar](const auto& vec) {
+                    // The first line in /proc/stat looks like:
+                    // cpu user nice system idle iowait irq softirq steal guest
+                    // guest_nice (The amount of time, measured in units of
+                    // USER_HZ)
+                    if (vec.size() < 11) {
+                        status = EINVAL;
+                        return false;
+                    }
+                    if (vec.front() == "cpu") {
+                        if (vec.size() < 9) {
+                            status = EINVAL;
+                            return false;
+                        }
 
-    if (status != SIGAR_OK) {
-        return status;
+                        cpu->user = SIGAR_TICK2MSEC(stoull(vec[1]));
+                        cpu->nice = SIGAR_TICK2MSEC(stoull(vec[2]));
+                        cpu->sys = SIGAR_TICK2MSEC(stoull(vec[3]));
+                        cpu->idle = SIGAR_TICK2MSEC(stoull(vec[4]));
+                        cpu->wait = SIGAR_TICK2MSEC(stoull(vec[5]));
+                        cpu->irq = SIGAR_TICK2MSEC(stoull(vec[6]));
+                        cpu->soft_irq = SIGAR_TICK2MSEC(stoull(vec[7]));
+                        cpu->stolen = SIGAR_TICK2MSEC(stoull(vec[8]));
+                        cpu->total = cpu->user + cpu->nice + cpu->sys +
+                                     cpu->idle + cpu->wait + cpu->irq +
+                                     cpu->soft_irq + cpu->stolen;
+                        status = SIGAR_OK;
+                        return false;
+                    }
+
+                    return true;
+                },
+                ' ');
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
     }
 
-    // The first line in /proc/stat looks like:
-    // cpu user nice system idle iowait irq softirq steal guest guest_nice
-    // (The amount of time, measured in units of USER_HZ)
-    char *ptr = sigar_skip_token(buffer);
-    cpu->user = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->nice = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->sys = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->idle = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->wait = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->irq = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->soft_irq = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->stolen = SIGAR_TICK2MSEC(sigar_strtoull(ptr));
-    cpu->total = cpu->user + cpu->nice + cpu->sys + cpu->idle + cpu->wait +
-                 cpu->irq + cpu->soft_irq + cpu->stolen;
-
-    return SIGAR_OK;
+    return status;
 }
 
 int sigar_os_proc_list_get(sigar_t *sigar,
@@ -580,8 +612,11 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
 int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                        sigar_proc_mem_t *procmem)
 {
-    char buffer[BUFSIZ], *ptr=buffer;
+    memset(procmem, 0, sizeof(*procmem));
     int status = proc_stat_read(sigar, pid);
+    if (status != SIGAR_OK) {
+        return status;
+    }
     linux_proc_stat_t *pstat = &sigar->last_proc_stat;
 
     procmem->minor_faults = pstat->minor_faults;
@@ -589,15 +624,32 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     procmem->page_faults =
         procmem->minor_faults + procmem->major_faults;
 
-    status = SIGAR_PROC_FILE2STR(buffer, pid, "/statm");
-
-    if (status != SIGAR_OK) {
-        return status;
+    try {
+        sigar_tokenize_file_line_by_line(
+                pid,
+                "statm",
+                [&procmem, sigar](const auto& vec) {
+                    // The format of statm is a single line with the following
+                    // numbers (in pages)
+                    // size resident shared text lib data dirty
+                    if (vec.size() > 2) {
+                        procmem->size =
+                                pageshift(std::stoull(std::string(vec[0])));
+                        procmem->resident =
+                                pageshift(std::stoull(std::string(vec[1])));
+                        procmem->share =
+                                pageshift(std::stoull(std::string(vec[2])));
+                        return false;
+                    }
+                    return true;
+                },
+                ' ');
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
     }
-
-    procmem->size     = pageshift(sigar_strtoull(ptr));
-    procmem->resident = pageshift(sigar_strtoull(ptr));
-    procmem->share    = pageshift(sigar_strtoull(ptr));
 
     return SIGAR_OK;
 }
@@ -616,23 +668,6 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
     proctime->sys  = pstat->stime;
     proctime->total = proctime->user + proctime->sys;
     proctime->start_time = pstat->start_time;
-
-    return SIGAR_OK;
-}
-
-static int proc_status_get(sigar_t *sigar, sigar_pid_t pid,
-                           sigar_proc_state_t *procstate)
-{
-    char buffer[BUFSIZ], *ptr;
-    int status = SIGAR_PROC_FILE2STR(buffer, pid, PROC_PSTATUS);
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    ptr = strstr(buffer, "\nThreads:");
-    ptr = sigar_skip_token(ptr);
-    procstate->threads = sigar_strtoul(ptr);
 
     return SIGAR_OK;
 }
@@ -656,7 +691,24 @@ int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
     procstate->nice     = pstat->nice;
     procstate->processor = pstat->processor;
 
-    proc_status_get(sigar, pid, procstate);
+    try {
+        sigar_tokenize_file_line_by_line(
+                pid,
+                "status",
+                [&procstate](const auto& vec) {
+                    if (vec.size() > 1 && vec.front() == "Threads") {
+                        procstate->threads = std::stoull(std::string(vec[1]));
+                        return false;
+                    }
+                    return true;
+                },
+                ':');
+    } catch (const std::system_error& error) {
+        return error.code().value();
+    } catch (...) {
+        // @todo add a better error code
+        return EINVAL;
+    }
 
     return SIGAR_OK;
 }

@@ -272,7 +272,7 @@ TEST_F(MockSigar, test_sigar_swap_get) {
     EXPECT_EQ(1023406080, swap.free);
     EXPECT_EQ(0, swap.page_in);
     EXPECT_EQ(0, swap.page_out);
-    EXPECT_EQ(0, swap.allocstall);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, swap.allocstall);
     EXPECT_EQ(0, swap.allocstall_dma);
     EXPECT_EQ(0, swap.allocstall_dma32);
     EXPECT_EQ(0, swap.allocstall_normal);

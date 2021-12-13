@@ -19,8 +19,9 @@ IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
                 os/linux/sigar_cgroup.cc)
     target_include_directories(sigar PRIVATE os/linux)
     target_include_directories(sigar SYSTEM PRIVATE AFTER
+                               ${BOOST_INCLUDE_DIR}
                                ${Platform_SOURCE_DIR}/include)
-    target_link_libraries(sigar PRIVATE cgroup)
+    target_link_libraries(sigar PRIVATE cgroup ${Boost_FILESYSTEM_LIBRARY})
 ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
 ## macosx

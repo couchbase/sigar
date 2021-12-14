@@ -17,17 +17,35 @@
 
 #pragma once
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define SSTRLEN(s) \
-    (sizeof(s)-1)
+typedef struct sigar_cache_entry_t sigar_cache_entry_t;
 
+struct sigar_cache_entry_t {
+    sigar_cache_entry_t *next;
+    uint64_t id;
+    void *value;
+};
 
-int64_t sigar_time_now_millis(void);
+typedef struct {
+    sigar_cache_entry_t **entries;
+    unsigned int count, size;
+    void (*free_value)(void *ptr);
+} sigar_cache_t;
 
-int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem);
+sigar_cache_t *sigar_cache_new(int size);
+
+sigar_cache_entry_t *sigar_cache_get(sigar_cache_t *table,
+                                     uint64_t key);
+
+sigar_cache_entry_t *sigar_cache_find(sigar_cache_t *table,
+                                      uint64_t key);
+
+void sigar_cache_destroy(sigar_cache_t *table);
 
 #ifdef __cplusplus
 }

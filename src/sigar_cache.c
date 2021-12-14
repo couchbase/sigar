@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "sigar.h"
-#include "sigar_private.h"
-#include "sigar_util.h"
-#include <stdio.h>
+#include "sigar_cache.h"
+
+#include <stdlib.h>
+#include <string.h>
+
 /*
  * hash table to cache values where key is a unique number
  * such as:

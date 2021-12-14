@@ -27,6 +27,8 @@
 #include <strings.h>
 #endif
 
+#include "sigar_cache.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

@@ -26,6 +26,10 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#include <psapi.h>
+#include <time.h>
+#include <processthreadsapi.h>
+
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
 
@@ -497,67 +501,23 @@ static PERF_INSTANCE_DEFINITION *get_cpu_instance(sigar_t *sigar,
     return PdhFirstInstance(object);
 }
 
-#define SPPI_MAX 128 /* XXX unhardcode; should move off this api anyhow */
-
-static int get_idle_cpu(sigar_t *sigar, sigar_cpu_t *cpu,
-                        DWORD idx,
-                        PERF_COUNTER_BLOCK *counter_block,
-                        DWORD *perf_offsets)
-{
-    cpu->idle = 0;
-
-    if (perf_offsets[PERF_IX_CPU_IDLE]) {
-        cpu->idle = PERF_VAL_CPU(PERF_IX_CPU_IDLE);
-    } else {
-        DWORD retval, num;
-        SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION info[SPPI_MAX];
-        /* into the lungs of hell */
-        NtQuerySystemInformation(SystemProcessorPerformanceInformation,
-                                 &info,
-                                 sizeof(info),
-                                 &retval);
-
-        if (!retval) {
-            return GetLastError();
-        }
-        num = retval / sizeof(info[0]);
-
-        if (idx == -1) {
-            for (int i = 0; i < num; i++) {
-                cpu->idle += NS100_2MSEC(info[i].IdleTime.QuadPart);
-            }
-        } else if (idx < num) {
-            cpu->idle = NS100_2MSEC(info[idx].IdleTime.QuadPart);
-        } else {
-            return ERROR_INVALID_DATA;
-        }
-    }
-
-    return SIGAR_OK;
+static uint64_t filetime2uint(const FILETIME* val) {
+    ULARGE_INTEGER ularge;
+    ularge.u.LowPart = val->dwLowDateTime;
+    ularge.u.HighPart = val->dwHighDateTime;
+    return ularge.QuadPart;
 }
 
 SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 {
-    DWORD retval, num;
-    int i;
-    SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION info[SPPI_MAX];
-    /* into the lungs of hell */
-    NtQuerySystemInformation(SystemProcessorPerformanceInformation,
-                                   &info, sizeof(info), &retval);
-
-    if (!retval) {
+    FILETIME idle, kernel, user;
+    if (!GetSystemTimes(&idle, &kernel, &user)) {
         return GetLastError();
     }
-    num = retval/sizeof(info[0]);
-    SIGAR_ZERO(cpu);
-
-    for (i=0; i<num; i++) {
-        cpu->idle += NS100_2MSEC(info[i].IdleTime.QuadPart);
-        cpu->user += NS100_2MSEC(info[i].UserTime.QuadPart);
-        cpu->sys  += NS100_2MSEC(info[i].KernelTime.QuadPart -
-                                 info[i].IdleTime.QuadPart);
-        cpu->irq  += NS100_2MSEC(info[i].InterruptTime.QuadPart);
-    }
+    memset(cpu, 0, sizeof(*cpu));
+    cpu->idle = NS100_2MSEC(filetime2uint(&idle));
+    cpu->sys = NS100_2MSEC(filetime2uint(&kernel)) - cpu->idle;
+    cpu->user = NS100_2MSEC(filetime2uint(&user));
     cpu->total = cpu->idle + cpu->user + cpu->sys;
 
     return SIGAR_OK;

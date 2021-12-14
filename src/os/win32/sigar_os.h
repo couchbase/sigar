@@ -56,18 +56,6 @@
                                         lpw, -1, (LPSTR)lpa, chars, \
                                         NULL, NULL))
 
-/* no longer in the standard header files */
-typedef struct {
-    LARGE_INTEGER IdleTime;
-    LARGE_INTEGER KernelTime;
-    LARGE_INTEGER UserTime;
-    LARGE_INTEGER DpcTime;
-    LARGE_INTEGER InterruptTime;
-    ULONG InterruptCount;
-} SYSTEM_PROCESSOR_PERFORMANCE_INFORMATION;
-
-#define SystemProcessorPerformanceInformation 8
-
 typedef struct {
     sigar_pid_t pid;
     int ppid;

@@ -461,47 +461,6 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     return SIGAR_OK;
 }
 
-static PERF_INSTANCE_DEFINITION *get_cpu_instance(sigar_t *sigar,
-                                                  DWORD *perf_offsets,
-                                                  DWORD *num, DWORD *err)
-{
-    PERF_OBJECT_TYPE *object = get_perf_object(sigar, PERF_TITLE_CPU_KEY, err);
-    PERF_COUNTER_DEFINITION *counter;
-    DWORD i;
-
-    if (!object) {
-        return NULL;
-    }
-
-    for (i=0, counter = PdhFirstCounter(object);
-         i<object->NumCounters;
-         i++, counter = PdhNextCounter(counter))
-    {
-        DWORD offset = counter->CounterOffset;
-
-        switch (counter->CounterNameTitleIndex) {
-          case PERF_TITLE_CPU_SYS:
-            perf_offsets[PERF_IX_CPU_SYS] = offset;
-            break;
-          case PERF_TITLE_CPU_USER:
-            perf_offsets[PERF_IX_CPU_USER] = offset;
-            break;
-          case PERF_TITLE_CPU_IDLE:
-            perf_offsets[PERF_IX_CPU_IDLE] = offset;
-            break;
-          case PERF_TITLE_CPU_IRQ:
-            perf_offsets[PERF_IX_CPU_IRQ] = offset;
-            break;
-        }
-    }
-
-    if (num) {
-        *num = object->NumInstances;
-    }
-
-    return PdhFirstInstance(object);
-}
-
 static uint64_t filetime2uint(const FILETIME* val) {
     ULARGE_INTEGER ularge;
     ularge.u.LowPart = val->dwLowDateTime;

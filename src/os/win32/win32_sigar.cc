@@ -155,7 +155,7 @@ static uint64_t sigar_FileTimeToTime(FILETIME *ft)
 static DWORD perfbuf_init(sigar_t *sigar)
 {
     if (!sigar->perfbuf) {
-        sigar->perfbuf = malloc(PERFBUF_SIZE);
+        sigar->perfbuf = (LPBYTE)malloc(PERFBUF_SIZE);
         sigar->perfbuf_size = PERFBUF_SIZE;
     }
 
@@ -167,7 +167,7 @@ static DWORD perfbuf_grow(sigar_t *sigar)
     sigar->perfbuf_size += PERFBUF_SIZE;
 
     sigar->perfbuf =
-        realloc(sigar->perfbuf, sigar->perfbuf_size);
+        (LPBYTE)realloc(sigar->perfbuf, sigar->perfbuf_size);
 
     return sigar->perfbuf_size;
 }
@@ -347,7 +347,7 @@ int sigar_os_open(sigar_t **sigar_ptr)
     OSVERSIONINFO version;
     sigar_t *sigar;
 
-    *sigar_ptr = sigar = malloc(sizeof(*sigar));
+    *sigar_ptr = sigar = (sigar_t*)malloc(sizeof(*sigar));
     if (sigar == NULL) {
         return SIGAR_ENOMEM;
     }

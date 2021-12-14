@@ -16,8 +16,7 @@
  * limitations under the License.
  */
 
-#ifndef SIGAR_OS_H
-#define SIGAR_OS_H
+#pragma once
 
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
@@ -35,6 +34,10 @@
 #include <stdint.h>
 
 #include "sigar_util.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifndef __GNUC__
 /* see apr/include/arch/win32/atime.h */
@@ -76,14 +79,10 @@ struct sigar_t {
     int using_wide;
     long pagesize;
     HKEY handle;
-    char *perfbuf;
+    LPBYTE perfbuf;
     DWORD perfbuf_size;
     sigar_win32_pinfo_t pinfo;
 };
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid);
 int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
@@ -93,5 +92,3 @@ int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
 #endif
 
 #define SIGAR_NO_SUCH_PROCESS (SIGAR_OS_START_ERROR+1)
-
-#endif /* SIGAR_OS_H */

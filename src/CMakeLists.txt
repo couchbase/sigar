@@ -30,9 +30,6 @@ IF (APPLE)
                 os/darwin/sigar_os.h
                 sigar_control_group_not_supported.cc)
     target_include_directories(sigar PRIVATE os/darwin/)
-    target_include_directories(sigar SYSTEM PRIVATE /Developer/Headers/FlatCarbon/)
-    target_compile_definitions(sigar PRIVATE -DDARWIN -DDARWIN_HAS_LIBPROC_H=1)
-    target_link_libraries(sigar PRIVATE "-framework CoreServices -framework IOKit")
 ENDIF (APPLE)
 
 IF (WIN32)

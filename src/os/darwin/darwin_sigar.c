@@ -21,130 +21,27 @@
 #include "sigar_util.h"
 #include "sigar_os.h"
 
-#include <unistd.h>
-#include <sys/param.h>
-#include <sys/mount.h>
-#if !(defined(__FreeBSD__) && (__FreeBSD_version >= 800000))
-#include <nfs/rpcv2.h>
-#endif
-#include <nfs/nfsproto.h>
-
-#ifdef DARWIN
+#include <dirent.h>
 #include <dlfcn.h>
-#include <mach/mach_init.h>
-#include <mach/message.h>
+#include <errno.h>
+#include <libproc.h>
+#include <mach-o/dyld.h>
+#include <mach/host_info.h>
 #include <mach/kern_return.h>
 #include <mach/mach_host.h>
-#include <mach/mach_traps.h>
+#include <mach/mach_init.h>
 #include <mach/mach_port.h>
+#include <mach/mach_traps.h>
+#include <mach/shared_region.h>
 #include <mach/task.h>
 #include <mach/thread_act.h>
 #include <mach/thread_info.h>
 #include <mach/vm_map.h>
-#if !defined(HAVE_SHARED_REGION_H) && defined(__MAC_10_5) /* see Availability.h */
-#  define HAVE_SHARED_REGION_H /* suckit autoconf */
-#endif
-#ifdef HAVE_SHARED_REGION_H
-#include <mach/shared_region.h> /* does not exist in 10.4 SDK */
-#else
-#include <mach/shared_memory_server.h> /* deprecated in Leopard */
-#endif
-#include <mach-o/dyld.h>
-#define __OPENTRANSPORTPROVIDERS__
-#include <CoreFoundation/CoreFoundation.h>
-#include <CoreServices/CoreServices.h>
-#include <IOKit/IOBSD.h>
-#include <IOKit/IOKitLib.h>
-#include <IOKit/IOTypes.h>
-#include <IOKit/storage/IOBlockStorageDriver.h>
-#else
-#include <sys/dkstat.h>
-#include <sys/types.h>
-#include <sys/param.h>
-#include <sys/user.h>
-#include <sys/vmmeter.h>
-#include <fcntl.h>
-#include <stdio.h>
-#endif
-
-#if defined(__FreeBSD__) && (__FreeBSD_version >= 500013)
-#define SIGAR_FREEBSD5_NFSSTAT
-#include <nfsclient/nfs.h>
-#include <nfsserver/nfs.h>
-#else
-#include <nfs/nfs.h>
-#endif
-
-#include <sys/ioctl.h>
-#include <sys/mount.h>
 #include <sys/resource.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-#include <sys/sockio.h>
-
-#include <net/if.h>
-#include <net/if_dl.h>
-#include <net/if_types.h>
-#include <net/route.h>
-#include <netinet/in.h>
-#include <netinet/if_ether.h>
-
-#include <dirent.h>
-#include <errno.h>
-
-#include <sys/socketvar.h>
-#include <netinet/in.h>
-#include <netinet/in_systm.h>
-#include <netinet/ip.h>
-#include <netinet/in_pcb.h>
-#include <netinet/tcp.h>
-#include <netinet/tcp_timer.h>
-#ifdef __NetBSD__
-#include <netinet/ip_var.h>
-#include <sys/lwp.h>
-#include <sys/mount.h>
-#define SRUN LSRUN
-#define SSLEEP LSSLEEP
-#define SDEAD LSDEAD
-#define SONPROC LSONPROC
-#define SSUSPENDED LSSUSPENDED
-#include <sys/sched.h>
-#endif
-#include <netinet/tcp_var.h>
-#include <netinet/tcp_fsm.h>
+#include <sys/sysctl.h>
+#include <unistd.h>
 
 #define NMIB(mib) (sizeof(mib)/sizeof(mib[0]))
-
-#ifdef __FreeBSD__
-#  if (__FreeBSD_version >= 500013)
-#    define SIGAR_FREEBSD5
-#  else
-#    define SIGAR_FREEBSD4
-#  endif
-#endif
-
-#if defined(SIGAR_FREEBSD5)
-
-#define KI_FD   ki_fd
-#define KI_PID  ki_pid
-#define KI_PPID ki_ppid
-#define KI_PRI  ki_pri.pri_user
-#define KI_NICE ki_nice
-#define KI_COMM ki_comm
-#define KI_STAT ki_stat
-#define KI_UID  ki_ruid
-#define KI_GID  ki_rgid
-#define KI_EUID ki_svuid
-#define KI_EGID ki_svgid
-#define KI_SIZE ki_size
-#define KI_RSS  ki_rssize
-#define KI_TSZ  ki_tsize
-#define KI_DSZ  ki_dsize
-#define KI_SSZ  ki_ssize
-#define KI_FLAG ki_flag
-#define KI_START ki_start
-
-#elif defined(DARWIN) || defined(SIGAR_FREEBSD4) || defined(__OpenBSD__) || defined(__NetBSD__)
 
 #define KI_FD   kp_proc.p_fd
 #define KI_PID  kp_proc.p_pid
@@ -165,68 +62,17 @@
 #define KI_FLAG kp_eproc.e_flag
 #define KI_START kp_proc.p_starttime
 
-#endif
-
 #define SIGAR_PROC_STATE_SLEEP  'S'
 #define SIGAR_PROC_STATE_RUN    'R'
 #define SIGAR_PROC_STATE_STOP   'T'
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
 #define SIGAR_PROC_STATE_IDLE   'D'
 
-#ifndef DARWIN
-
-#define PROCFS_STATUS(status) \
-    ((((status) != SIGAR_OK) && !sigar->proc_mounted) ? \
-     SIGAR_ENOTIMPL : status)
-
-static int get_koffsets(sigar_t *sigar)
-{
-    int i;
-    struct nlist klist[] = {
-        { "_cp_time" },
-        { "_cnt" },
-#if defined(__OpenBSD__) || defined(__NetBSD__)
-        { "_tcpstat" },
-        { "_tcbtable" },
-#endif
-        { NULL }
-    };
-
-    if (!sigar->kmem) {
-        return SIGAR_EPERM_KMEM;
-    }
-
-    kvm_nlist(sigar->kmem, klist);
-
-    for (i=0; i<KOFFSET_MAX; i++) {
-        sigar->koffsets[i] = klist[i].n_value;
-    }
-
-    return SIGAR_OK;
-}
-
-static int kread(sigar_t *sigar, void *data, int size, long offset)
-{
-    if (!sigar->kmem) {
-        return SIGAR_EPERM_KMEM;
-    }
-
-    if (kvm_read(sigar->kmem, offset, data, size) != size) {
-        return errno;
-    }
-
-    return SIGAR_OK;
-}
-#endif
-
 int sigar_os_open(sigar_t **sigar)
 {
     int mib[2];
     size_t len;
     struct timeval boottime;
-#ifndef DARWIN
-    struct stat sb;
-#endif
 
     len = sizeof(boottime);
     mib[0] = CTL_KERN;
@@ -240,40 +86,20 @@ int sigar_os_open(sigar_t **sigar)
         return SIGAR_ENOMEM;
     }
 
-#ifdef DARWIN
     (*sigar)->mach_port = mach_host_self();
-#  ifdef DARWIN_HAS_LIBPROC_H
     if (((*sigar)->libproc = dlopen("/usr/lib/libproc.dylib", 0))) {
         (*sigar)->proc_pidinfo =
                 (proc_pidinfo_func_t)dlsym((*sigar)->libproc, "proc_pidinfo");
         (*sigar)->proc_pidfdinfo = (proc_pidfdinfo_func_t)dlsym(
                 (*sigar)->libproc, "proc_pidfdinfo");
     }
-#  endif
-#else
-    (*sigar)->kmem = kvm_open(NULL, NULL, NULL, O_RDONLY, NULL);
-    if (stat("/proc/curproc", &sb) < 0) {
-        (*sigar)->proc_mounted = 0;
-    }
-    else {
-        (*sigar)->proc_mounted = 1;
-    }
-#endif
-
-#ifndef DARWIN
-    get_koffsets(*sigar);
-#endif
 
     (*sigar)->lcpu = -1;
     (*sigar)->argmax = 0;
     (*sigar)->boot_time = boottime.tv_sec; /* XXX seems off a bit */
 
     (*sigar)->pagesize = getpagesize();
-#ifdef __FreeBSD__
-    (*sigar)->ticks = 100; /* sysconf(_SC_CLK_TCK) == 128 !? */
-#else
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-#endif
     (*sigar)->last_pid = -1;
 
     (*sigar)->pinfo = NULL;
@@ -286,11 +112,6 @@ int sigar_os_close(sigar_t *sigar)
     if (sigar->pinfo) {
         free(sigar->pinfo);
     }
-#ifndef DARWIN
-    if (sigar->kmem) {
-        kvm_close(sigar->kmem);
-    }
-#endif
     free(sigar);
     return SIGAR_OK;
 }
@@ -307,7 +128,6 @@ char *sigar_os_error_string(sigar_t *sigar, int err)
     }
 }
 
-#if defined(DARWIN)
 static int sigar_vmstat(sigar_t *sigar, vm_statistics_data_t *vmstat)
 {
     kern_return_t status;
@@ -323,111 +143,12 @@ static int sigar_vmstat(sigar_t *sigar, vm_statistics_data_t *vmstat)
         return errno;
     }
 }
-#elif defined(__FreeBSD__)
-static int sigar_vmstat(sigar_t *sigar, struct vmmeter *vmstat)
-{
-    int status;
-    size_t size = sizeof(unsigned int);
-
-    status = kread(sigar, vmstat, sizeof(*vmstat),
-                   sigar->koffsets[KOFFSET_VMMETER]);
-
-    if (status == SIGAR_OK) {
-        return SIGAR_OK;
-    }
-
-    SIGAR_ZERO(vmstat);
-
-    /* derived from src/usr.bin/vmstat/vmstat.c */
-    /* only collect the ones we actually use */
-#define GET_VM_STATS(cat, name, used) \
-    if (used) sysctlbyname("vm.stats." #cat "." #name, &vmstat->name, &size, NULL, 0)
-
-    /* sys */
-    GET_VM_STATS(sys, v_swtch, 0);
-    GET_VM_STATS(sys, v_trap, 0);
-    GET_VM_STATS(sys, v_syscall, 0);
-    GET_VM_STATS(sys, v_intr, 0);
-    GET_VM_STATS(sys, v_soft, 0);
-
-    /* vm */
-    GET_VM_STATS(vm, v_vm_faults, 0);
-    GET_VM_STATS(vm, v_cow_faults, 0);
-    GET_VM_STATS(vm, v_cow_optim, 0);
-    GET_VM_STATS(vm, v_zfod, 0);
-    GET_VM_STATS(vm, v_ozfod, 0);
-    GET_VM_STATS(vm, v_swapin, 1);
-    GET_VM_STATS(vm, v_swapout, 1);
-    GET_VM_STATS(vm, v_swappgsin, 0);
-    GET_VM_STATS(vm, v_swappgsout, 0);
-    GET_VM_STATS(vm, v_vnodein, 1);
-    GET_VM_STATS(vm, v_vnodeout, 1);
-    GET_VM_STATS(vm, v_vnodepgsin, 0);
-    GET_VM_STATS(vm, v_vnodepgsout, 0);
-    GET_VM_STATS(vm, v_intrans, 0);
-    GET_VM_STATS(vm, v_reactivated, 0);
-    GET_VM_STATS(vm, v_pdwakeups, 0);
-    GET_VM_STATS(vm, v_pdpages, 0);
-    GET_VM_STATS(vm, v_dfree, 0);
-    GET_VM_STATS(vm, v_pfree, 0);
-    GET_VM_STATS(vm, v_tfree, 0);
-    GET_VM_STATS(vm, v_page_size, 0);
-    GET_VM_STATS(vm, v_page_count, 0);
-    GET_VM_STATS(vm, v_free_reserved, 0);
-    GET_VM_STATS(vm, v_free_target, 0);
-    GET_VM_STATS(vm, v_free_min, 0);
-    GET_VM_STATS(vm, v_free_count, 1);
-    GET_VM_STATS(vm, v_wire_count, 0);
-    GET_VM_STATS(vm, v_active_count, 0);
-    GET_VM_STATS(vm, v_inactive_target, 0);
-    GET_VM_STATS(vm, v_inactive_count, 1);
-    GET_VM_STATS(vm, v_cache_count, 1);
-#if (__FreeBSD_version < 1100079 )
-    GET_VM_STATS(vm, v_cache_min, 0);
-    GET_VM_STATS(vm, v_cache_max, 0);
-#endif
-    GET_VM_STATS(vm, v_pageout_free_min, 0);
-    GET_VM_STATS(vm, v_interrupt_free_min, 0);
-    GET_VM_STATS(vm, v_forks, 0);
-    GET_VM_STATS(vm, v_vforks, 0);
-    GET_VM_STATS(vm, v_rforks, 0);
-    GET_VM_STATS(vm, v_kthreads, 0);
-    GET_VM_STATS(vm, v_forkpages, 0);
-    GET_VM_STATS(vm, v_vforkpages, 0);
-    GET_VM_STATS(vm, v_rforkpages, 0);
-    GET_VM_STATS(vm, v_kthreadpages, 0);
-#undef GET_VM_STATS
-
-    return SIGAR_OK;
-}
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-static int sigar_vmstat(sigar_t *sigar, struct uvmexp *vmstat)
-{
-    size_t size = sizeof(*vmstat);
-    int mib[] = { CTL_VM, VM_UVMEXP };
-    if (sysctl(mib, NMIB(mib), vmstat, &size, NULL, 0) < 0) {
-        return errno;
-    }
-    else {
-        return SIGAR_OK;
-    }
-}
-#endif
 
 int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 {
     uint64_t kern = 0;
-#ifdef DARWIN
     vm_statistics_data_t vmstat;
     uint64_t mem_total;
-#else
-    unsigned long mem_total;
-#endif
-#if defined(__FreeBSD__)
-    struct vmmeter vmstat;
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-    struct uvmexp vmstat;
-#endif
     int mib[2];
     size_t len;
     int status;
@@ -440,11 +161,7 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
         return errno;
     }
 
-#ifdef DARWIN
     mib[1] = HW_MEMSIZE;
-#else
-    mib[1] = HW_PHYSMEM;
-#endif
     len = sizeof(mem_total);
     if (sysctl(mib, NMIB(mib), &mem_total, &len, NULL, 0) < 0) {
         return errno;
@@ -452,7 +169,6 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 
     mem->total = mem_total;
 
-#if defined(DARWIN)
     if ((status = sigar_vmstat(sigar, &vmstat)) != SIGAR_OK) {
         return status;
     }
@@ -461,26 +177,6 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
     mem->free *= sigar->pagesize;
     kern = vmstat.inactive_count;
     kern *= sigar->pagesize;
-#elif defined(__FreeBSD__)
-    if ((status = sigar_vmstat(sigar, &vmstat)) == SIGAR_OK) {
-        kern = vmstat.v_cache_count + vmstat.v_inactive_count;
-        kern *= sigar->pagesize;
-        mem->free = vmstat.v_free_count;
-        mem->free *= sigar->pagesize;
-    }
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-    if ((status = sigar_vmstat(sigar, &vmstat)) != SIGAR_OK) {
-        return status;
-    }
-    mem->free = vmstat.free;
-    kern = vmstat.inactive;
-#  if defined(__OpenBSD__)
-    kern += vmstat.vnodepages + vmstat.vtextpages;
-# elif defined(__NetBSD__)
-    kern += vmstat.filepages + vmstat.execpages;
-#  endif
-    kern *= sigar->pagesize;
-#endif
 
     mem->used = mem->total - mem->free;
 
@@ -494,79 +190,10 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
 
 #define SWI_MAXMIB 3
 
-#ifdef SIGAR_FREEBSD5
-/* code in this function is based on FreeBSD 5.3 kvm_getswapinfo.c */
-static int getswapinfo_sysctl(struct kvm_swap *swap_ary,
-                              int swap_max)
-{
-    int ti, ttl;
-    size_t mibi, len, size;
-    int soid[SWI_MAXMIB];
-    struct xswdev xsd;
-    struct kvm_swap tot;
-    int unswdev, dmmax;
-
-    /* XXX this can be optimized by using os_open */
-    size = sizeof(dmmax);
-    if (sysctlbyname("vm.dmmax", &dmmax, &size, NULL, 0) == -1) {
-        return errno;
-    }
-
-    mibi = SWI_MAXMIB - 1;
-    if (sysctlnametomib("vm.swap_info", soid, &mibi) == -1) {
-        return errno;
-    }
-
-    bzero(&tot, sizeof(tot));
-    for (unswdev = 0;; unswdev++) {
-        soid[mibi] = unswdev;
-        len = sizeof(xsd);
-        if (sysctl(soid, mibi + 1, &xsd, &len, NULL, 0) == -1) {
-            if (errno == ENOENT) {
-                break;
-            }
-            return errno;
-        }
-#if 0
-        if (len != sizeof(xsd)) {
-            _kvm_err(kd, kd->program, "struct xswdev has unexpected "
-                     "size;  kernel and libkvm out of sync?");
-            return -1;
-        }
-        if (xsd.xsw_version != XSWDEV_VERSION) {
-            _kvm_err(kd, kd->program, "struct xswdev version "
-                     "mismatch; kernel and libkvm out of sync?");
-            return -1;
-        }
-#endif
-        ttl = xsd.xsw_nblks - dmmax;
-        if (unswdev < swap_max - 1) {
-            bzero(&swap_ary[unswdev], sizeof(swap_ary[unswdev]));
-            swap_ary[unswdev].ksw_total = ttl;
-            swap_ary[unswdev].ksw_used = xsd.xsw_used;
-            swap_ary[unswdev].ksw_flags = xsd.xsw_flags;
-        }
-        tot.ksw_total += ttl;
-        tot.ksw_used += xsd.xsw_used;
-    }
-
-    ti = unswdev;
-    if (ti >= swap_max) {
-        ti = swap_max - 1;
-    }
-    if (ti >= 0) {
-        swap_ary[ti] = tot;
-    }
-
-    return SIGAR_OK;
-}
-#else
 #define getswapinfo_sysctl(swap_ary, swap_max) SIGAR_ENOTIMPL
-#endif
 
 #define SIGAR_FS_BLOCKS_TO_BYTES(val, bsize) ((val * bsize) >> 1)
 
-#ifdef DARWIN
 #define VM_DIR "/private/var/vm"
 #define SWAPFILE "swapfile"
 
@@ -633,7 +260,6 @@ static int sigar_swap_fs_get(sigar_t *sigar, sigar_swap_t *swap) /* <= 10.3 */
 static int sigar_swap_sysctl_get(sigar_t *sigar, sigar_swap_t *swap)
 
 {
-#ifdef VM_SWAPUSAGE /* => 10.4 */
     struct xsw_usage sw_usage;
     size_t size = sizeof(sw_usage);
     int mib[] = { CTL_VM, VM_SWAPUSAGE };
@@ -647,16 +273,11 @@ static int sigar_swap_sysctl_get(sigar_t *sigar, sigar_swap_t *swap)
     swap->free = sw_usage.xsu_avail;
 
     return SIGAR_OK;
-#else
-    return SIGAR_ENOTIMPL; /* <= 10.3 */
-#endif
 }
-#endif /* DARWIN */
 
 int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
 {
     int status;
-#if defined(DARWIN)
     vm_statistics_data_t vmstat;
 
     if (sigar_swap_sysctl_get(sigar, swap) != SIGAR_OK) {
@@ -671,50 +292,6 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     }
     swap->page_in = vmstat.pageins;
     swap->page_out = vmstat.pageouts;
-#elif defined(__FreeBSD__)
-    struct kvm_swap kswap[1];
-    struct vmmeter vmstat;
-
-    if (getswapinfo_sysctl(kswap, 1) != SIGAR_OK) {
-        if (!sigar->kmem) {
-            return SIGAR_EPERM_KMEM;
-        }
-
-        if (kvm_getswapinfo(sigar->kmem, kswap, 1, 0) < 0) {
-            return errno;
-        }
-    }
-
-    if (kswap[0].ksw_total == 0) {
-        swap->total = 0;
-        swap->used  = 0;
-        swap->free  = 0;
-        return SIGAR_OK;
-    }
-
-    swap->total = kswap[0].ksw_total * sigar->pagesize;
-    swap->used  = kswap[0].ksw_used * sigar->pagesize;
-    swap->free  = swap->total - swap->used;
-
-    if ((status = sigar_vmstat(sigar, &vmstat)) == SIGAR_OK) {
-        swap->page_in = vmstat.v_swapin + vmstat.v_vnodein;
-        swap->page_out = vmstat.v_swapout + vmstat.v_vnodeout;
-    }
-    else {
-        swap->page_in = swap->page_out = -1;
-    }
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-    struct uvmexp vmstat;
-
-    if ((status = sigar_vmstat(sigar, &vmstat)) != SIGAR_OK) {
-        return status;
-    }
-    swap->total = vmstat.swpages * sigar->pagesize;
-    swap->used = vmstat.swpginuse * sigar->pagesize;
-    swap->free  = swap->total - swap->used;
-    swap->page_in = vmstat.pageins;
-    swap->page_out = vmstat.pdpageouts;
-#endif
 
     swap->allocstall = -1;
     swap->allocstall_dma = -1;
@@ -725,19 +302,10 @@ int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
     return SIGAR_OK;
 }
 
-#ifndef KERN_CPTIME
-#define KERN_CPTIME KERN_CP_TIME
-#endif
-
-#if defined(__NetBSD__)
-typedef uint64_t cp_time_t;
-#else
 typedef unsigned long cp_time_t;
-#endif
 
 int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
 {
-#if defined(DARWIN)
     kern_return_t status;
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
     host_cpu_load_info_data_t cpuload;
@@ -759,55 +327,13 @@ int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
     cpu->stolen = 0; /*N/A*/
     cpu->total = cpu->user + cpu->nice + cpu->sys + cpu->idle;
 
-#elif defined(__FreeBSD__) || (__OpenBSD__) || defined(__NetBSD__)
-    int status;
-    cp_time_t cp_time[CPUSTATES];
-    size_t size = sizeof(cp_time);
-
-#  if defined(__OpenBSD__) || defined(__NetBSD__)
-    int mib[] = { CTL_KERN, KERN_CPTIME };
-    if (sysctl(mib, NMIB(mib), &cp_time, &size, NULL, 0) == -1) {
-        status = errno;
-    }
-#  else
-    /* try sysctl first, does not require /dev/kmem perms */
-    if (sysctlbyname("kern.cp_time", &cp_time, &size, NULL, 0) == -1) {
-        status = kread(sigar, &cp_time, sizeof(cp_time),
-                       sigar->koffsets[KOFFSET_CPUINFO]);
-    }
-#  endif
-    else {
-        status = SIGAR_OK;
-    }
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    cpu->user = SIGAR_TICK2MSEC(cp_time[CP_USER]);
-    cpu->nice = SIGAR_TICK2MSEC(cp_time[CP_NICE]);
-    cpu->sys  = SIGAR_TICK2MSEC(cp_time[CP_SYS]);
-    cpu->idle = SIGAR_TICK2MSEC(cp_time[CP_IDLE]);
-    cpu->wait = 0; /*N/A*/
-    cpu->irq = SIGAR_TICK2MSEC(cp_time[CP_INTR]);
-    cpu->soft_irq = 0; /*N/A*/
-    cpu->stolen = 0; /*N/A*/
-    cpu->total = cpu->user + cpu->nice + cpu->sys + cpu->idle + cpu->irq;
-#endif
-
     return SIGAR_OK;
 }
-
-#ifndef KERN_PROC_PROC
-/* freebsd 4.x */
-#define KERN_PROC_PROC KERN_PROC_ALL
-#endif
 
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist)
 {
-#if defined(DARWIN) || defined(SIGAR_FREEBSD5) || defined(__OpenBSD__) || defined(__NetBSD__)
-    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PROC, 0 };
+    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
     int i, num;
     size_t len;
     struct kinfo_proc *proc;
@@ -846,26 +372,6 @@ int sigar_os_proc_list_get(sigar_t *sigar,
     free(proc);
 
     return SIGAR_OK;
-#else
-    int i, num;
-    struct kinfo_proc *proc;
-
-    if (!sigar->kmem) {
-        return SIGAR_EPERM_KMEM;
-    }
-
-    proc = kvm_getprocs(sigar->kmem, KERN_PROC_PROC, 0, &num);
-
-    for (i=0; i<num; i++) {
-        if (proc[i].KI_FLAG & P_SYSTEM) {
-            continue;
-        }
-        SIGAR_PROC_LIST_GROW(proclist);
-        proclist->data[proclist->number++] = proc[i].KI_PID;
-    }
-#endif
-
-    return SIGAR_OK;
 }
 
 static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
@@ -901,7 +407,7 @@ static int sigar_os_check_parents(const struct kinfo_proc* proc,
 int sigar_os_proc_list_get_children(sigar_t* sigar,
                                     sigar_pid_t ppid,
                                     sigar_proc_list_t* proclist) {
-    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PROC, 0};
+    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
     int i, num;
     size_t len;
     struct kinfo_proc* proc;
@@ -934,11 +440,7 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
 
 static int sigar_get_pinfo(sigar_t *sigar, sigar_pid_t pid)
 {
-#if defined(__OpenBSD__) || defined(__NetBSD__)
-    int mib[] = { CTL_KERN, KERN_PROC2, KERN_PROC_PID, 0, sizeof(*sigar->pinfo), 1 };
-#else
     int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
-#endif
     size_t len = sizeof(*sigar->pinfo);
     time_t timenow = time(NULL);
     mib[3] = pid;
@@ -963,11 +465,6 @@ static int sigar_get_pinfo(sigar_t *sigar, sigar_pid_t pid)
     return SIGAR_OK;
 }
 
-#if defined(SHARED_TEXT_REGION_SIZE) && defined(SHARED_DATA_REGION_SIZE)
-#  define GLOBAL_SHARED_SIZE (SHARED_TEXT_REGION_SIZE + SHARED_DATA_REGION_SIZE) /* 10.4 SDK */
-#endif
-
-#if defined(DARWIN) && defined(DARWIN_HAS_LIBPROC_H) && !defined(GLOBAL_SHARED_SIZE)
 /* get the CPU type of the process for the given pid */
 static int sigar_proc_cpu_type(sigar_t *sigar, sigar_pid_t pid, cpu_type_t *type)
 {
@@ -1003,18 +500,15 @@ static mach_vm_size_t sigar_shared_region_size(cpu_type_t type)
         return SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
     }
 }
-#endif /* DARWIN */
 
 int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                        sigar_proc_mem_t *procmem)
 {
-#if defined(DARWIN)
     mach_port_t task, self = mach_task_self();
     kern_return_t status;
     task_basic_info_data_t info;
     task_events_info_data_t events;
     mach_msg_type_number_t count;
-#  ifdef DARWIN_HAS_LIBPROC_H
     struct proc_taskinfo pti;
     struct proc_regioninfo pri;
 
@@ -1034,9 +528,6 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
             if (sz == sizeof(pri)) {
                 if (pri.pri_share_mode == SM_EMPTY) {
                     mach_vm_size_t shared_size;
-#ifdef GLOBAL_SHARED_SIZE
-                    shared_size = GLOBAL_SHARED_SIZE; /* 10.4 SDK */
-#else
                     cpu_type_t cpu_type;
 
                     if (sigar_proc_cpu_type(sigar, pid, &cpu_type) == SIGAR_OK) {
@@ -1045,7 +536,6 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                     else {
                         shared_size = SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
                     }
-#endif
                     if (procmem->size > shared_size) {
                         procmem->size -= shared_size; /* SIGAR-123 */
                     }
@@ -1054,7 +544,6 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
             return SIGAR_OK;
         }
     }
-#  endif
 
     status = task_for_pid(self, pid, &task);
 
@@ -1089,50 +578,11 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     procmem->share    = SIGAR_FIELD_NOTIMPL;
 
     return SIGAR_OK;
-#elif defined(__FreeBSD__)
-    int status = sigar_get_pinfo(sigar, pid);
-    bsd_pinfo_t *pinfo = sigar->pinfo;
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    procmem->size =
-        (pinfo->KI_TSZ + pinfo->KI_DSZ + pinfo->KI_SSZ) * sigar->pagesize;
-
-    procmem->resident = pinfo->KI_RSS * sigar->pagesize;
-
-    procmem->share = SIGAR_FIELD_NOTIMPL;
-
-    procmem->page_faults  = SIGAR_FIELD_NOTIMPL;
-    procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-    procmem->major_faults = SIGAR_FIELD_NOTIMPL;
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-    int status = sigar_get_pinfo(sigar, pid);
-    bsd_pinfo_t *pinfo = sigar->pinfo;
-
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    procmem->size =
-        (pinfo->p_vm_tsize + pinfo->p_vm_dsize + pinfo->p_vm_ssize) * sigar->pagesize;
-
-    procmem->resident = pinfo->p_vm_rssize * sigar->pagesize;
-
-    procmem->share = SIGAR_FIELD_NOTIMPL;
-
-    procmem->minor_faults = pinfo->p_uru_minflt;
-    procmem->major_faults = pinfo->p_uru_majflt;
-    procmem->page_faults  = procmem->minor_faults + procmem->major_faults;
-#endif
-    return SIGAR_OK;
 }
 
 #define tv2msec(tv) \
    (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
 
-#ifdef DARWIN
 #define tval2msec(tval) \
    ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))
 
@@ -1147,7 +597,7 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     task_thread_times_info_data_t tti;
     task_port_t task, self;
     kern_return_t status;
-#  ifdef DARWIN_HAS_LIBPROC_H
+
     if (sigar->libproc) {
         struct proc_taskinfo pti;
         int sz =
@@ -1160,7 +610,6 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
             return SIGAR_OK;
         }
     }
-#  endif
 
     self = mach_task_self();
     status = task_for_pid(self, pid, &task);
@@ -1199,14 +648,10 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
 
     return SIGAR_OK;
 }
-#endif
 
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime)
 {
-#ifdef SIGAR_FREEBSD4
-    struct user user;
-#endif
     int status = sigar_get_pinfo(sigar, pid);
     bsd_pinfo_t *pinfo = sigar->pinfo;
 
@@ -1214,43 +659,13 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
         return status;
     }
 
-#if defined(DARWIN)
     if ((status = get_proc_times(sigar, pid, proctime)) != SIGAR_OK) {
         return status;
     }
     proctime->start_time = tv2msec(pinfo->KI_START);
-#elif defined(SIGAR_FREEBSD5)
-    proctime->user  = tv2msec(pinfo->ki_rusage.ru_utime);
-    proctime->sys   = tv2msec(pinfo->ki_rusage.ru_stime);
-    proctime->total = proctime->user + proctime->sys;
-    proctime->start_time = tv2msec(pinfo->KI_START);
-#elif defined(SIGAR_FREEBSD4)
-    if (!sigar->kmem) {
-        return SIGAR_EPERM_KMEM;
-    }
-
-    status = kread(sigar, &user, sizeof(user),
-                   (u_long)pinfo->kp_proc.p_addr);
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    proctime->user  = tv2msec(user.u_stats.p_ru.ru_utime);
-    proctime->sys   = tv2msec(user.u_stats.p_ru.ru_stime);
-    proctime->total = proctime->user + proctime->sys;
-    proctime->start_time = tv2msec(user.u_stats.p_start);
-#elif defined(__OpenBSD__) || defined(__NetBSD__)
-    /* XXX *_usec */
-    proctime->user  = pinfo->p_uutime_sec * SIGAR_MSEC;
-    proctime->sys   = pinfo->p_ustime_sec * SIGAR_MSEC;
-    proctime->total = proctime->user + proctime->sys;
-    proctime->start_time = pinfo->p_ustart_sec * SIGAR_MSEC;
-#endif
-
     return SIGAR_OK;
 }
 
-#ifdef DARWIN
 /* thread state mapping derived from ps.tproj */
 static const char thread_states[] = {
     /*0*/ '-',
@@ -1322,47 +737,30 @@ static int sigar_proc_threads_get(sigar_t *sigar, sigar_pid_t pid,
 
     return SIGAR_OK;
 }
-#endif
 
 int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                          sigar_proc_state_t *procstate)
 {
     int status = sigar_get_pinfo(sigar, pid);
     bsd_pinfo_t *pinfo = sigar->pinfo;
-#if defined(__OpenBSD__) || defined(__NetBSD__)
-    int state = pinfo->p_stat;
-#else
     int state = pinfo->KI_STAT;
-#endif
 
     if (status != SIGAR_OK) {
         return status;
     }
 
-#if defined(__OpenBSD__) || defined(__NetBSD__)
-    SIGAR_SSTRCPY(procstate->name, pinfo->p_comm);
-    procstate->ppid     = pinfo->p_ppid;
-    procstate->priority = pinfo->p_priority;
-    procstate->nice     = pinfo->p_nice;
-    procstate->tty      = pinfo->p_tdev;
-    procstate->threads  = SIGAR_FIELD_NOTIMPL;
-    procstate->processor = pinfo->p_cpuid;
-#else
-    SIGAR_SSTRCPY(procstate->name, pinfo->KI_COMM);
+   SIGAR_SSTRCPY(procstate->name, pinfo->KI_COMM);
     procstate->ppid     = pinfo->KI_PPID;
     procstate->priority = pinfo->KI_PRI;
     procstate->nice     = pinfo->KI_NICE;
     procstate->tty      = SIGAR_FIELD_NOTIMPL; /*XXX*/
     procstate->threads  = SIGAR_FIELD_NOTIMPL;
     procstate->processor = SIGAR_FIELD_NOTIMPL;
-#endif
 
-#ifdef DARWIN
     status = sigar_proc_threads_get(sigar, pid, procstate);
     if (status == SIGAR_OK) {
         return status;
     }
-#endif
 
     switch (state) {
       case SIDL:

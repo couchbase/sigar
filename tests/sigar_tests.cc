@@ -211,8 +211,34 @@ TEST_F(Sigar, sigar_get_control_group_info) {
 }
 
 #ifdef __linux__
-TEST_F(Sigar, MB49911) {
-    sigar_set_procfs_root(SOURCE_ROOT);
+TEST_F(Sigar, test_sigar_proc_state_get) {
+    sigar_proc_state_t proc_state;
+    auto ret = sigar_proc_state_get(instance, getpid(), &proc_state);
+    ASSERT_EQ(SIGAR_OK, ret)
+            << "sigar_proc_state_get: " << sigar_strerror(instance, ret);
+    ASSERT_NE(nullptr, proc_state.name);
+    EXPECT_EQ(1, proc_state.threads);
+    std::thread second{[&proc_state, &ret, i = instance]() {
+        ret = sigar_proc_state_get(i, getpid(), &proc_state);
+    }
+    };
+    second.join();
+    ASSERT_EQ(SIGAR_OK, ret);
+    EXPECT_EQ(2, proc_state.threads);
+}
+
+class MockSigar : public Sigar {
+public:
+    static void SetUpTestCase() {
+        sigar_set_procfs_root(SOURCE_ROOT);
+    }
+
+    static void TearDownTestCase() {
+        sigar_set_procfs_root(nullptr);
+    }
+};
+
+TEST_F(MockSigar, MB49911) {
     sigar_cpu_t cpu;
     EXPECT_EQ(SIGAR_OK, sigar_cpu_get(instance, &cpu));
     EXPECT_EQ(88917270, cpu.user);
@@ -225,4 +251,46 @@ TEST_F(Sigar, MB49911) {
     EXPECT_EQ(0, cpu.stolen);
     EXPECT_EQ(8047341180, cpu.total);
 }
+
+TEST_F(MockSigar, test_sigar_proc_mem_get) {
+    sigar_proc_mem_t procmem;
+    ASSERT_EQ(SIGAR_OK, sigar_proc_mem_get(instance, 66666666, &procmem));
+
+    EXPECT_EQ(11762167808, procmem.size);
+    EXPECT_EQ(3729625088, procmem.resident);
+    EXPECT_EQ(437837824, procmem.share);
+    EXPECT_EQ(27177033, procmem.minor_faults);
+    EXPECT_EQ(115493, procmem.major_faults);
+    EXPECT_EQ(27292526, procmem.page_faults);
+}
+
+TEST_F(MockSigar, test_sigar_swap_get) {
+    sigar_swap_t swap;
+    ASSERT_EQ(SIGAR_OK, sigar_swap_get(instance, &swap));
+    EXPECT_EQ(1023406080, swap.total);
+    EXPECT_EQ(0, swap.used);
+    EXPECT_EQ(1023406080, swap.free);
+    EXPECT_EQ(0, swap.page_in);
+    EXPECT_EQ(0, swap.page_out);
+    EXPECT_EQ(0, swap.allocstall);
+    EXPECT_EQ(0, swap.allocstall_dma);
+    EXPECT_EQ(0, swap.allocstall_dma32);
+    EXPECT_EQ(0, swap.allocstall_normal);
+    EXPECT_EQ(0, swap.allocstall_movable);
+    ASSERT_EQ(swap.total, swap.used + swap.free);
+}
+
+TEST_F(MockSigar, test_sigar_mem_get) {
+    sigar_mem_t mem;
+    ASSERT_EQ(SIGAR_OK, sigar_mem_get(instance, &mem));
+    EXPECT_EQ(31744, mem.ram);
+    EXPECT_EQ(33283383296, mem.total);
+    EXPECT_EQ(19910578176, mem.used);
+    EXPECT_EQ(13372805120, mem.free);
+    EXPECT_EQ(9683591168, mem.actual_used);
+    EXPECT_EQ(23599792128, mem.actual_free);
+    EXPECT_EQ(29, int(mem.used_percent));
+    EXPECT_EQ(70, int(mem.free_percent));
+}
+
 #endif

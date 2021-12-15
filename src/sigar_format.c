@@ -34,8 +34,7 @@
 #include "sigar_util.h"
 #include "sigar_os.h"
 
-static char *sigar_error_string(int err)
-{
+static const char* sigar_error_string(int err) {
     switch (err) {
       case SIGAR_ENOTIMPL:
         return "This function has not been implemented on this platform";
@@ -44,8 +43,7 @@ static char *sigar_error_string(int err)
     }
 }
 
-static char *sigar_strerror_get(int err, char *errbuf, int buflen)
-{
+static const char* sigar_strerror_get(int err, char* errbuf, int buflen) {
 #ifdef WIN32
     /* force english error message */
     DWORD len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
@@ -65,16 +63,14 @@ static char *sigar_strerror_get(int err, char *errbuf, int buflen)
     return errbuf;
 }
 
-SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err)
-{
-    char *buf;
-
+SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err) {
     if (err < 0) {
         return sigar->errbuf;
     }
 
     if (err > SIGAR_OS_START_ERROR) {
-        if ((buf = sigar_os_error_string(sigar, err)) != NULL) {
+        const char* buf = sigar_os_error_string(sigar, err);
+        if (buf) {
             return buf;
         }
         return "Unknown OS Error"; /* should never happen */

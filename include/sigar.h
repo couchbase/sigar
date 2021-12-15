@@ -74,7 +74,7 @@ SIGAR_DECLARE(int) sigar_close(sigar_t *sigar);
 
 SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t *sigar);
 
-SIGAR_DECLARE(char *) sigar_strerror(sigar_t *sigar, int err);
+SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err);
 
 /* system memory info */
 

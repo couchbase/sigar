@@ -25,10 +25,13 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <vector>
 
 #include <psapi.h>
 #include <time.h>
 #include <processthreadsapi.h>
+
+static int get_proc_info(sigar_t *sigar, sigar_pid_t pid);
 
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
@@ -560,6 +563,31 @@ int sigar_os_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
     }
 
     return SIGAR_OK;
+}
+
+static int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid) {
+    try {
+        std::vector<sigar_pid_t> pids;
+        do {
+            if (get_proc_info(sigar, pid) != SIGAR_OK) {
+                return -1;
+            }
+
+            if (sigar->pinfo.ppid == ppid) {
+                return SIGAR_OK;
+            }
+            pids.push_back(pid);
+            pid = sigar->pinfo.ppid;
+            if (std::find(pids.begin(), pids.end(), pid) != pids.end()) {
+                // There is a loop in the process chain
+                return -1;
+            }
+        } while (sigar->pinfo.ppid != 0);
+    } catch (const std::bad_alloc&) {
+        return -1;
+    }
+    // not found
+    return -1;
 }
 
 int sigar_os_proc_list_get_children(sigar_t* sigar,

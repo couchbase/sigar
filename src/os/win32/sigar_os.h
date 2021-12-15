@@ -84,9 +84,6 @@ struct sigar_t {
     sigar_win32_pinfo_t pinfo;
 };
 
-int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid);
-int get_proc_info(sigar_t* sigar, sigar_pid_t pid);
-
 #ifdef __cplusplus
 }
 #endif

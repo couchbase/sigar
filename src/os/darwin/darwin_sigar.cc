@@ -81,7 +81,7 @@ int sigar_os_open(sigar_t **sigar)
         return errno;
     }
 
-    *sigar = malloc(sizeof(**sigar));
+    *sigar = (sigar_t*)malloc(sizeof(**sigar));
     if (*sigar == NULL) {
         return SIGAR_ENOMEM;
     }
@@ -341,7 +341,7 @@ int sigar_os_proc_list_get(sigar_t *sigar,
         return errno;
     }
 
-    proc = malloc(len);
+    proc = (kinfo_proc *)malloc(len);
 
     if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
         free(proc);
@@ -415,7 +415,7 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
         return errno;
     }
 
-    proc = malloc(len);
+    proc = (kinfo_proc *)malloc(len);
 
     if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
         free(proc);
@@ -445,7 +445,7 @@ static int sigar_get_pinfo(sigar_t *sigar, sigar_pid_t pid)
     mib[3] = pid;
 
     if (sigar->pinfo == NULL) {
-        sigar->pinfo = malloc(len);
+        sigar->pinfo = (kinfo_proc *)malloc(len);
     }
 
     if (sigar->last_pid == pid) {

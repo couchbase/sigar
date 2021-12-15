@@ -27,7 +27,7 @@ ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 ## macosx
 IF (APPLE)
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/darwin/darwin_sigar.c
+                os/darwin/darwin_sigar.cc
                 os/darwin/sigar_os.h
                 sigar_control_group_not_supported.cc)
     target_include_directories(sigar PRIVATE os/darwin/)

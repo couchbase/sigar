@@ -100,8 +100,6 @@ extern "C" {
 #define SIGAR_NSEC2MSEC(s) \
    ((uint64_t)(s) / ((uint64_t)1000000L))
 
-#define SIGAR_LAST_PROC_EXPIRE 2
-
 #define SIGAR_CPU_INFO_MAX 4
 
 #define SIGAR_CPU_LIST_MAX 4

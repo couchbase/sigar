@@ -39,6 +39,7 @@
 #include <sys/resource.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <utility>
 
 #define NMIB(mib) (sizeof(mib)/sizeof(mib[0]))
 
@@ -88,21 +89,13 @@ int sigar_os_open(sigar_t **sigar)
     (*sigar)->mach_port = mach_host_self();
 
     (*sigar)->boot_time = boottime.tv_sec; /* XXX seems off a bit */
-
     (*sigar)->pagesize = getpagesize();
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-    (*sigar)->last_pid = -1;
-
-    (*sigar)->pinfo = NULL;
 
     return SIGAR_OK;
 }
 
-int sigar_os_close(sigar_t *sigar)
-{
-    if (sigar->pinfo) {
-        free(sigar->pinfo);
-    }
+int sigar_os_close(sigar_t* sigar) {
     free(sigar);
     return SIGAR_OK;
 }
@@ -428,31 +421,19 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
     return SIGAR_OK;
 }
 
-static int sigar_get_pinfo(sigar_t *sigar, sigar_pid_t pid)
-{
+static std::pair<int, kinfo_proc> sigar_get_pinfo(sigar_t* sigar,
+                                                  sigar_pid_t pid) {
     int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
-    size_t len = sizeof(*sigar->pinfo);
-    time_t timenow = time(NULL);
     mib[3] = pid;
 
-    if (sigar->pinfo == NULL) {
-        sigar->pinfo = (kinfo_proc *)malloc(len);
+    kinfo_proc pinfo = {};
+    size_t len = sizeof(pinfo);
+
+    if (sysctl(mib, NMIB(mib), &pinfo, &len, NULL, 0) < 0) {
+        return {errno, {}};
     }
 
-    if (sigar->last_pid == pid) {
-        if ((timenow - sigar->last_getprocs) < SIGAR_LAST_PROC_EXPIRE) {
-            return SIGAR_OK;
-        }
-    }
-
-    sigar->last_pid = pid;
-    sigar->last_getprocs = timenow;
-
-    if (sysctl(mib, NMIB(mib), sigar->pinfo, &len, NULL, 0) < 0) {
-        return errno;
-    }
-
-    return SIGAR_OK;
+    return {SIGAR_OK, pinfo};
 }
 
 /* get the CPU type of the process for the given pid */
@@ -636,17 +617,17 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime)
 {
-    int status = sigar_get_pinfo(sigar, pid);
-    bsd_pinfo_t *pinfo = sigar->pinfo;
-
+    const auto [status, pinfo] = sigar_get_pinfo(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    if ((status = get_proc_times(sigar, pid, proctime)) != SIGAR_OK) {
-        return status;
+    int st = get_proc_times(sigar, pid, proctime);
+    if (st != SIGAR_OK) {
+        return st;
     }
-    proctime->start_time = tv2msec(pinfo->KI_START);
+
+    proctime->start_time = tv2msec(pinfo.KI_START);
     return SIGAR_OK;
 }
 
@@ -725,25 +706,23 @@ static int sigar_proc_threads_get(sigar_t *sigar, sigar_pid_t pid,
 int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                          sigar_proc_state_t *procstate)
 {
-    int status = sigar_get_pinfo(sigar, pid);
-    bsd_pinfo_t *pinfo = sigar->pinfo;
-    int state = pinfo->KI_STAT;
-
+    const auto [status, pinfo] = sigar_get_pinfo(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
+    int state = pinfo.KI_STAT;
 
-   SIGAR_SSTRCPY(procstate->name, pinfo->KI_COMM);
-    procstate->ppid     = pinfo->KI_PPID;
-    procstate->priority = pinfo->KI_PRI;
-    procstate->nice     = pinfo->KI_NICE;
+    SIGAR_SSTRCPY(procstate->name, pinfo.KI_COMM);
+    procstate->ppid = pinfo.KI_PPID;
+    procstate->priority = pinfo.KI_PRI;
+    procstate->nice = pinfo.KI_NICE;
     procstate->tty      = SIGAR_FIELD_NOTIMPL; /*XXX*/
     procstate->threads  = SIGAR_FIELD_NOTIMPL;
     procstate->processor = SIGAR_FIELD_NOTIMPL;
 
-    status = sigar_proc_threads_get(sigar, pid, procstate);
-    if (status == SIGAR_OK) {
-        return status;
+    auto st = sigar_proc_threads_get(sigar, pid, procstate);
+    if (st == SIGAR_OK) {
+        return st;
     }
 
     switch (state) {

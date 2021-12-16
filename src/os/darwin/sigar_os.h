@@ -18,14 +18,10 @@
 
 #include <mach/mach_port.h>
 
-typedef struct kinfo_proc bsd_pinfo_t;
 
 struct sigar_t {
     SIGAR_T_BASE;
     int pagesize;
-    time_t last_getprocs;
-    sigar_pid_t last_pid;
-    bsd_pinfo_t *pinfo;
     mach_port_t mach_port;
 };
 

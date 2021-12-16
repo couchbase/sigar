@@ -80,6 +80,24 @@ void sigar_tokenize_file_line_by_line(
     cb::io::tokenizeFileLineByLine(name, callback, delim, false);
 }
 
+struct linux_proc_stat_t {
+    sigar_pid_t pid;
+    uint64_t vsize;
+    uint64_t rss;
+    uint64_t minor_faults;
+    uint64_t major_faults;
+    uint64_t ppid;
+    int tty;
+    int priority;
+    int nice;
+    uint64_t start_time;
+    uint64_t utime;
+    uint64_t stime;
+    char name[SIGAR_PROC_NAME_LEN];
+    char state;
+    int processor;
+} ;
+
 static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
     char* start = buf + UITOA_BUFFER_SIZE - 1;
 
@@ -234,7 +252,6 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-    (*sigar)->last_proc_stat.pid = -1;
 
     return SIGAR_OK;
 }
@@ -467,86 +484,71 @@ int sigar_os_proc_list_get(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-static int proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
+static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
 {
     char buffer[BUFSIZ], *ptr=buffer, *tmp;
     unsigned int len;
-    linux_proc_stat_t *pstat = &sigar->last_proc_stat;
-    int status;
+    linux_proc_stat_t pstat = {};
+    pstat.pid = pid;
 
-    time_t timenow = time(nullptr);
-
-    /*
-     * short-lived cache read/parse of last /proc/pid/stat
-     * as this info is spread out across a few functions.
-     */
-    if (pstat->pid == pid) {
-        if ((timenow - pstat->mtime) < SIGAR_LAST_PROC_EXPIRE) {
-            return SIGAR_OK;
-        }
-    }
-
-    pstat->pid = pid;
-    pstat->mtime = timenow;
-
-    status = SIGAR_PROC_FILE2STR(buffer, pid, PROC_PSTAT);
+    int status = SIGAR_PROC_FILE2STR(buffer, pid, PROC_PSTAT);
 
     if (status != SIGAR_OK) {
-        return status;
+        return {status, {}};
     }
 
     if (!(ptr = strchr(ptr, '('))) {
-        return EINVAL;
+        return {EINVAL, {}};
     }
     if (!(tmp = strrchr(++ptr, ')'))) {
-        return EINVAL;
+        return {EINVAL,{}};
     }
     len = tmp-ptr;
 
-    if (len >= sizeof(pstat->name)) {
-        len = sizeof(pstat->name)-1;
+    if (len >= sizeof(pstat.name)) {
+        len = sizeof(pstat.name)-1;
     }
 
     /* (1,2) */
-    memcpy(pstat->name, ptr, len);
-    pstat->name[len] = '\0';
+    memcpy(pstat.name, ptr, len);
+    pstat.name[len] = '\0';
     ptr = tmp+1;
 
     SIGAR_SKIP_SPACE(ptr);
-    pstat->state = *ptr++; /* (3) */
+    pstat.state = *ptr++; /* (3) */
     SIGAR_SKIP_SPACE(ptr);
 
-    pstat->ppid = sigar_strtoul(ptr); /* (4) */
+    pstat.ppid = sigar_strtoul(ptr); /* (4) */
     ptr = sigar_skip_token(ptr); /* (5) pgrp */
     ptr = sigar_skip_token(ptr); /* (6) session */
-    pstat->tty = sigar_strtoul(ptr); /* (7) */
+    pstat.tty = sigar_strtoul(ptr); /* (7) */
     ptr = sigar_skip_token(ptr); /* (8) tty pgrp */
 
     ptr = sigar_skip_token(ptr); /* (9) flags */
-    pstat->minor_faults = sigar_strtoull(ptr); /* (10) */
+    pstat.minor_faults = sigar_strtoull(ptr); /* (10) */
     ptr = sigar_skip_token(ptr); /* (11) cmin flt */
-    pstat->major_faults = sigar_strtoull(ptr); /* (12) */
+    pstat.major_faults = sigar_strtoull(ptr); /* (12) */
     ptr = sigar_skip_token(ptr); /* (13) cmaj flt */
 
-    pstat->utime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (14) */
-    pstat->stime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (15) */
+    pstat.utime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (14) */
+    pstat.stime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (15) */
 
     ptr = sigar_skip_token(ptr); /* (16) cutime */
     ptr = sigar_skip_token(ptr); /* (17) cstime */
 
-    pstat->priority = sigar_strtoul(ptr); /* (18) */
-    pstat->nice     = sigar_strtoul(ptr); /* (19) */
+    pstat.priority = sigar_strtoul(ptr); /* (18) */
+    pstat.nice     = sigar_strtoul(ptr); /* (19) */
 
     ptr = sigar_skip_token(ptr); /* (20) timeout */
     ptr = sigar_skip_token(ptr); /* (21) it_real_value */
 
-    pstat->start_time  = sigar_strtoul(ptr); /* (22) */
-    pstat->start_time /= sigar->ticks;
-    pstat->start_time += sigar->boot_time; /* seconds */
-    pstat->start_time *= 1000; /* milliseconds */
+    pstat.start_time  = sigar_strtoul(ptr); /* (22) */
+    pstat.start_time /= sigar->ticks;
+    pstat.start_time += sigar->boot_time; /* seconds */
+    pstat.start_time *= 1000; /* milliseconds */
 
-    pstat->vsize = sigar_strtoull(ptr); /* (23) */
-    pstat->rss   = pageshift(sigar_strtoull(ptr)); /* (24) */
+    pstat.vsize = sigar_strtoull(ptr); /* (23) */
+    pstat.rss   = pageshift(sigar_strtoull(ptr)); /* (24) */
 
     ptr = sigar_skip_token(ptr); /* (25) rlim */
     ptr = sigar_skip_token(ptr); /* (26) startcode */
@@ -563,22 +565,23 @@ static int proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
     ptr = sigar_skip_token(ptr); /* (37) cnswap */
     ptr = sigar_skip_token(ptr); /* (38) exit_signal */
 
-    pstat->processor = sigar_strtoul(ptr); /* (39) */
+    pstat.processor = sigar_strtoul(ptr); /* (39) */
 
-    return SIGAR_OK;
+    return {SIGAR_OK, pstat};
 }
 
 static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
     do {
-        if (proc_stat_read(sigar, pid) != SIGAR_OK) {
+        const auto [status, pstat] = proc_stat_read(sigar, pid);
+        if (status != SIGAR_OK) {
             return -1;
         }
 
-        if (sigar->last_proc_stat.ppid == uint64_t(ppid)) {
+        if (pstat.ppid == uint64_t(ppid)) {
             return SIGAR_OK;
         }
-        pid = sigar->last_proc_stat.ppid;
-    } while (sigar->last_proc_stat.ppid != 0);
+        pid = pstat.ppid;
+    } while (pid != 0);
     return -1;
 }
 
@@ -613,14 +616,13 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                        sigar_proc_mem_t *procmem)
 {
     memset(procmem, 0, sizeof(*procmem));
-    int status = proc_stat_read(sigar, pid);
+    const auto [status, pstat] = proc_stat_read(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
-    linux_proc_stat_t *pstat = &sigar->last_proc_stat;
 
-    procmem->minor_faults = pstat->minor_faults;
-    procmem->major_faults = pstat->major_faults;
+    procmem->minor_faults = pstat.minor_faults;
+    procmem->major_faults = pstat.major_faults;
     procmem->page_faults =
         procmem->minor_faults + procmem->major_faults;
 
@@ -657,17 +659,15 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime)
 {
-    int status = proc_stat_read(sigar, pid);
-    linux_proc_stat_t *pstat = &sigar->last_proc_stat;
-
+    const auto [status, pstat] = proc_stat_read(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    proctime->user = pstat->utime;
-    proctime->sys  = pstat->stime;
+    proctime->user = pstat.utime;
+    proctime->sys  = pstat.stime;
     proctime->total = proctime->user + proctime->sys;
-    proctime->start_time = pstat->start_time;
+    proctime->start_time = pstat.start_time;
 
     return SIGAR_OK;
 }
@@ -675,21 +675,19 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
 int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                          sigar_proc_state_t *procstate)
 {
-    int status = proc_stat_read(sigar, pid);
-    linux_proc_stat_t *pstat = &sigar->last_proc_stat;
-
+    const auto [status, pstat] = proc_stat_read(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    memcpy(procstate->name, pstat->name, sizeof(procstate->name));
-    procstate->state = pstat->state;
+    memcpy(procstate->name, pstat.name, sizeof(procstate->name));
+    procstate->state = pstat.state;
 
-    procstate->ppid     = pstat->ppid;
-    procstate->tty      = pstat->tty;
-    procstate->priority = pstat->priority;
-    procstate->nice     = pstat->nice;
-    procstate->processor = pstat->processor;
+    procstate->ppid     = pstat.ppid;
+    procstate->tty      = pstat.tty;
+    procstate->priority = pstat.priority;
+    procstate->nice     = pstat.nice;
+    procstate->processor = pstat.processor;
 
     try {
         sigar_tokenize_file_line_by_line(

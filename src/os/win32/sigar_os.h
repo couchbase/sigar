@@ -59,20 +59,6 @@ extern "C" {
                                         lpw, -1, (LPSTR)lpa, chars, \
                                         NULL, NULL))
 
-typedef struct {
-    sigar_pid_t pid;
-    int ppid;
-    int priority;
-    time_t mtime;
-    uint64_t size;
-    uint64_t resident;
-    char name[SIGAR_PROC_NAME_LEN];
-    char state;
-    uint64_t handles;
-    uint64_t threads;
-    uint64_t page_faults;
-} sigar_win32_pinfo_t;
-
 struct sigar_t {
     SIGAR_T_BASE;
     char *machine;
@@ -81,7 +67,6 @@ struct sigar_t {
     HKEY handle;
     LPBYTE perfbuf;
     DWORD perfbuf_size;
-    sigar_win32_pinfo_t pinfo;
 };
 
 #ifdef __cplusplus

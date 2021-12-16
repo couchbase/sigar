@@ -31,8 +31,6 @@
 #include <time.h>
 #include <processthreadsapi.h>
 
-static int get_proc_info(sigar_t *sigar, sigar_pid_t pid);
-
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
 
@@ -133,6 +131,23 @@ typedef enum {
 
 #define PERF_VAL_CPU(ix) \
     NS100_2MSEC(PERF_VAL(ix))
+
+typedef struct {
+    sigar_pid_t pid;
+    int ppid;
+    int priority;
+    time_t mtime;
+    uint64_t size;
+    uint64_t resident;
+    char name[SIGAR_PROC_NAME_LEN];
+    char state;
+    uint64_t handles;
+    uint64_t threads;
+    uint64_t page_faults;
+} sigar_win32_pinfo_t;
+
+static std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_t* sigar,
+                                                         sigar_pid_t pid);
 
 static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
 {
@@ -381,8 +396,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     get_sysinfo(sigar);
 
-    sigar->pinfo.pid = -1;
-
     /* increase process visibility */
     sigar_enable_privilege(SE_DEBUG_NAME);
 
@@ -526,20 +539,21 @@ static int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t p
     try {
         std::vector<sigar_pid_t> pids;
         do {
-            if (get_proc_info(sigar, pid) != SIGAR_OK) {
+            const auto [status, pinfo] = get_proc_info(sigar, pid);
+            if (status != SIGAR_OK) {
                 return -1;
             }
 
-            if (sigar->pinfo.ppid == ppid) {
+            if (pinfo.ppid == ppid) {
                 return SIGAR_OK;
             }
             pids.push_back(pid);
-            pid = sigar->pinfo.ppid;
+            pid = pinfo.ppid;
             if (std::find(pids.begin(), pids.end(), pid) != pids.end()) {
                 // There is a loop in the process chain
                 return -1;
             }
-        } while (sigar->pinfo.ppid != 0);
+        } while (ppid != 0);
     } catch (const std::bad_alloc&) {
         return -1;
     }
@@ -582,17 +596,15 @@ static HANDLE open_process(sigar_pid_t pid)
 SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                                       sigar_proc_mem_t *procmem)
 {
-    int status = get_proc_info(sigar, pid);
-    sigar_win32_pinfo_t *pinfo = &sigar->pinfo;
-
+    const auto [status, pinfo] = get_proc_info(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    procmem->size     = pinfo->size;     /* "Virtual Bytes" */
-    procmem->resident = pinfo->resident; /* "Working Set" */
+    procmem->size     = pinfo.size;     /* "Virtual Bytes" */
+    procmem->resident = pinfo.resident; /* "Working Set" */
     procmem->share    = SIGAR_FIELD_NOTIMPL;
-    procmem->page_faults  = pinfo->page_faults;
+    procmem->page_faults  = pinfo.page_faults;
     procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
     procmem->major_faults = SIGAR_FIELD_NOTIMPL;
 
@@ -646,51 +658,40 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
 SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
                                         sigar_proc_state_t *procstate)
 {
-    int status = get_proc_info(sigar, pid);
-    sigar_win32_pinfo_t *pinfo = &sigar->pinfo;
-
+    const auto [status, pinfo] = get_proc_info(sigar, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    memcpy(procstate->name, pinfo->name, sizeof(procstate->name));
-    procstate->state = pinfo->state;
-    procstate->ppid = pinfo->ppid;
-    procstate->priority = pinfo->priority;
+    memcpy(procstate->name, pinfo.name, sizeof(procstate->name));
+    procstate->state = pinfo.state;
+    procstate->ppid = pinfo.ppid;
+    procstate->priority = pinfo.priority;
     procstate->nice = SIGAR_FIELD_NOTIMPL;
     procstate->tty =  SIGAR_FIELD_NOTIMPL;
-    procstate->threads = pinfo->threads;
+    procstate->threads = pinfo.threads;
     procstate->processor = SIGAR_FIELD_NOTIMPL;
 
     return SIGAR_OK;
 }
 
-int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
-{
+static std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_t* sigar,
+                                                         sigar_pid_t pid) {
     PERF_OBJECT_TYPE *object;
     PERF_INSTANCE_DEFINITION *inst;
     PERF_COUNTER_DEFINITION *counter;
     DWORD i, err;
     DWORD perf_offsets[PERF_IX_MAX];
-    sigar_win32_pinfo_t *pinfo = &sigar->pinfo;
-    time_t timenow = time(NULL);
-
-    if (pinfo->pid == pid) {
-        if ((timenow - pinfo->mtime) < SIGAR_LAST_PROC_EXPIRE) {
-            return SIGAR_OK;
-        }
-    }
+    sigar_win32_pinfo_t pinfo = {};
 
     memset(&perf_offsets, 0, sizeof(perf_offsets));
-
     object = get_process_object(sigar, &err);
 
     if (object == NULL) {
-        return err;
+        return {int(err), {}};
     }
 
-    pinfo->pid = pid;
-    pinfo->mtime = timenow;
+    pinfo.pid = pid;
 
     /*
      * note we assume here:
@@ -753,20 +754,20 @@ int get_proc_info(sigar_t *sigar, sigar_pid_t pid)
             continue;
         }
 
-        pinfo->state = 'R'; /* XXX? */
+        pinfo.state = 'R'; /* XXX? */
         SIGAR_W2A(PdhInstanceName(inst),
-                  pinfo->name, sizeof(pinfo->name));
+                  pinfo.name, sizeof(pinfo.name));
 
-        pinfo->size     = PERF_VAL64(PERF_IX_MEM_VSIZE);
-        pinfo->resident = PERF_VAL64(PERF_IX_MEM_SIZE);
-        pinfo->ppid     = PERF_VAL(PERF_IX_PPID);
-        pinfo->priority = PERF_VAL(PERF_IX_PRIORITY);
-        pinfo->handles  = PERF_VAL(PERF_IX_HANDLE_CNT);
-        pinfo->threads  = PERF_VAL(PERF_IX_THREAD_CNT);
-        pinfo->page_faults = PERF_VAL(PERF_IX_PAGE_FAULTS);
+        pinfo.size     = PERF_VAL64(PERF_IX_MEM_VSIZE);
+        pinfo.resident = PERF_VAL64(PERF_IX_MEM_SIZE);
+        pinfo.ppid     = PERF_VAL(PERF_IX_PPID);
+        pinfo.priority = PERF_VAL(PERF_IX_PRIORITY);
+        pinfo.handles  = PERF_VAL(PERF_IX_HANDLE_CNT);
+        pinfo.threads  = PERF_VAL(PERF_IX_THREAD_CNT);
+        pinfo.page_faults = PERF_VAL(PERF_IX_PAGE_FAULTS);
 
-        return SIGAR_OK;
+        return {SIGAR_OK, pinfo};
     }
 
-    return SIGAR_NO_SUCH_PROCESS;
+    return {SIGAR_NO_SUCH_PROCESS, {}};
 }

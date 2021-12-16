@@ -18,27 +18,7 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
-typedef struct {
-    sigar_pid_t pid;
-    time_t mtime;
-    uint64_t vsize;
-    uint64_t rss;
-    uint64_t minor_faults;
-    uint64_t major_faults;
-    uint64_t ppid;
-    int tty;
-    int priority;
-    int nice;
-    uint64_t start_time;
-    uint64_t utime;
-    uint64_t stime;
-    char name[SIGAR_PROC_NAME_LEN];
-    char state;
-    int processor;
-} linux_proc_stat_t;
-
 struct sigar_t {
     SIGAR_T_BASE;
     int pagesize;
-    linux_proc_stat_t last_proc_stat;
 };

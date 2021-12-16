@@ -18,9 +18,6 @@
 
 #include <mach/mach_port.h>
 
-typedef int (*proc_pidinfo_func_t)(int, int, uint64_t,  void *, int);
-typedef int (*proc_pidfdinfo_func_t)(int, int, int, void *, int);
-
 typedef struct kinfo_proc bsd_pinfo_t;
 
 struct sigar_t {
@@ -32,9 +29,6 @@ struct sigar_t {
     int lcpu;
     size_t argmax;
     mach_port_t mach_port;
-    void *libproc;
-    proc_pidinfo_func_t proc_pidinfo;
-    proc_pidfdinfo_func_t proc_pidfdinfo;
 };
 
 #define SIGAR_EPERM_KMEM (SIGAR_OS_START_ERROR+EACCES)

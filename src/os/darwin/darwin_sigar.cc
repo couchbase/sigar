@@ -22,7 +22,6 @@
 #include "sigar_os.h"
 
 #include <dirent.h>
-#include <dlfcn.h>
 #include <errno.h>
 #include <libproc.h>
 #include <mach-o/dyld.h>
@@ -87,12 +86,6 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     (*sigar)->mach_port = mach_host_self();
-    if (((*sigar)->libproc = dlopen("/usr/lib/libproc.dylib", 0))) {
-        (*sigar)->proc_pidinfo =
-                (proc_pidinfo_func_t)dlsym((*sigar)->libproc, "proc_pidinfo");
-        (*sigar)->proc_pidfdinfo = (proc_pidfdinfo_func_t)dlsym(
-                (*sigar)->libproc, "proc_pidfdinfo");
-    }
 
     (*sigar)->lcpu = -1;
     (*sigar)->argmax = 0;
@@ -511,38 +504,35 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     struct proc_taskinfo pti;
     struct proc_regioninfo pri;
 
-    if (sigar->libproc) {
-        int sz =
-            sigar->proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
+    int sz = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
+    if (sz == sizeof(pti)) {
+        procmem->size         = pti.pti_virtual_size;
+        procmem->resident     = pti.pti_resident_size;
+        procmem->page_faults  = pti.pti_faults;
+        procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
+        procmem->major_faults = SIGAR_FIELD_NOTIMPL;
+        procmem->share        = SIGAR_FIELD_NOTIMPL;
 
-        if (sz == sizeof(pti)) {
-            procmem->size         = pti.pti_virtual_size;
-            procmem->resident     = pti.pti_resident_size;
-            procmem->page_faults  = pti.pti_faults;
-            procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-            procmem->major_faults = SIGAR_FIELD_NOTIMPL;
-            procmem->share        = SIGAR_FIELD_NOTIMPL;
+        sz = proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
+        if (sz == sizeof(pri)) {
+            if (pri.pri_share_mode == SM_EMPTY) {
+                mach_vm_size_t shared_size;
+                cpu_type_t cpu_type;
 
-            sz = sigar->proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
-            if (sz == sizeof(pri)) {
-                if (pri.pri_share_mode == SM_EMPTY) {
-                    mach_vm_size_t shared_size;
-                    cpu_type_t cpu_type;
-
-                    if (sigar_proc_cpu_type(sigar, pid, &cpu_type) == SIGAR_OK) {
-                        shared_size = sigar_shared_region_size(cpu_type);
-                    }
-                    else {
-                        shared_size = SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
-                    }
-                    if (procmem->size > shared_size) {
-                        procmem->size -= shared_size; /* SIGAR-123 */
-                    }
+                if (sigar_proc_cpu_type(sigar, pid, &cpu_type) == SIGAR_OK) {
+                    shared_size = sigar_shared_region_size(cpu_type);
+                }
+                else {
+                    shared_size = SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
+                }
+                if (procmem->size > shared_size) {
+                    procmem->size -= shared_size; /* SIGAR-123 */
                 }
             }
-            return SIGAR_OK;
         }
+        return SIGAR_OK;
     }
+
 
     status = task_for_pid(self, pid, &task);
 
@@ -597,17 +587,14 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     task_port_t task, self;
     kern_return_t status;
 
-    if (sigar->libproc) {
-        struct proc_taskinfo pti;
-        int sz =
-            sigar->proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
+    struct proc_taskinfo pti;
+    int sz = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
 
-        if (sz == sizeof(pti)) {
-            time->user = SIGAR_NSEC2MSEC(pti.pti_total_user);
-            time->sys  = SIGAR_NSEC2MSEC(pti.pti_total_system);
-            time->total = time->user + time->sys;
-            return SIGAR_OK;
-        }
+    if (sz == sizeof(pti)) {
+        time->user = SIGAR_NSEC2MSEC(pti.pti_total_user);
+        time->sys  = SIGAR_NSEC2MSEC(pti.pti_total_system);
+        time->total = time->user + time->sys;
+        return SIGAR_OK;
     }
 
     self = mach_task_self();

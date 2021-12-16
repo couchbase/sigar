@@ -31,6 +31,7 @@ IF (APPLE)
                 os/darwin/sigar_os.h
                 sigar_control_group_not_supported.cc)
     target_include_directories(sigar PRIVATE os/darwin/)
+    target_link_libraries(sigar PRIVATE proc)
 ENDIF (APPLE)
 
 IF (WIN32)

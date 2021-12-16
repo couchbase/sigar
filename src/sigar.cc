@@ -29,7 +29,6 @@ SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     int status = sigar_os_open(sigar);
 
     if (status == SIGAR_OK) {
-        (*sigar)->self_path = NULL;
         (*sigar)->pids = NULL;
         (*sigar)->proc_cpu = NULL;
     }
@@ -38,9 +37,6 @@ SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
 }
 
 SIGAR_DECLARE(int) sigar_close(sigar_t* sigar) {
-    if (sigar->self_path) {
-        free(sigar->self_path);
-    }
     if (sigar->pids) {
         sigar_proc_list_destroy(sigar, sigar->pids);
         free(sigar->pids);

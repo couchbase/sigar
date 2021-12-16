@@ -41,11 +41,9 @@ extern "C" {
 #endif
 
 struct sigar_t {
-   unsigned long version;
    unsigned long boot_time;
    int ticks;
    char errbuf[256];
-   char* self_path;
    sigar_proc_list_t* pids;
    sigar_cache_t* proc_cpu;
 #ifdef __linux__

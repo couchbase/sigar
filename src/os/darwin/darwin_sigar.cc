@@ -70,23 +70,14 @@
 #define SIGAR_EPERM_KMEM (SIGAR_OS_START_ERROR+EACCES)
 #define SIGAR_EPROC_NOENT (SIGAR_OS_START_ERROR+2)
 
-int sigar_os_open(sigar_t **sigar)
-{
-    *sigar = (sigar_t*)malloc(sizeof(**sigar));
-    if (*sigar == NULL) {
-        return SIGAR_ENOMEM;
-    }
-
-    (*sigar)->mach_port = mach_host_self();
-    (*sigar)->pagesize = getpagesize();
-    (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-
-    return SIGAR_OK;
+sigar_t::sigar_t()
+    : ticks(sysconf(_SC_CLK_TCK)),
+      pagesize(getpagesize()),
+      mach_port(mach_host_self()) {
 }
 
-int sigar_os_close(sigar_t* sigar) {
-    free(sigar);
-    return SIGAR_OK;
+sigar_t* sigar_t::New() {
+    return new sigar_t;
 }
 
 const char* sigar_os_error_string(sigar_t* sigar, int err) {

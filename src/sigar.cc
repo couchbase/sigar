@@ -17,6 +17,7 @@
  */
 
 #include <stdio.h>
+#include <system_error>
 #ifdef WIN32
 #include <process.h>
 #endif
@@ -26,26 +27,21 @@
 #include "sigar_util.h"
 
 SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
-    int status = sigar_os_open(sigar);
-
-    if (status == SIGAR_OK) {
-        (*sigar)->pids = NULL;
-        (*sigar)->proc_cpu = NULL;
+    try {
+        *sigar = sigar_t::New();
+        return SIGAR_OK;
+    } catch (const std::bad_alloc&) {
+        return ENOMEM;
+    } catch (const std::system_error& ex) {
+        return ex.code().value();
+    } catch (...) {
+        return EINVAL;
     }
-
-    return status;
 }
 
 SIGAR_DECLARE(int) sigar_close(sigar_t* sigar) {
-    if (sigar->pids) {
-        sigar_proc_list_destroy(sigar, sigar->pids);
-        free(sigar->pids);
-    }
-    if (sigar->proc_cpu) {
-        sigar_cache_destroy(sigar->proc_cpu);
-    }
-
-    return sigar_os_close(sigar);
+    delete sigar;
+    return SIGAR_OK;
 }
 
 SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t* sigar) {

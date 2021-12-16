@@ -27,9 +27,10 @@
 #include <stdarg.h>
 #include <vector>
 
+#include <processthreadsapi.h>
 #include <psapi.h>
 #include <time.h>
-#include <processthreadsapi.h>
+#include <system_error>
 
 #define USING_WIDE_S(s) (s)->using_wide
 #define USING_WIDE()    USING_WIDE_S(sigar)
@@ -359,58 +360,21 @@ static int sigar_enable_privilege(char *name)
     return status;
 }
 
-int sigar_os_open(sigar_t **sigar_ptr)
-{
-    LONG result;
-    sigar_t *sigar;
-
-    *sigar_ptr = sigar = (sigar_t*)malloc(sizeof(*sigar));
-    if (sigar == NULL) {
-        return SIGAR_ENOMEM;
+sigar_t::sigar_t() {
+    auto result = RegConnectRegistryA(machine, HKEY_PERFORMANCE_DATA, &handle);
+    if (result != ERROR_SUCCESS) {
+        throw std::system_error(std::error_code(result, std::system_category()),
+                                "sigar_t(): RegConnectRegistryA");
     }
 
-    sigar->machine = ""; /* local machine */
-    sigar->using_wide = 0; /*XXX*/
-
-    sigar->perfbuf = NULL;
-    sigar->perfbuf_size = 0;
-
-    if (USING_WIDE_S(sigar)) {
-        WCHAR wmachine[MAX_PATH+1];
-
-        SIGAR_A2W(sigar->machine, wmachine, sizeof(wmachine));
-
-        result = RegConnectRegistryW(wmachine,
-                                     HKEY_PERFORMANCE_DATA,
-                                     &sigar->handle);
-    }
-    else {
-        result = RegConnectRegistryA(sigar->machine,
-                                     HKEY_PERFORMANCE_DATA,
-                                     &sigar->handle);
-    }
-
-    get_sysinfo(sigar);
+    get_sysinfo(this);
 
     /* increase process visibility */
     sigar_enable_privilege(SE_DEBUG_NAME);
-
-    return result;
 }
 
-int sigar_os_close(sigar_t *sigar)
-{
-    int retval;
-
-    if (sigar->perfbuf) {
-        free(sigar->perfbuf);
-    }
-
-    retval = RegCloseKey(sigar->handle);
-
-    free(sigar);
-
-    return retval;
+sigar_t* sigar_t::New() {
+    return new sigar_t;
 }
 
 const char* sigar_os_error_string(sigar_t* sigar, int err) {

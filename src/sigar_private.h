@@ -37,23 +37,46 @@
 #include "sigar_cache.h"
 
 struct sigar_t {
-   int ticks;
-   char errbuf[256];
-   sigar_proc_list_t* pids;
-   sigar_cache_t* proc_cpu;
+protected:
+    sigar_t();
+
+public:
+    static sigar_t* New();
+
+    ~sigar_t() {
+        if (pids) {
+            sigar_proc_list_destroy(this, pids);
+            free(pids);
+        }
+        if (proc_cpu) {
+            sigar_cache_destroy(proc_cpu);
+        }
+#ifdef __WIN32__
+        if (perfbuf) {
+            free(perfbuf);
+        }
+        retval = RegCloseKey(sigar->handle);
+#endif
+    }
+
+    char errbuf[256] = {};
+    sigar_proc_list_t* pids = nullptr;
+    sigar_cache_t* proc_cpu = nullptr;
 #ifdef __linux__
-   unsigned long boot_time;
-   int pagesize;
+    unsigned long boot_time = 0;
+    int pagesize = 0;
+    const int ticks = 0;
 #elif defined(WIN32)
-   char *machine;
-   int using_wide;
-   long pagesize;
-   HKEY handle;
-   LPBYTE perfbuf;
-   DWORD perfbuf_size;
+    const char* machine = "";
+    int using_wide = 0;
+    long pagesize = 0;
+    HKEY handle;
+    LPBYTE perfbuf = nullptr;
+    DWORD perfbuf_size = 0;
 #elif defined(__APPLE__)
-   int pagesize;
-   mach_port_t mach_port;
+    const int ticks;
+    int pagesize;
+    mach_port_t mach_port;
 #else
 #error "Unsupported platform"
 #endif
@@ -117,10 +140,6 @@ struct sigar_t {
 #define SIGAR_PROC_LIST_MAX 256
 
 #define SIGAR_PROC_ARGS_MAX 12
-
-int sigar_os_open(sigar_t **sigar);
-
-int sigar_os_close(sigar_t *sigar);
 
 const char* sigar_os_error_string(sigar_t* sigar, int err);
 

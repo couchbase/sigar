@@ -231,32 +231,19 @@ struct SystemConstants {
     const long boot_time;
 };
 
-int sigar_os_open(sigar_t **sigar)
-{
+sigar_t::sigar_t() : ticks(sysconf(_SC_CLK_TCK)) {
     static const SystemConstants constants;
 
-    int i, status;
-    *sigar = static_cast<sigar_t*>(malloc(sizeof(sigar_t)));
-    if (*sigar == nullptr) {
-        return SIGAR_ENOMEM;
-    }
-
-    (*sigar)->pagesize = 0;
-    i = constants.pagesize;
+    int i = constants.pagesize;
     while ((i >>= 1) > 0) {
-        (*sigar)->pagesize++;
+        pagesize++;
     }
 
-    (*sigar)->boot_time = constants.boot_time;
-    (*sigar)->ticks = sysconf(_SC_CLK_TCK);
-
-    return SIGAR_OK;
+    boot_time = constants.boot_time;
 }
 
-int sigar_os_close(sigar_t *sigar)
-{
-    free(sigar);
-    return SIGAR_OK;
+sigar_t* sigar_t::New() {
+    return new sigar_t;
 }
 
 const char* sigar_os_error_string(sigar_t* sigar, int err) {

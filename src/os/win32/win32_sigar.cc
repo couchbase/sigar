@@ -362,7 +362,6 @@ static int sigar_enable_privilege(char *name)
 int sigar_os_open(sigar_t **sigar_ptr)
 {
     LONG result;
-    OSVERSIONINFO version;
     sigar_t *sigar;
 
     *sigar_ptr = sigar = (sigar_t*)malloc(sizeof(*sigar));
@@ -375,9 +374,6 @@ int sigar_os_open(sigar_t **sigar_ptr)
 
     sigar->perfbuf = NULL;
     sigar->perfbuf_size = 0;
-
-    version.dwOSVersionInfoSize = sizeof(version);
-    GetVersionEx(&version);
 
     if (USING_WIDE_S(sigar)) {
         WCHAR wmachine[MAX_PATH+1];

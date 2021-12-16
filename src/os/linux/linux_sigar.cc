@@ -207,32 +207,34 @@ static int sigar_proc_file2str(char* buffer,
     while (sigar_isspace(*ptr)) \
     ++ptr
 
-static int sigar_boot_time_get(sigar_t *sigar)
-{
-    try {
+struct SystemConstants {
+    SystemConstants() : pagesize(getpagesize()), boot_time(get_boot_time()) {
+
+    }
+    static uint64_t get_boot_time() {
+        uint64_t ret = 0;
         sigar_tokenize_file_line_by_line(
                 0,
                 "stat",
-                [sigar](const auto& vec) {
+                [&ret](const auto& vec) {
                     if (vec.size() > 1 && vec.front() == "btime") {
-                        sigar->boot_time = std::stoull(std::string(vec[1]));
+                        ret = std::stoull(std::string(vec[1]));
                         return false;
                     }
                     return true;
                 },
                 ' ');
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
+        return ret;
     }
 
-    return SIGAR_OK;
-}
+    const int pagesize;
+    const long boot_time;
+};
 
 int sigar_os_open(sigar_t **sigar)
 {
+    static const SystemConstants constants;
+
     int i, status;
     *sigar = static_cast<sigar_t*>(malloc(sizeof(sigar_t)));
     if (*sigar == nullptr) {
@@ -240,16 +242,12 @@ int sigar_os_open(sigar_t **sigar)
     }
 
     (*sigar)->pagesize = 0;
-    i = getpagesize();
+    i = constants.pagesize;
     while ((i >>= 1) > 0) {
         (*sigar)->pagesize++;
     }
 
-    status = sigar_boot_time_get(*sigar);
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
+    (*sigar)->boot_time = constants.boot_time;
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
 
     return SIGAR_OK;

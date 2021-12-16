@@ -72,25 +72,12 @@
 
 int sigar_os_open(sigar_t **sigar)
 {
-    int mib[2];
-    size_t len;
-    struct timeval boottime;
-
-    len = sizeof(boottime);
-    mib[0] = CTL_KERN;
-    mib[1] = KERN_BOOTTIME;
-    if (sysctl(mib, NMIB(mib), &boottime, &len, NULL, 0) < 0) {
-        return errno;
-    }
-
     *sigar = (sigar_t*)malloc(sizeof(**sigar));
     if (*sigar == NULL) {
         return SIGAR_ENOMEM;
     }
 
     (*sigar)->mach_port = mach_host_self();
-
-    (*sigar)->boot_time = boottime.tv_sec; /* XXX seems off a bit */
     (*sigar)->pagesize = getpagesize();
     (*sigar)->ticks = sysconf(_SC_CLK_TCK);
 

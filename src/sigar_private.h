@@ -37,12 +37,12 @@
 #include "sigar_cache.h"
 
 struct sigar_t {
-   unsigned long boot_time;
    int ticks;
    char errbuf[256];
    sigar_proc_list_t* pids;
    sigar_cache_t* proc_cpu;
 #ifdef __linux__
+   unsigned long boot_time;
    int pagesize;
 #elif defined(WIN32)
    char *machine;

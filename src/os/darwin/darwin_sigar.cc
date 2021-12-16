@@ -87,8 +87,6 @@ int sigar_os_open(sigar_t **sigar)
 
     (*sigar)->mach_port = mach_host_self();
 
-    (*sigar)->lcpu = -1;
-    (*sigar)->argmax = 0;
     (*sigar)->boot_time = boottime.tv_sec; /* XXX seems off a bit */
 
     (*sigar)->pagesize = getpagesize();

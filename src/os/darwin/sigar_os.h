@@ -26,8 +26,6 @@ struct sigar_t {
     time_t last_getprocs;
     sigar_pid_t last_pid;
     bsd_pinfo_t *pinfo;
-    int lcpu;
-    size_t argmax;
     mach_port_t mach_port;
 };
 

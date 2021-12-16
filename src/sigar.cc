@@ -177,21 +177,3 @@ sigar_proc_list_get_children(sigar_t* sigar,
 
     return sigar_os_proc_list_get_children(sigar, ppid, proclist);
 }
-
-int sigar_proc_args_create(sigar_proc_args_t* procargs) {
-    procargs->number = 0;
-    procargs->size = SIGAR_PROC_ARGS_MAX;
-    procargs->data = static_cast<char**>(
-            malloc(sizeof(*(procargs->data)) * procargs->size));
-    return SIGAR_OK;
-}
-
-int sigar_proc_args_grow(sigar_proc_args_t* procargs) {
-    procargs->data = static_cast<char**>(
-            realloc(procargs->data,
-                    sizeof(*(procargs->data)) *
-                            (procargs->size + SIGAR_PROC_ARGS_MAX)));
-    procargs->size += SIGAR_PROC_ARGS_MAX;
-
-    return SIGAR_OK;
-}

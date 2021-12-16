@@ -17,18 +17,9 @@
 
 #pragma once
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define SSTRLEN(s) \
     (sizeof(s)-1)
 
-
-int64_t sigar_time_now_millis(void);
+int64_t sigar_time_now_millis();
 
 int sigar_mem_calc_ram(sigar_t *sigar, sigar_mem_t *mem);
-
-#ifdef __cplusplus
-}
-#endif

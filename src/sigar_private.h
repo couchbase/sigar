@@ -17,17 +17,17 @@
  */
 #pragma once
 
-#include <stdlib.h>
-#include <string.h>
-#include <ctype.h>
+#include <cctype>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef WIN32
 #include <windows.h>
 #include <winreg.h>
 #else
-#include <unistd.h>
-#include <stddef.h>
 #include <strings.h>
+#include <unistd.h>
+#include <cstddef>
 #endif
 
 #ifdef __APPLE__
@@ -35,10 +35,6 @@
 #endif
 
 #include "sigar_cache.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct sigar_t {
    unsigned long boot_time;
@@ -144,11 +140,11 @@ int sigar_proc_list_grow(sigar_proc_list_t *proclist);
         sigar_proc_list_grow(proclist); \
     }
 
-typedef struct {
+struct sigar_proc_args_t {
     unsigned long number;
     unsigned long size;
     char **data;
-} sigar_proc_args_t;
+};
 
 int sigar_proc_args_create(sigar_proc_args_t *proclist);
 
@@ -159,18 +155,15 @@ int sigar_proc_args_grow(sigar_proc_args_t *procargs);
         sigar_proc_args_grow(procargs); \
     }
 
-typedef struct {
+struct sigar_proc_time_t {
     uint64_t
             start_time,
             user,
             sys,
             total;
-} sigar_proc_time_t;
+};
 
 // Not used externally
 int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
                         sigar_proc_time_t *proctime);
 
-#ifdef __cplusplus
-}
-#endif

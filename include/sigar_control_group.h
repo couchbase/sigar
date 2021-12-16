@@ -26,9 +26,10 @@ struct sigar_control_group_info {
     uint8_t supported;
     /// Set to 1 for cgroup V1, and 2 for cgroup V2
     uint8_t version;
-    /// The number of CPUs available in the cgroup. This is either calculated
-    /// as part of the CPU quota or CPU sets.
-    uint16_t num_cpu;
+    /// The number of CPUs available in the cgroup (in % where 100% represents
+    /// 1 full core). This is either calculated as part of the CPU quota or
+    /// CPU sets.
+    uint16_t num_cpu_prc;
 
     /// For information about the following values, see
     /// https://www.kernel.org/doc/html/latest/admin-guide/cgroup-v2.html

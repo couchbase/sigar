@@ -18,7 +18,7 @@ void sigar_get_control_group_info(sigar_control_group_info_t* info) {
     try {
         info->supported = 1;
         info->version = uint8_t(instance.get_version());
-        info->num_cpu = uint16_t(instance.get_available_cpu_count());
+        info->num_cpu_prc = uint16_t(instance.get_available_cpu());
         info->memory_max = instance.get_max_memory();
         info->memory_current = instance.get_current_memory();
         const auto stats = instance.get_cpu_stats();

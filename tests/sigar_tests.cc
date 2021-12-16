@@ -192,7 +192,7 @@ TEST_F(Sigar, sigar_get_control_group_info) {
 #ifdef __linux__
     ASSERT_EQ(1, info.supported);
     ASSERT_TRUE((info.version == 1) || (info.version == 2));
-    ASSERT_LE(1, info.num_cpu);
+    ASSERT_NE(0, info.num_cpu_prc);
 
     // cgroup V2 returns "max" if no limit is set
     if (info.memory_max > 0) {

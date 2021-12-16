@@ -67,8 +67,6 @@ public:
     int pagesize = 0;
     const int ticks = 0;
 #elif defined(WIN32)
-    const char* machine = "";
-    int using_wide = 0;
     long pagesize = 0;
     HKEY handle;
     LPBYTE perfbuf = nullptr;

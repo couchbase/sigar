@@ -32,9 +32,6 @@
 #include <time.h>
 #include <system_error>
 
-#define USING_WIDE_S(s) (s)->using_wide
-#define USING_WIDE()    USING_WIDE_S(sigar)
-
 #define PERFBUF_SIZE 8192
 
 #define PERF_TITLE_PROC       230
@@ -109,15 +106,10 @@ typedef enum {
  *   wcounter -> counter
  */
 #define MyRegQueryValue() \
-    (USING_WIDE() ? \
-        RegQueryValueExW(sigar->handle, \
-                         wcounter_key, NULL, &type, \
-                         sigar->perfbuf, \
-                         &bytes) : \
         RegQueryValueExA(sigar->handle, \
                          counter_key, NULL, &type, \
                          sigar->perfbuf, \
-                         &bytes))
+                         &bytes)
 
 #define PERF_VAL(ix) \
     perf_offsets[ix] ? \
@@ -220,10 +212,6 @@ static PERF_OBJECT_TYPE *get_perf_object_inst(sigar_t *sigar,
     PERF_OBJECT_TYPE *object;
 
     *err = SIGAR_OK;
-
-    if (USING_WIDE()) {
-        SIGAR_A2W(counter_key, wcounter_key, sizeof(wcounter_key));
-    }
 
     bytes = perfbuf_init(sigar);
 
@@ -361,7 +349,7 @@ static int sigar_enable_privilege(char *name)
 }
 
 sigar_t::sigar_t() {
-    auto result = RegConnectRegistryA(machine, HKEY_PERFORMANCE_DATA, &handle);
+    auto result = RegConnectRegistryA("", HKEY_PERFORMANCE_DATA, &handle);
     if (result != ERROR_SUCCESS) {
         throw std::system_error(std::error_code(result, std::system_category()),
                                 "sigar_t(): RegConnectRegistryA");

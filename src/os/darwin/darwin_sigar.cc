@@ -19,7 +19,6 @@
 #include "sigar.h"
 #include "sigar_private.h"
 #include "sigar_util.h"
-#include "sigar_os.h"
 
 #include <dirent.h>
 #include <errno.h>
@@ -67,6 +66,9 @@
 #define SIGAR_PROC_STATE_STOP   'T'
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
 #define SIGAR_PROC_STATE_IDLE   'D'
+
+#define SIGAR_EPERM_KMEM (SIGAR_OS_START_ERROR+EACCES)
+#define SIGAR_EPROC_NOENT (SIGAR_OS_START_ERROR+2)
 
 int sigar_os_open(sigar_t **sigar)
 {

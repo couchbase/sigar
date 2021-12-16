@@ -35,10 +35,6 @@
 
 #include "sigar_util.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #ifndef __GNUC__
 /* see apr/include/arch/win32/atime.h */
 #define EPOCH_DELTA INT64_C(11644473600000000)
@@ -59,18 +55,5 @@ extern "C" {
                                         lpw, -1, (LPSTR)lpa, chars, \
                                         NULL, NULL))
 
-struct sigar_t {
-    SIGAR_T_BASE;
-    char *machine;
-    int using_wide;
-    long pagesize;
-    HKEY handle;
-    LPBYTE perfbuf;
-    DWORD perfbuf_size;
-};
-
-#ifdef __cplusplus
-}
-#endif
 
 #define SIGAR_NO_SUCH_PROCESS (SIGAR_OS_START_ERROR+1)

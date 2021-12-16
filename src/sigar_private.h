@@ -21,10 +21,17 @@
 #include <string.h>
 #include <ctype.h>
 
-#ifndef WIN32
+#ifdef WIN32
+#include <windows.h>
+#include <winreg.h>
+#else
 #include <unistd.h>
 #include <stddef.h>
 #include <strings.h>
+#endif
+
+#ifdef __APPLE__
+#include <mach/mach_port.h>
 #endif
 
 #include "sigar_cache.h"
@@ -33,21 +40,30 @@
 extern "C" {
 #endif
 
-/* common to all os sigar_t's */
-/* XXX: this is ugly; but don't want the same stuffs
- * duplicated on 4 platforms and am too lazy to change
- * sigar_t to the way it was originally where sigar_t was
- * common and contained a sigar_os_t.
- * feel free trav ;-)
- */
-#define SIGAR_T_BASE \
-   unsigned long version; \
-   unsigned long boot_time; \
-   int ticks; \
-   char errbuf[256]; \
-   char *self_path; \
-   sigar_proc_list_t *pids; \
-   sigar_cache_t *proc_cpu
+struct sigar_t {
+   unsigned long version;
+   unsigned long boot_time;
+   int ticks;
+   char errbuf[256];
+   char* self_path;
+   sigar_proc_list_t* pids;
+   sigar_cache_t* proc_cpu;
+#ifdef __linux__
+   int pagesize;
+#elif defined(WIN32)
+   char *machine;
+   int using_wide;
+   long pagesize;
+   HKEY handle;
+   LPBYTE perfbuf;
+   DWORD perfbuf_size;
+#elif defined(__APPLE__)
+   int pagesize;
+   mach_port_t mach_port;
+#else
+#error "Unsupported platform"
+#endif
+};
 
 #define SIGAR_ZERO(s) \
     memset(s, '\0', sizeof(*(s)))

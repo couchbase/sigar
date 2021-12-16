@@ -31,8 +31,6 @@
 
 #include "sigar.h"
 #include "sigar_private.h"
-#include "sigar_util.h"
-#include "sigar_os.h"
 
 static const char* sigar_error_string(int err) {
     switch (err) {

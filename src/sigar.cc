@@ -24,7 +24,6 @@
 #include "sigar.h"
 #include "sigar_private.h"
 #include "sigar_util.h"
-#include "sigar_os.h"
 
 SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     int status = sigar_os_open(sigar);

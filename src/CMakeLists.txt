@@ -15,9 +15,7 @@ SET(SIGAR_COMMON_SRC
 IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
                 os/linux/linux_sigar.cc
-                os/linux/sigar_os.h
                 os/linux/sigar_cgroup.cc)
-    target_include_directories(sigar PRIVATE os/linux)
     target_include_directories(sigar SYSTEM PRIVATE AFTER
                                ${BOOST_INCLUDE_DIR}
                                ${Platform_SOURCE_DIR}/include)
@@ -28,9 +26,7 @@ ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 IF (APPLE)
     add_library(sigar SHARED ${SIGAR_COMMON_SRC}
                 os/darwin/darwin_sigar.cc
-                os/darwin/sigar_os.h
                 sigar_control_group_not_supported.cc)
-    target_include_directories(sigar PRIVATE os/darwin/)
     target_link_libraries(sigar PRIVATE proc)
 ENDIF (APPLE)
 
@@ -40,7 +36,6 @@ IF (WIN32)
                 os/win32/win32_sigar.cc
                 sigar_control_group_not_supported.cc)
     target_compile_definitions(sigar PRIVATE -DSIGAR_SHARED -D_CRT_NONSTDC_NO_DEPRECATE)
-    target_include_directories(sigar PRIVATE os/win32)
     target_link_libraries(sigar ws2_32 netapi32 version kernel32 ntdll psapi)
 ENDIF (WIN32)
 

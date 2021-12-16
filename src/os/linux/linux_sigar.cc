@@ -276,167 +276,135 @@ static uint64_t stoull(std::string_view value) {
     return -1;
 }
 
-int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
-{
-    *mem = {};
+int sigar_t::get_memory(sigar_mem_t& mem) {
     uint64_t buffers = 0;
     uint64_t cached = 0;
-    try {
-        sigar_tokenize_file_line_by_line(
-                0,
-                "meminfo",
-                [mem, &buffers, &cached](const auto& vec) {
-                    if (vec.size() < 2) {
-                        return true;
-                    }
-                    if (vec.front() == "MemTotal") {
-                        mem->total = stoull(vec[1]);
-                        return true;
-                    }
-                    if (vec.front() == "MemFree") {
-                        mem->free = stoull(vec[1]);
-                        return true;
-                    }
-                    if (vec.front() == "Buffers") {
-                        buffers = stoull(vec[1]);
-                        return true;
-                    }
-                    if (vec.front() == "Cached") {
-                        cached = stoull(vec[1]);
-                        return true;
-                    }
-
+    sigar_tokenize_file_line_by_line(
+            0,
+            "meminfo",
+            [&mem, &buffers, &cached](const auto& vec) {
+                if (vec.size() < 2) {
                     return true;
-                },
-                ':');
+                }
+                if (vec.front() == "MemTotal") {
+                    mem.total = stoull(vec[1]);
+                    return true;
+                }
+                if (vec.front() == "MemFree") {
+                    mem.free = stoull(vec[1]);
+                    return true;
+                }
+                if (vec.front() == "Buffers") {
+                    buffers = stoull(vec[1]);
+                    return true;
+                }
+                if (vec.front() == "Cached") {
+                    cached = stoull(vec[1]);
+                    return true;
+                }
 
-        mem->used = mem->total - mem->free;
-        auto kern = buffers + cached;
-        mem->actual_free = mem->free + kern;
-        mem->actual_used = mem->used - kern;
+                return true;
+            },
+            ':');
 
-        sigar_mem_calc_ram(sigar, mem);
-
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
-    }
+    mem.used = mem.total - mem.free;
+    auto kern = buffers + cached;
+    mem.actual_free = mem.free + kern;
+    mem.actual_used = mem.used - kern;
+    mem_calc_ram(mem);
 
     return SIGAR_OK;
 }
 
-int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
-{
-    *swap = {};
-    try {
-        sigar_tokenize_file_line_by_line(
-                0,
-                "meminfo",
-                [swap](const auto& vec) {
-                    if (vec.size() < 2) {
-                        return true;
-                    }
-                    if (vec.front() == "SwapTotal") {
-                        swap->total = stoull(vec[1]);
-                        return true;
-                    }
-                    if (vec.front() == "SwapFree") {
-                        swap->free = stoull(vec[1]);
-                        return true;
-                    }
+int sigar_t::get_swap(sigar_swap_t& swap) {
+    sigar_tokenize_file_line_by_line(
+            0,
+            "meminfo",
+            [&swap](const auto& vec) {
+                if (vec.size() < 2) {
                     return true;
-                },
-                ':');
-
-        swap->used = swap->total - swap->free;
-        swap->page_in = swap->page_out = -1;
-        swap->allocstall = SIGAR_FIELD_NOTIMPL;
-        sigar_tokenize_file_line_by_line(
-                0,
-                "vmstat",
-                [swap](const auto& vec) {
-                    if (vec.size() < 2) {
-                        return true;
-                    }
-
-                    if (vec.front() == "pswpin") {
-                        swap->page_in = stoull(vec[1]);
-                    } else if (vec.front() == "pswpout") {
-                        swap->page_out = stoull(vec[1]);
-                    } else if (vec.front() == "allocstall") {
-                        swap->allocstall = stoull(vec[1]);
-                    } else if (vec.front() == "allocstall_dma") {
-                        swap->allocstall_dma = stoull(vec[1]);
-                    } else if (vec.front() == "allocstall_dma32") {
-                        swap->allocstall_dma32 = stoull(vec[1]);
-                    } else if (vec.front() == "allocstall_normal") {
-                        swap->allocstall_normal = stoull(vec[1]);
-                    } else if (vec.front() == "allocstall_movable") {
-                        swap->allocstall_movable = stoull(vec[1]);
-                    }
-
+                }
+                if (vec.front() == "SwapTotal") {
+                    swap.total = stoull(vec[1]);
                     return true;
-                },
-                ' ');
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
-    }
+                }
+                if (vec.front() == "SwapFree") {
+                    swap.free = stoull(vec[1]);
+                    return true;
+                }
+                return true;
+            },
+            ':');
+
+    swap.used = swap.total - swap.free;
+    sigar_tokenize_file_line_by_line(
+            0,
+            "vmstat",
+            [&swap](const auto& vec) {
+                if (vec.size() < 2) {
+                    return true;
+                }
+
+                if (vec.front() == "pswpin") {
+                    swap.page_in = stoull(vec[1]);
+                } else if (vec.front() == "pswpout") {
+                    swap.page_out = stoull(vec[1]);
+                } else if (vec.front() == "allocstall") {
+                    swap.allocstall = stoull(vec[1]);
+                } else if (vec.front() == "allocstall_dma") {
+                    swap.allocstall_dma = stoull(vec[1]);
+                } else if (vec.front() == "allocstall_dma32") {
+                    swap.allocstall_dma32 = stoull(vec[1]);
+                } else if (vec.front() == "allocstall_normal") {
+                    swap.allocstall_normal = stoull(vec[1]);
+                } else if (vec.front() == "allocstall_movable") {
+                    swap.allocstall_movable = stoull(vec[1]);
+                }
+
+                return true;
+            },
+            ' ');
 
     return SIGAR_OK;
 }
 
-int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
-{
-    *cpu = {};
+int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     int status = ENOENT;
-    try {
-        sigar_tokenize_file_line_by_line(
-                0,
-                "stat",
-                [cpu, &status, sigar](const auto& vec) {
-                    // The first line in /proc/stat looks like:
-                    // cpu user nice system idle iowait irq softirq steal guest
-                    // guest_nice (The amount of time, measured in units of
-                    // USER_HZ)
-                    if (vec.size() < 11) {
+    sigar_tokenize_file_line_by_line(
+            0,
+            "stat",
+            [&cpu, &status, sigar = this](const auto& vec) {
+                // The first line in /proc/stat looks like:
+                // cpu user nice system idle iowait irq softirq steal guest
+                // guest_nice (The amount of time, measured in units of
+                // USER_HZ)
+                if (vec.size() < 11) {
+                    status = EINVAL;
+                    return false;
+                }
+                if (vec.front() == "cpu") {
+                    if (vec.size() < 9) {
                         status = EINVAL;
                         return false;
                     }
-                    if (vec.front() == "cpu") {
-                        if (vec.size() < 9) {
-                            status = EINVAL;
-                            return false;
-                        }
 
-                        cpu->user = SIGAR_TICK2MSEC(stoull(vec[1]));
-                        cpu->nice = SIGAR_TICK2MSEC(stoull(vec[2]));
-                        cpu->sys = SIGAR_TICK2MSEC(stoull(vec[3]));
-                        cpu->idle = SIGAR_TICK2MSEC(stoull(vec[4]));
-                        cpu->wait = SIGAR_TICK2MSEC(stoull(vec[5]));
-                        cpu->irq = SIGAR_TICK2MSEC(stoull(vec[6]));
-                        cpu->soft_irq = SIGAR_TICK2MSEC(stoull(vec[7]));
-                        cpu->stolen = SIGAR_TICK2MSEC(stoull(vec[8]));
-                        cpu->total = cpu->user + cpu->nice + cpu->sys +
-                                     cpu->idle + cpu->wait + cpu->irq +
-                                     cpu->soft_irq + cpu->stolen;
-                        status = SIGAR_OK;
-                        return false;
-                    }
+                    cpu.user = SIGAR_TICK2MSEC(stoull(vec[1]));
+                    cpu.nice = SIGAR_TICK2MSEC(stoull(vec[2]));
+                    cpu.sys = SIGAR_TICK2MSEC(stoull(vec[3]));
+                    cpu.idle = SIGAR_TICK2MSEC(stoull(vec[4]));
+                    cpu.wait = SIGAR_TICK2MSEC(stoull(vec[5]));
+                    cpu.irq = SIGAR_TICK2MSEC(stoull(vec[6]));
+                    cpu.soft_irq = SIGAR_TICK2MSEC(stoull(vec[7]));
+                    cpu.stolen = SIGAR_TICK2MSEC(stoull(vec[8]));
+                    cpu.total = cpu.user + cpu.nice + cpu.sys + cpu.idle +
+                                cpu.wait + cpu.irq + cpu.soft_irq + cpu.stolen;
+                    status = SIGAR_OK;
+                    return false;
+                }
 
-                    return true;
-                },
-                ' ');
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
-    }
+                return true;
+            },
+            ' ');
 
     return status;
 }
@@ -596,101 +564,76 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
     return SIGAR_OK;
 }
 
-int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_mem_t *procmem)
-{
-    memset(procmem, 0, sizeof(*procmem));
-    const auto [status, pstat] = proc_stat_read(sigar, pid);
+int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
+    const auto [status, pstat] = proc_stat_read(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    procmem->minor_faults = pstat.minor_faults;
-    procmem->major_faults = pstat.major_faults;
-    procmem->page_faults =
-        procmem->minor_faults + procmem->major_faults;
+    procmem.minor_faults = pstat.minor_faults;
+    procmem.major_faults = pstat.major_faults;
+    procmem.page_faults = procmem.minor_faults + procmem.major_faults;
 
-    try {
-        sigar_tokenize_file_line_by_line(
-                pid,
-                "statm",
-                [&procmem, sigar](const auto& vec) {
-                    // The format of statm is a single line with the following
-                    // numbers (in pages)
-                    // size resident shared text lib data dirty
-                    if (vec.size() > 2) {
-                        procmem->size =
-                                pageshift(std::stoull(std::string(vec[0])));
-                        procmem->resident =
-                                pageshift(std::stoull(std::string(vec[1])));
-                        procmem->share =
-                                pageshift(std::stoull(std::string(vec[2])));
-                        return false;
-                    }
-                    return true;
-                },
-                ' ');
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
-    }
+    sigar_tokenize_file_line_by_line(
+            pid,
+            "statm",
+            [&procmem, sigar = this](const auto& vec) {
+                // The format of statm is a single line with the following
+                // numbers (in pages)
+                // size resident shared text lib data dirty
+                if (vec.size() > 2) {
+                    procmem.size = pageshift(std::stoull(std::string(vec[0])));
+                    procmem.resident =
+                            pageshift(std::stoull(std::string(vec[1])));
+                    procmem.share = pageshift(std::stoull(std::string(vec[2])));
+                    return false;
+                }
+                return true;
+            },
+            ' ');
 
     return SIGAR_OK;
 }
 
-int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_time_t *proctime)
-{
-    const auto [status, pstat] = proc_stat_read(sigar, pid);
+int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
+    const auto [status, pstat] = proc_stat_read(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    proctime->user = pstat.utime;
-    proctime->sys  = pstat.stime;
-    proctime->total = proctime->user + proctime->sys;
-    proctime->start_time = pstat.start_time;
+    proctime.user = pstat.utime;
+    proctime.sys = pstat.stime;
+    proctime.total = proctime.user + proctime.sys;
+    proctime.start_time = pstat.start_time;
 
     return SIGAR_OK;
 }
 
-int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
-                         sigar_proc_state_t *procstate)
-{
-    const auto [status, pstat] = proc_stat_read(sigar, pid);
+int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
+    const auto [status, pstat] = proc_stat_read(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    memcpy(procstate->name, pstat.name, sizeof(procstate->name));
-    procstate->state = pstat.state;
+    memcpy(procstate.name, pstat.name, sizeof(procstate.name));
+    procstate.state = pstat.state;
+    procstate.ppid = pstat.ppid;
+    procstate.tty = pstat.tty;
+    procstate.priority = pstat.priority;
+    procstate.nice = pstat.nice;
+    procstate.processor = pstat.processor;
 
-    procstate->ppid     = pstat.ppid;
-    procstate->tty      = pstat.tty;
-    procstate->priority = pstat.priority;
-    procstate->nice     = pstat.nice;
-    procstate->processor = pstat.processor;
-
-    try {
-        sigar_tokenize_file_line_by_line(
-                pid,
-                "status",
-                [&procstate](const auto& vec) {
-                    if (vec.size() > 1 && vec.front() == "Threads") {
-                        procstate->threads = std::stoull(std::string(vec[1]));
-                        return false;
-                    }
-                    return true;
-                },
-                ':');
-    } catch (const std::system_error& error) {
-        return error.code().value();
-    } catch (...) {
-        // @todo add a better error code
-        return EINVAL;
-    }
+    sigar_tokenize_file_line_by_line(
+            pid,
+            "status",
+            [&procstate](const auto& vec) {
+                if (vec.size() > 1 && vec.front() == "Threads") {
+                    procstate.threads = std::stoull(std::string(vec[1]));
+                    return false;
+                }
+                return true;
+            },
+            ':');
 
     return SIGAR_OK;
 }

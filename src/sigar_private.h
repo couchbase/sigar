@@ -36,9 +36,34 @@
 
 #include "sigar_cache.h"
 
+struct sigar_proc_time_t {
+    uint64_t start_time, user, sys, total;
+};
+
 struct sigar_t {
 protected:
     sigar_t();
+
+    void mem_calc_ram(sigar_mem_t& mem) {
+        int64_t total = mem.total / 1024, diff;
+        uint64_t lram = (mem.total / (1024 * 1024));
+        int ram = (int)lram; /* must cast after division */
+        int remainder = ram % 8;
+
+        if (remainder > 0) {
+            ram += (8 - remainder);
+        }
+
+        mem.ram = ram;
+
+        diff = total - (mem.actual_free / 1024);
+        mem.used_percent = (double)(diff * 100) / total;
+
+        diff = total - (mem.actual_used / 1024);
+        mem.free_percent = (double)(diff * 100) / total;
+    }
+
+    int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime);
 
 public:
     static sigar_t* New();
@@ -58,6 +83,13 @@ public:
         retval = RegCloseKey(sigar->handle);
 #endif
     }
+
+    int get_memory(sigar_mem_t& mem);
+    int get_swap(sigar_swap_t& swap);
+    int get_cpu(sigar_cpu_t& cpu);
+    int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem);
+    int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);
+    int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate);
 
     char errbuf[256] = {};
     sigar_proc_list_t* pids = nullptr;
@@ -156,16 +188,4 @@ int sigar_proc_list_grow(sigar_proc_list_t *proclist);
     if (proclist->number >= proclist->size) { \
         sigar_proc_list_grow(proclist); \
     }
-
-struct sigar_proc_time_t {
-    uint64_t
-            start_time,
-            user,
-            sys,
-            total;
-};
-
-// Not used externally
-int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_time_t *proctime);
 

@@ -373,8 +373,7 @@ const char* sigar_os_error_string(sigar_t* sigar, int err) {
     return NULL;
 }
 
-SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
-{
+int sigar_t::get_memory(sigar_mem_t& mem) {
     MEMORYSTATUSEX memstat;
     memstat.dwLength = sizeof(memstat);
 
@@ -382,21 +381,20 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
         return GetLastError();
     }
 
-    mem->total = memstat.ullTotalPhys;
-    mem->free  = memstat.ullAvailPhys;
-    mem->used = mem->total - mem->free;
-    mem->actual_free = mem->free;
-    mem->actual_used = mem->used;
+    mem.total = memstat.ullTotalPhys;
+    mem.free = memstat.ullAvailPhys;
+    mem.used = mem.total - mem.free;
+    mem.actual_free = mem.free;
+    mem.actual_used = mem.used;
     /* set actual_{free,used} */
-    get_mem_counters(sigar, NULL, mem);
+    get_mem_counters(this, NULL, &mem);
 
-    sigar_mem_calc_ram(sigar, mem);
+    mem_calc_ram(mem);
 
     return SIGAR_OK;
 }
 
-SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
-{
+int sigar_t::get_swap(sigar_swap_t& swap) {
     MEMORYSTATUSEX memstat;
     memstat.dwLength = sizeof(memstat);
 
@@ -404,20 +402,11 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
         return GetLastError();
     }
 
-    swap->total = memstat.ullTotalPageFile;
-    swap->free  = memstat.ullAvailPageFile;
-    swap->used = swap->total - swap->free;
+    swap.total = memstat.ullTotalPageFile;
+    swap.free = memstat.ullAvailPageFile;
+    swap.used = swap.total - swap.free;
 
-    if (get_mem_counters(sigar, swap, NULL) != SIGAR_OK) {
-        swap->page_in = SIGAR_FIELD_NOTIMPL;
-        swap->page_out = SIGAR_FIELD_NOTIMPL;
-    }
-
-    swap->allocstall = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_dma = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_dma32 = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_normal = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_movable = SIGAR_FIELD_NOTIMPL;
+    get_mem_counters(this, &swap, NULL);
 
     return SIGAR_OK;
 }
@@ -429,17 +418,15 @@ static uint64_t filetime2uint(const FILETIME* val) {
     return ularge.QuadPart;
 }
 
-SIGAR_DECLARE(int) sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
-{
+int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     FILETIME idle, kernel, user;
     if (!GetSystemTimes(&idle, &kernel, &user)) {
         return GetLastError();
     }
-    memset(cpu, 0, sizeof(*cpu));
-    cpu->idle = NS100_2MSEC(filetime2uint(&idle));
-    cpu->sys = NS100_2MSEC(filetime2uint(&kernel)) - cpu->idle;
-    cpu->user = NS100_2MSEC(filetime2uint(&user));
-    cpu->total = cpu->idle + cpu->user + cpu->sys;
+    cpu.idle = NS100_2MSEC(filetime2uint(&idle));
+    cpu.sys = NS100_2MSEC(filetime2uint(&kernel)) - cpu.idle;
+    cpu.user = NS100_2MSEC(filetime2uint(&user));
+    cpu.total = cpu.idle + cpu.user + cpu.sys;
 
     return SIGAR_OK;
 }
@@ -541,20 +528,15 @@ static HANDLE open_process(sigar_pid_t pid)
  * Pretty good explanation of counters:
  * http://www.semack.net/wiki/default.asp?db=SemackNetWiki&o=VirtualMemory
  */
-SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
-                                      sigar_proc_mem_t *procmem)
-{
-    const auto [status, pinfo] = get_proc_info(sigar, pid);
+int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
+    const auto [status, pinfo] = get_proc_info(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    procmem->size     = pinfo.size;     /* "Virtual Bytes" */
-    procmem->resident = pinfo.resident; /* "Working Set" */
-    procmem->share    = SIGAR_FIELD_NOTIMPL;
-    procmem->page_faults  = pinfo.page_faults;
-    procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-    procmem->major_faults = SIGAR_FIELD_NOTIMPL;
+    procmem.size = pinfo.size; /* "Virtual Bytes" */
+    procmem.resident = pinfo.resident; /* "Working Set" */
+    procmem.page_faults = pinfo.page_faults;
 
     return SIGAR_OK;
 }
@@ -564,9 +546,7 @@ SIGAR_DECLARE(int) sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
 #define FILETIME2MSEC(ft) \
         NS100_2MSEC((((long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime))
 
-int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_time_t *proctime)
-{
+int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
     HANDLE proc = open_process(pid);
     FILETIME start_time, exit_time, system_time, user_time;
     int status = ERROR_SUCCESS;
@@ -575,10 +555,8 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
         return GetLastError();
     }
 
-    if (!GetProcessTimes(proc,
-                         &start_time, &exit_time,
-                         &system_time, &user_time))
-    {
+    if (!GetProcessTimes(
+                proc, &start_time, &exit_time, &system_time, &user_time)) {
         status = GetLastError();
     }
 
@@ -589,36 +567,29 @@ int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
     }
 
     if (start_time.dwHighDateTime) {
-        proctime->start_time =
-            sigar_FileTimeToTime(&start_time) / 1000;
-    }
-    else {
-        proctime->start_time = 0;
+        proctime.start_time = sigar_FileTimeToTime(&start_time) / 1000;
+    } else {
+        proctime.start_time = 0;
     }
 
-    proctime->user = FILETIME2MSEC(user_time);
-    proctime->sys  = FILETIME2MSEC(system_time);
-    proctime->total = proctime->user + proctime->sys;
+    proctime.user = FILETIME2MSEC(user_time);
+    proctime.sys = FILETIME2MSEC(system_time);
+    proctime.total = proctime.user + proctime.sys;
 
     return SIGAR_OK;
 }
 
-SIGAR_DECLARE(int) sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
-                                        sigar_proc_state_t *procstate)
-{
-    const auto [status, pinfo] = get_proc_info(sigar, pid);
+int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
+    const auto [status, pinfo] = get_proc_info(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    memcpy(procstate->name, pinfo.name, sizeof(procstate->name));
-    procstate->state = pinfo.state;
-    procstate->ppid = pinfo.ppid;
-    procstate->priority = pinfo.priority;
-    procstate->nice = SIGAR_FIELD_NOTIMPL;
-    procstate->tty =  SIGAR_FIELD_NOTIMPL;
-    procstate->threads = pinfo.threads;
-    procstate->processor = SIGAR_FIELD_NOTIMPL;
+    memcpy(procstate.name, pinfo.name, sizeof(procstate.name));
+    procstate.state = pinfo.state;
+    procstate.ppid = pinfo.ppid;
+    procstate.priority = pinfo.priority;
+    procstate.threads = pinfo.threads;
 
     return SIGAR_OK;
 }

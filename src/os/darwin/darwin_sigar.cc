@@ -107,8 +107,7 @@ static int sigar_vmstat(sigar_t *sigar, vm_statistics_data_t *vmstat)
     }
 }
 
-int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
-{
+int sigar_t::get_memory(sigar_mem_t& mem) {
     uint64_t kern = 0;
     vm_statistics_data_t vmstat;
     uint64_t mem_total;
@@ -119,8 +118,8 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
     mib[0] = CTL_HW;
 
     mib[1] = HW_PAGESIZE;
-    len = sizeof(sigar->pagesize);
-    if (sysctl(mib, NMIB(mib), &sigar->pagesize, &len, NULL, 0) < 0) {
+    len = sizeof(pagesize);
+    if (sysctl(mib, NMIB(mib), &pagesize, &len, NULL, 0) < 0) {
         return errno;
     }
 
@@ -130,23 +129,22 @@ int sigar_mem_get(sigar_t *sigar, sigar_mem_t *mem)
         return errno;
     }
 
-    mem->total = mem_total;
+    mem.total = mem_total;
 
-    if ((status = sigar_vmstat(sigar, &vmstat)) != SIGAR_OK) {
+    if ((status = sigar_vmstat(this, &vmstat)) != SIGAR_OK) {
         return status;
     }
 
-    mem->free = vmstat.free_count;
-    mem->free *= sigar->pagesize;
+    mem.free = vmstat.free_count;
+    mem.free *= pagesize;
     kern = vmstat.inactive_count;
-    kern *= sigar->pagesize;
+    kern *= pagesize;
 
-    mem->used = mem->total - mem->free;
+    mem.used = mem.total - mem.free;
 
-    mem->actual_free = mem->free + kern;
-    mem->actual_used = mem->used - kern;
-
-    sigar_mem_calc_ram(sigar, mem);
+    mem.actual_free = mem.free + kern;
+    mem.actual_used = mem.used - kern;
+    mem_calc_ram(mem);
 
     return SIGAR_OK;
 }
@@ -238,57 +236,46 @@ static int sigar_swap_sysctl_get(sigar_t *sigar, sigar_swap_t *swap)
     return SIGAR_OK;
 }
 
-int sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap)
-{
+int sigar_t::get_swap(sigar_swap_t& swap) {
     int status;
     vm_statistics_data_t vmstat;
 
-    if (sigar_swap_sysctl_get(sigar, swap) != SIGAR_OK) {
-        status = sigar_swap_fs_get(sigar, swap); /* <= 10.3 */
+    if (sigar_swap_sysctl_get(this, &swap) != SIGAR_OK) {
+        status = sigar_swap_fs_get(this, &swap); /* <= 10.3 */
         if (status != SIGAR_OK) {
             return status;
         }
     }
 
-    if ((status = sigar_vmstat(sigar, &vmstat)) != SIGAR_OK) {
+    if ((status = sigar_vmstat(this, &vmstat)) != SIGAR_OK) {
         return status;
     }
-    swap->page_in = vmstat.pageins;
-    swap->page_out = vmstat.pageouts;
-
-    swap->allocstall = -1;
-    swap->allocstall_dma = -1;
-    swap->allocstall_dma32 = -1;
-    swap->allocstall_normal = -1;
-    swap->allocstall_movable = -1;
+    swap.page_in = vmstat.pageins;
+    swap.page_out = vmstat.pageouts;
 
     return SIGAR_OK;
 }
 
 typedef unsigned long cp_time_t;
 
-int sigar_cpu_get(sigar_t *sigar, sigar_cpu_t *cpu)
-{
+int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     kern_return_t status;
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
     host_cpu_load_info_data_t cpuload;
 
-    status = host_statistics(sigar->mach_port, HOST_CPU_LOAD_INFO,
+    status = host_statistics(mach_port, HOST_CPU_LOAD_INFO,
                              (host_info_t)&cpuload, &count);
 
     if (status != KERN_SUCCESS) {
         return errno;
     }
 
-    cpu->user = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_USER]);
-    cpu->sys  = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_SYSTEM]);
-    cpu->idle = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_IDLE]);
-    cpu->nice = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_NICE]);
-    cpu->wait = 0; /*N/A*/
-    cpu->irq = 0; /*N/A*/
-    cpu->soft_irq = 0; /*N/A*/
-    cpu->stolen = 0; /*N/A*/
-    cpu->total = cpu->user + cpu->nice + cpu->sys + cpu->idle;
+    sigar_t* sigar = this;
+    cpu.user = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_USER]);
+    cpu.sys = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_SYSTEM]);
+    cpu.idle = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_IDLE]);
+    cpu.nice = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_NICE]);
+    cpu.total = cpu.user + cpu.nice + cpu.sys + cpu.idle;
 
     return SIGAR_OK;
 }
@@ -452,9 +439,7 @@ static mach_vm_size_t sigar_shared_region_size(cpu_type_t type)
     }
 }
 
-int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
-                       sigar_proc_mem_t *procmem)
-{
+int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     mach_port_t task, self = mach_task_self();
     kern_return_t status;
     task_basic_info_data_t info;
@@ -465,12 +450,9 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
 
     int sz = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
     if (sz == sizeof(pti)) {
-        procmem->size         = pti.pti_virtual_size;
-        procmem->resident     = pti.pti_resident_size;
-        procmem->page_faults  = pti.pti_faults;
-        procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-        procmem->major_faults = SIGAR_FIELD_NOTIMPL;
-        procmem->share        = SIGAR_FIELD_NOTIMPL;
+        procmem.size = pti.pti_virtual_size;
+        procmem.resident = pti.pti_resident_size;
+        procmem.page_faults = pti.pti_faults;
 
         sz = proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
         if (sz == sizeof(pri)) {
@@ -478,20 +460,19 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
                 mach_vm_size_t shared_size;
                 cpu_type_t cpu_type;
 
-                if (sigar_proc_cpu_type(sigar, pid, &cpu_type) == SIGAR_OK) {
+                if (sigar_proc_cpu_type(this, pid, &cpu_type) == SIGAR_OK) {
                     shared_size = sigar_shared_region_size(cpu_type);
+                } else {
+                    shared_size =
+                            SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
                 }
-                else {
-                    shared_size = SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
-                }
-                if (procmem->size > shared_size) {
-                    procmem->size -= shared_size; /* SIGAR-123 */
+                if (procmem.size > shared_size) {
+                    procmem.size -= shared_size; /* SIGAR-123 */
                 }
             }
         }
         return SIGAR_OK;
     }
-
 
     status = task_for_pid(self, pid, &task);
 
@@ -508,22 +489,15 @@ int sigar_proc_mem_get(sigar_t *sigar, sigar_pid_t pid,
     count = TASK_EVENTS_INFO_COUNT;
     status = task_info(task, TASK_EVENTS_INFO, (task_info_t)&events, &count);
     if (status == KERN_SUCCESS) {
-        procmem->page_faults = events.faults;
+        procmem.page_faults = events.faults;
     }
-    else {
-        procmem->page_faults = SIGAR_FIELD_NOTIMPL;
-    }
-
-    procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-    procmem->major_faults = SIGAR_FIELD_NOTIMPL;
 
     if (task != self) {
         mach_port_deallocate(self, task);
     }
 
-    procmem->size     = info.virtual_size;
-    procmem->resident = info.resident_size;
-    procmem->share    = SIGAR_FIELD_NOTIMPL;
+    procmem.size = info.virtual_size;
+    procmem.resident = info.resident_size;
 
     return SIGAR_OK;
 }
@@ -594,20 +568,18 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     return SIGAR_OK;
 }
 
-int sigar_proc_time_get(sigar_t *sigar, sigar_pid_t pid,
-                        sigar_proc_time_t *proctime)
-{
-    const auto [status, pinfo] = sigar_get_pinfo(sigar, pid);
+int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
+    const auto [status, pinfo] = sigar_get_pinfo(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    int st = get_proc_times(sigar, pid, proctime);
+    int st = get_proc_times(this, pid, &proctime);
     if (st != SIGAR_OK) {
         return st;
     }
 
-    proctime->start_time = tv2msec(pinfo.KI_START);
+    proctime.start_time = tv2msec(pinfo.KI_START);
     return SIGAR_OK;
 }
 
@@ -683,50 +655,45 @@ static int sigar_proc_threads_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-int sigar_proc_state_get(sigar_t *sigar, sigar_pid_t pid,
-                         sigar_proc_state_t *procstate)
-{
-    const auto [status, pinfo] = sigar_get_pinfo(sigar, pid);
+int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
+    const auto [status, pinfo] = sigar_get_pinfo(this, pid);
     if (status != SIGAR_OK) {
         return status;
     }
     int state = pinfo.KI_STAT;
 
-    SIGAR_SSTRCPY(procstate->name, pinfo.KI_COMM);
-    procstate->ppid = pinfo.KI_PPID;
-    procstate->priority = pinfo.KI_PRI;
-    procstate->nice = pinfo.KI_NICE;
-    procstate->tty      = SIGAR_FIELD_NOTIMPL; /*XXX*/
-    procstate->threads  = SIGAR_FIELD_NOTIMPL;
-    procstate->processor = SIGAR_FIELD_NOTIMPL;
+    SIGAR_SSTRCPY(procstate.name, pinfo.KI_COMM);
+    procstate.ppid = pinfo.KI_PPID;
+    procstate.priority = pinfo.KI_PRI;
+    procstate.nice = pinfo.KI_NICE;
 
-    auto st = sigar_proc_threads_get(sigar, pid, procstate);
+    auto st = sigar_proc_threads_get(this, pid, &procstate);
     if (st == SIGAR_OK) {
         return st;
     }
 
     switch (state) {
       case SIDL:
-        procstate->state = 'D';
-        break;
+          procstate.state = 'D';
+          break;
       case SRUN:
 #ifdef SONPROC
       case SONPROC:
 #endif
-        procstate->state = 'R';
-        break;
+          procstate.state = 'R';
+          break;
       case SSLEEP:
-        procstate->state = 'S';
-        break;
+          procstate.state = 'S';
+          break;
       case SSTOP:
-        procstate->state = 'T';
-        break;
+          procstate.state = 'T';
+          break;
       case SZOMB:
-        procstate->state = 'Z';
-        break;
+          procstate.state = 'Z';
+          break;
       default:
-        procstate->state = '?';
-        break;
+          procstate.state = '?';
+          break;
     }
 
     return SIGAR_OK;

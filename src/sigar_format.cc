@@ -26,8 +26,8 @@
 #define _POSIX_C_SOURCE 200112L
 #endif
 #endif
-#include <string.h>
-#include <errno.h>
+#include <cstring>
+#include <cerrno>
 
 #include "sigar.h"
 #include "sigar_private.h"

@@ -26,8 +26,7 @@
 #include "sigar_util.h"
 #include "sigar_os.h"
 
-SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
-{
+SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     int status = sigar_os_open(sigar);
 
     if (status == SIGAR_OK) {
@@ -39,8 +38,7 @@ SIGAR_DECLARE(int) sigar_open(sigar_t **sigar)
     return status;
 }
 
-SIGAR_DECLARE(int) sigar_close(sigar_t *sigar)
-{
+SIGAR_DECLARE(int) sigar_close(sigar_t* sigar) {
     if (sigar->self_path) {
         free(sigar->self_path);
     }
@@ -55,8 +53,7 @@ SIGAR_DECLARE(int) sigar_close(sigar_t *sigar)
     return sigar_os_close(sigar);
 }
 
-SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t *sigar)
-{
+SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t* sigar) {
     // There isn't much point of trying to cache the pid (it would break
     // if the paren't ever called fork()). We don't use the variable
     // internally, and if the caller don't want the overhead of a system
@@ -66,11 +63,10 @@ SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t *sigar)
 
 /* XXX: add clear() function */
 /* XXX: check for stale-ness using start_time */
-SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
-                                      sigar_proc_cpu_t *proccpu)
-{
-    sigar_cache_entry_t *entry;
-    sigar_proc_cpu_t *prev;
+SIGAR_DECLARE(int)
+sigar_proc_cpu_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_cpu_t* proccpu) {
+    sigar_cache_entry_t* entry;
+    sigar_proc_cpu_t* prev;
     uint64_t otime, time_now = sigar_time_now_millis();
     uint64_t time_diff, total_diff;
     int status;
@@ -81,10 +77,10 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
 
     entry = sigar_cache_get(sigar->proc_cpu, pid);
     if (entry->value) {
-        prev = (sigar_proc_cpu_t *)entry->value;
-    }
-    else {
-        prev = entry->value = malloc(sizeof(*prev));
+        prev = (sigar_proc_cpu_t*)entry->value;
+    } else {
+        prev = static_cast<sigar_proc_cpu_t*>(entry->value =
+                                                      malloc(sizeof(*prev)));
         SIGAR_ZERO(prev);
     }
 
@@ -99,9 +95,7 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
 
     otime = prev->total;
 
-    status =
-        sigar_proc_time_get(sigar, pid,
-                            (sigar_proc_time_t *)proccpu);
+    status = sigar_proc_time_get(sigar, pid, (sigar_proc_time_t*)proccpu);
 
     if (status != SIGAR_OK) {
         return status;
@@ -125,28 +119,26 @@ SIGAR_DECLARE(int) sigar_proc_cpu_get(sigar_t *sigar, sigar_pid_t pid,
     return SIGAR_OK;
 }
 
-int sigar_proc_list_create(sigar_proc_list_t *proclist)
-{
+int sigar_proc_list_create(sigar_proc_list_t* proclist) {
     proclist->number = 0;
     proclist->size = SIGAR_PROC_LIST_MAX;
-    proclist->data = malloc(sizeof(*(proclist->data)) *
-                            proclist->size);
+    proclist->data = static_cast<sigar_pid_t*>(
+            malloc(sizeof(*(proclist->data)) * proclist->size));
     return SIGAR_OK;
 }
 
-int sigar_proc_list_grow(sigar_proc_list_t *proclist)
-{
-    proclist->data = realloc(proclist->data,
-                             sizeof(*(proclist->data)) *
-                             (proclist->size + SIGAR_PROC_LIST_MAX));
+int sigar_proc_list_grow(sigar_proc_list_t* proclist) {
+    proclist->data = static_cast<sigar_pid_t*>(
+            realloc(proclist->data,
+                    sizeof(*(proclist->data)) *
+                            (proclist->size + SIGAR_PROC_LIST_MAX)));
     proclist->size += SIGAR_PROC_LIST_MAX;
 
     return SIGAR_OK;
 }
 
-SIGAR_DECLARE(int) sigar_proc_list_destroy(sigar_t *sigar,
-                                           sigar_proc_list_t *proclist)
-{
+SIGAR_DECLARE(int)
+sigar_proc_list_destroy(sigar_t* sigar, sigar_proc_list_t* proclist) {
     if (proclist->size) {
         free(proclist->data);
         proclist->number = proclist->size = 0;
@@ -155,21 +147,19 @@ SIGAR_DECLARE(int) sigar_proc_list_destroy(sigar_t *sigar,
     return SIGAR_OK;
 }
 
-SIGAR_DECLARE(int) sigar_proc_list_get(sigar_t *sigar,
-                                       sigar_proc_list_t *proclist)
-{
+SIGAR_DECLARE(int)
+sigar_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
     if (proclist == NULL) {
         /* internal re-use */
         if (sigar->pids == NULL) {
-            sigar->pids = malloc(sizeof(*sigar->pids));
+            sigar->pids = static_cast<sigar_proc_list_t*>(
+                    malloc(sizeof(*sigar->pids)));
             sigar_proc_list_create(sigar->pids);
-        }
-        else {
+        } else {
             sigar->pids->number = 0;
         }
         proclist = sigar->pids;
-    }
-    else {
+    } else {
         sigar_proc_list_create(proclist);
     }
 
@@ -183,7 +173,8 @@ sigar_proc_list_get_children(sigar_t* sigar,
     if (proclist == NULL) {
         /* internal re-use */
         if (sigar->pids == NULL) {
-            sigar->pids = malloc(sizeof(*sigar->pids));
+            sigar->pids = static_cast<sigar_proc_list_t*>(
+                    malloc(sizeof(*sigar->pids)));
             sigar_proc_list_create(sigar->pids);
         } else {
             sigar->pids->number = 0;
@@ -196,20 +187,19 @@ sigar_proc_list_get_children(sigar_t* sigar,
     return sigar_os_proc_list_get_children(sigar, ppid, proclist);
 }
 
-int sigar_proc_args_create(sigar_proc_args_t *procargs)
-{
+int sigar_proc_args_create(sigar_proc_args_t* procargs) {
     procargs->number = 0;
     procargs->size = SIGAR_PROC_ARGS_MAX;
-    procargs->data = malloc(sizeof(*(procargs->data)) *
-                            procargs->size);
+    procargs->data = static_cast<char**>(
+            malloc(sizeof(*(procargs->data)) * procargs->size));
     return SIGAR_OK;
 }
 
-int sigar_proc_args_grow(sigar_proc_args_t *procargs)
-{
-    procargs->data = realloc(procargs->data,
-                             sizeof(*(procargs->data)) *
-                             (procargs->size + SIGAR_PROC_ARGS_MAX));
+int sigar_proc_args_grow(sigar_proc_args_t* procargs) {
+    procargs->data = static_cast<char**>(
+            realloc(procargs->data,
+                    sizeof(*(procargs->data)) *
+                            (procargs->size + SIGAR_PROC_ARGS_MAX)));
     procargs->size += SIGAR_PROC_ARGS_MAX;
 
     return SIGAR_OK;

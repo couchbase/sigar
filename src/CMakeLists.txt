@@ -3,7 +3,7 @@
 INCLUDE_DIRECTORIES(../include/)
 
 SET(SIGAR_COMMON_SRC
-    sigar.c
+    sigar.cc
     sigar_cache.c
     sigar_format.cc
     sigar_util.cc

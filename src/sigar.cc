@@ -18,13 +18,13 @@
 
 #include <stdio.h>
 #include <system_error>
+#include <chrono>
 #ifdef WIN32
 #include <process.h>
 #endif
 
 #include "sigar.h"
 #include "sigar_private.h"
-#include "sigar_util.h"
 
 SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     try {
@@ -125,6 +125,13 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
     } catch (...) {
         return EINVAL;
     }
+}
+
+static uint64_t sigar_time_now_millis() {
+    auto now = std::chrono::system_clock::now();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   now.time_since_epoch())
+            .count();
 }
 
 int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {

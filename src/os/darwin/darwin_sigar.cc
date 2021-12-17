@@ -18,7 +18,6 @@
 
 #include "sigar.h"
 #include "sigar_private.h"
-#include "sigar_util.h"
 
 #include <dirent.h>
 #include <errno.h>

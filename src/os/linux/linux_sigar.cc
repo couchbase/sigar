@@ -33,7 +33,6 @@
 
 #include "sigar.h"
 #include "sigar_private.h"
-#include "sigar_util.h"
 
 #define pageshift(x) ((x) << sigar->pagesize)
 

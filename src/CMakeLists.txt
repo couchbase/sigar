@@ -5,9 +5,7 @@ INCLUDE_DIRECTORIES(../include/)
 SET(SIGAR_COMMON_SRC
     sigar.cc
     sigar_format.cc
-    sigar_util.cc
     sigar_private.h
-    sigar_util.h
     )
 
 ## linux

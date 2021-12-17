@@ -110,6 +110,9 @@ public:
 #endif
 };
 
+#define SSTRLEN(s) \
+    (sizeof(s)-1)
+
 #define SIGAR_ZERO(s) \
     memset(s, '\0', sizeof(*(s)))
 

@@ -20,7 +20,6 @@
 #include "sigar_private.h"
 #include "sigar_pdh.h"
 #include "sigar_os.h"
-#include "sigar_util.h"
 #include <shellapi.h>
 #include <assert.h>
 #include <stdio.h>

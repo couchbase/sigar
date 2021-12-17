@@ -33,8 +33,6 @@
 #include <tlhelp32.h>
 #include <stdint.h>
 
-#include "sigar_util.h"
-
 #ifndef __GNUC__
 /* see apr/include/arch/win32/atime.h */
 #define EPOCH_DELTA INT64_C(11644473600000000)

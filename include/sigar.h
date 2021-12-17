@@ -40,14 +40,6 @@ extern "C" {
 
 #define SIGAR_DECLARE(type) SIGAR_PUBLIC_API type
 
-#if defined(PATH_MAX)
-#   define SIGAR_PATH_MAX PATH_MAX
-#elif defined(MAXPATHLEN)
-#   define SIGAR_PATH_MAX MAXPATHLEN
-#else
-#   define SIGAR_PATH_MAX 4096
-#endif
-
 #ifdef WIN32
 typedef uint64_t sigar_pid_t;
 #else

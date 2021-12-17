@@ -17,6 +17,8 @@
  */
 #pragma once
 
+#include <sigar.h>
+
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
@@ -33,8 +35,7 @@
 #ifdef __APPLE__
 #include <mach/mach_port.h>
 #endif
-
-#include "sigar_cache.h"
+#include <unordered_map>
 
 struct sigar_proc_time_t {
     uint64_t start_time, user, sys, total;
@@ -73,9 +74,6 @@ public:
             sigar_proc_list_destroy(this, pids);
             free(pids);
         }
-        if (proc_cpu) {
-            sigar_cache_destroy(proc_cpu);
-        }
 #ifdef __WIN32__
         if (perfbuf) {
             free(perfbuf);
@@ -93,7 +91,7 @@ public:
 
     char errbuf[256] = {};
     sigar_proc_list_t* pids = nullptr;
-    sigar_cache_t* proc_cpu = nullptr;
+    std::unordered_map<sigar_pid_t, sigar_proc_cpu_t> process_cache;
 #ifdef __linux__
     unsigned long boot_time = 0;
     int pagesize = 0;

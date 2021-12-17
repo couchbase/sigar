@@ -127,59 +127,37 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
     }
 }
 
-/* XXX: add clear() function */
-/* XXX: check for stale-ness using start_time */
 int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {
-    sigar_cache_entry_t* entry;
-    sigar_proc_cpu_t* prev;
-    uint64_t otime, time_now = sigar_time_now_millis();
-    uint64_t time_diff, total_diff;
-    int status;
-
-    if (!proc_cpu) {
-        proc_cpu = sigar_cache_new(128);
+    const auto time_now = sigar_time_now_millis();
+    sigar_proc_cpu_t prev = {};
+    auto iter = process_cache.find(pid);
+    const bool found = iter != process_cache.end();
+    if (!found) {
+        prev = iter->second;
     }
 
-    entry = sigar_cache_get(proc_cpu, pid);
-    if (entry->value) {
-        prev = (sigar_proc_cpu_t*)entry->value;
-    } else {
-        prev = static_cast<sigar_proc_cpu_t*>(entry->value =
-                                                      malloc(sizeof(*prev)));
-        SIGAR_ZERO(prev);
-    }
-
-    time_diff = time_now - prev->last_time;
-    proccpu.last_time = time_now;
-
-    if (time_diff < 1000) {
-        /* we were just called within < 1 second ago. */
-        proccpu = *prev;
-        return SIGAR_OK;
-    }
-
-    otime = prev->total;
-
-    status = get_proc_time(pid, *(sigar_proc_time_t*)&proccpu);
-
+    auto status = get_proc_time(pid, *(sigar_proc_time_t*)&proccpu);
     if (status != SIGAR_OK) {
+        if (found) {
+            process_cache.erase(iter);
+        }
         return status;
     }
 
-    if (proccpu.total < otime) {
-        /* XXX this should not happen */
-        otime = 0;
+    proccpu.last_time = time_now;
+    if (!found || (prev.start_time != proccpu.start_time)) {
+        // This is a new process or a different process we have in the cache
+        process_cache[pid] = proccpu;
+        return SIGAR_OK;
     }
 
-    if (otime == 0) {
-        /* first time called */
-        proccpu.percent = 0.0;
-    } else {
-        total_diff = proccpu.total - otime;
-        proccpu.percent = total_diff / (double)time_diff;
+    auto time_diff = time_now - prev.last_time;
+    if (!time_diff) {
+        // we don't want divide by zero
+        time_diff = 1;
     }
-
-    memcpy(prev, &proccpu, sizeof(*prev));
+    proccpu.percent = (proccpu.total - prev.total) / (double)time_diff;
+    process_cache[pid] = proccpu;
 
     return SIGAR_OK;
 }

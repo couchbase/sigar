@@ -133,19 +133,6 @@ public:
 #define strnEQ(s1, s2, n) (strncmp(s1, s2, n) == 0)
 #endif
 
-#ifdef WIN32
-#define strcasecmp stricmp
-#define strncasecmp strnicmp
-#endif
-
-#ifndef strcaseEQ
-#define strcaseEQ(s1, s2) (strcasecmp(s1, s2) == 0)
-#endif
-
-#ifndef strncaseEQ
-#define strncaseEQ(s1, s2, n) (strncasecmp(s1, s2, n) == 0)
-#endif
-
 #define SIGAR_MSEC 1000L
 #define SIGAR_USEC 1000000L
 #define SIGAR_NSEC 1000000000L
@@ -164,13 +151,7 @@ public:
 #define SIGAR_NSEC2MSEC(s) \
    ((uint64_t)(s) / ((uint64_t)1000000L))
 
-#define SIGAR_CPU_INFO_MAX 4
-
-#define SIGAR_CPU_LIST_MAX 4
-
 #define SIGAR_PROC_LIST_MAX 256
-
-#define SIGAR_PROC_ARGS_MAX 12
 
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);

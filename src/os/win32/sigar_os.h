@@ -52,6 +52,3 @@
     (lpa[0] = '\0', WideCharToMultiByte(CP_ACP, 0, \
                                         lpw, -1, (LPSTR)lpa, chars, \
                                         NULL, NULL))
-
-
-#define SIGAR_NO_SUCH_PROCESS (SIGAR_OS_START_ERROR+1)

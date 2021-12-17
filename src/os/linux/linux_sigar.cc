@@ -245,10 +245,6 @@ sigar_t* sigar_t::New() {
     return new sigar_t;
 }
 
-const char* sigar_os_error_string(sigar_t* sigar, int err) {
-    return nullptr;
-}
-
 static uint64_t stoull(std::string_view value) {
     auto pos = value.find_first_not_of(' ');
     if (pos != std::string_view::npos) {

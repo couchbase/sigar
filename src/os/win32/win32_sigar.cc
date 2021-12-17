@@ -364,14 +364,6 @@ sigar_t* sigar_t::New() {
     return new sigar_t;
 }
 
-const char* sigar_os_error_string(sigar_t* sigar, int err) {
-    switch (err) {
-      case SIGAR_NO_SUCH_PROCESS:
-        return "No such process";
-    }
-    return NULL;
-}
-
 int sigar_t::get_memory(sigar_mem_t& mem) {
     MEMORYSTATUSEX memstat;
     memstat.dwLength = sizeof(memstat);

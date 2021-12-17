@@ -172,8 +172,6 @@ public:
 
 #define SIGAR_PROC_ARGS_MAX 12
 
-const char* sigar_os_error_string(sigar_t* sigar, int err);
-
 int sigar_os_proc_list_get(sigar_t *sigar,
                            sigar_proc_list_t *proclist);
 

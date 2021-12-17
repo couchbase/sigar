@@ -76,10 +76,6 @@ sigar_t* sigar_t::New() {
     return new sigar_t;
 }
 
-const char* sigar_os_error_string(sigar_t*, int) {
-    return nullptr;
-}
-
 static int sigar_vmstat(sigar_t *sigar, vm_statistics_data_t *vmstat)
 {
     kern_return_t status;

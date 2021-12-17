@@ -34,9 +34,11 @@
 
 static const char* sigar_error_string(int err) {
     switch (err) {
-      case SIGAR_ENOTIMPL:
+    case SIGAR_ENOTIMPL:
         return "This function has not been implemented on this platform";
-      default:
+    case SIGAR_NO_SUCH_PROCESS:
+        return "No such process";
+    default:
         return "Error string not specified yet";
     }
 }
@@ -64,14 +66,6 @@ static const char* sigar_strerror_get(int err, char* errbuf, int buflen) {
 SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err) {
     if (err < 0) {
         return sigar->errbuf;
-    }
-
-    if (err > SIGAR_OS_START_ERROR) {
-        const char* buf = sigar_os_error_string(sigar, err);
-        if (buf) {
-            return buf;
-        }
-        return "Unknown OS Error"; /* should never happen */
     }
 
     if (err > SIGAR_START_ERROR) {

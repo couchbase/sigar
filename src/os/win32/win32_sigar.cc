@@ -427,7 +427,7 @@ int sigar_t::get_cpu(sigar_cpu_t& cpu) {
 #define get_process_object(sigar, err) \
     get_perf_object(sigar, PERF_TITLE_PROC_KEY, err)
 
-int sigar_os_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
+static int sigar_os_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
     DWORD retval, *pids;
     DWORD size = 0, i;
 

@@ -265,50 +265,6 @@ int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     return SIGAR_OK;
 }
 
-int sigar_os_proc_list_get(sigar_t *sigar,
-                           sigar_proc_list_t *proclist)
-{
-    int mib[4] = { CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0 };
-    int i, num;
-    size_t len;
-    struct kinfo_proc *proc;
-
-    if (sysctl(mib, NMIB(mib), NULL, &len, NULL, 0) < 0) {
-        return errno;
-    }
-
-    proc = (kinfo_proc *)malloc(len);
-
-    if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
-        free(proc);
-        return errno;
-    }
-
-    num = len/sizeof(*proc);
-
-    uid_t me = getuid();
-
-    for (i=0; i<num; i++) {
-        if (proc[i].KI_FLAG & P_SYSTEM) {
-            continue;
-        }
-        if (proc[i].KI_PID == 0) {
-            continue;
-        }
-
-        if (proc[i].KI_UID != me) {
-            continue;
-        }
-
-        SIGAR_PROC_LIST_GROW(proclist);
-        proclist->data[proclist->number++] = proc[i].KI_PID;
-    }
-
-    free(proc);
-
-    return SIGAR_OK;
-}
-
 static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
                                             int nproc,
                                             pid_t pid) {

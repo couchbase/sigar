@@ -198,25 +198,6 @@ sigar_proc_list_destroy(sigar_t* sigar, sigar_proc_list_t* proclist) {
 }
 
 SIGAR_DECLARE(int)
-sigar_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
-    if (proclist == NULL) {
-        /* internal re-use */
-        if (sigar->pids == NULL) {
-            sigar->pids = static_cast<sigar_proc_list_t*>(
-                    malloc(sizeof(*sigar->pids)));
-            sigar_proc_list_create(sigar->pids);
-        } else {
-            sigar->pids->number = 0;
-        }
-        proclist = sigar->pids;
-    } else {
-        sigar_proc_list_create(proclist);
-    }
-
-    return sigar_os_proc_list_get(sigar, proclist);
-}
-
-SIGAR_DECLARE(int)
 sigar_proc_list_get_children(sigar_t* sigar,
                              sigar_pid_t ppid,
                              sigar_proc_list_t* proclist) {

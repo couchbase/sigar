@@ -404,33 +404,6 @@ int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     return status;
 }
 
-int sigar_os_proc_list_get(sigar_t *sigar,
-                           sigar_proc_list_t *proclist)
-{
-    DIR* dirp = opendir(PROC_FS_ROOT);
-    struct dirent *ent;
-
-    if (!dirp) {
-        return errno;
-    }
-
-    while ((ent = readdir(dirp)) != nullptr) {
-        if (!sigar_isdigit(*ent->d_name)) {
-            continue;
-        }
-
-        /* XXX: more sanity checking */
-
-        SIGAR_PROC_LIST_GROW(proclist);
-
-        proclist->data[proclist->number++] = strtoul(ent->d_name, nullptr, 10);
-    }
-
-    closedir(dirp);
-
-    return SIGAR_OK;
-}
-
 static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
 {
     char buffer[BUFSIZ], *ptr=buffer, *tmp;

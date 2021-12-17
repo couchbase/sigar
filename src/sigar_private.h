@@ -153,9 +153,6 @@ public:
 
 #define SIGAR_PROC_LIST_MAX 256
 
-int sigar_os_proc_list_get(sigar_t *sigar,
-                           sigar_proc_list_t *proclist);
-
 int sigar_os_proc_list_get_children(sigar_t* sigar,
                                     sigar_pid_t ppid,
                                     sigar_proc_list_t* proclist);

@@ -93,16 +93,44 @@ TEST_F(Sigar, test_sigar_pid_get) {
     ASSERT_NE(0, pid);
 }
 
-TEST_F(Sigar, test_sigar_proc_list_get) {
-    sigar_proc_list_t proclist;
-    int ret = sigar_proc_list_get(instance, &proclist);
+TEST_F(Sigar, test_sigar_swap_get) {
+    sigar_swap_t swap;
+
+    const auto ret = sigar_swap_get(instance, &swap);
     ASSERT_EQ(SIGAR_OK, ret)
-            << "sigar_proc_list_get: " << sigar_strerror(instance, ret);
+            << "sigar_swap_get: " << sigar_strerror(instance, ret);
+    ASSERT_EQ(swap.total, swap.used + swap.free);
+}
 
-    ASSERT_LT(0, proclist.number);
+TEST_F(Sigar, test_sigar_proc_list_get_children) {
+    auto binary = boost::filesystem::current_path() / "sigar_tests_child";
+    auto directory = boost::filesystem::path(
+            cb::io::mkdtemp((boost::filesystem::current_path() / "sigar_tests")
+                                    .generic_string()));
+    std::vector<std::string> cmdline = {{binary.generic_string(),
+                                         "--directory",
+                                         directory.generic_string(),
+                                         "--create-child=5"}};
+    auto child = ProcessMonitor::create(cmdline, [](const auto&) {});
 
-    for (unsigned long ii = 0; ii < proclist.number; ii++) {
-        sigar_pid_t pid = proclist.data[ii];
+    // Wait until they're all running
+    std::vector<std::string> files;
+    while (files.size() < 6) {
+        // check if any processes died!
+        files = cb::io::findFilesContaining(directory.generic_string(), "pid");
+    }
+
+    // We've got all of the processes running.. now lets check if sigar gives me
+    // 6 processes
+    sigar_proc_list_t proc_list;
+    auto ret = sigar_proc_list_get_children(instance, getpid(), &proc_list);
+    ASSERT_EQ(SIGAR_OK, ret)
+            << "sigar_proc_list_get_children: " << sigar_strerror(instance, ret);
+
+    EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
+
+    for (unsigned long ii = 0; ii < proc_list.number; ii++) {
+        sigar_pid_t pid = proc_list.data[ii];
         sigar_proc_mem_t proc_mem;
         sigar_proc_state_t proc_state;
 
@@ -139,44 +167,6 @@ TEST_F(Sigar, test_sigar_proc_list_get) {
 #endif
     }
 
-    sigar_proc_list_destroy(instance, &proclist);
-}
-
-TEST_F(Sigar, test_sigar_swap_get) {
-    sigar_swap_t swap;
-
-    const auto ret = sigar_swap_get(instance, &swap);
-    ASSERT_EQ(SIGAR_OK, ret)
-            << "sigar_swap_get: " << sigar_strerror(instance, ret);
-    ASSERT_EQ(swap.total, swap.used + swap.free);
-}
-
-TEST_F(Sigar, test_sigar_proc_list_get_children) {
-    auto binary = boost::filesystem::current_path() / "sigar_tests_child";
-    auto directory = boost::filesystem::path(
-            cb::io::mkdtemp((boost::filesystem::current_path() / "sigar_tests")
-                                    .generic_string()));
-    std::vector<std::string> cmdline = {{binary.generic_string(),
-                                         "--directory",
-                                         directory.generic_string(),
-                                         "--create-child=5"}};
-    auto child = ProcessMonitor::create(cmdline, [](const auto&) {});
-
-    // Wait until they're all running
-    std::vector<std::string> files;
-    while (files.size() < 6) {
-        // check if any processes died!
-        files = cb::io::findFilesContaining(directory.generic_string(), "pid");
-    }
-
-    // We've got all of the processes running.. now lets check if sigar gives me
-    // 6 processes
-    sigar_proc_list_t proc_list;
-    const auto ret = sigar_proc_list_get_children(instance, getpid(), &proc_list);
-    ASSERT_EQ(SIGAR_OK, ret)
-            << "sigar_proc_list_get_children: " << sigar_strerror(instance, ret);
-
-    EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
     sigar_proc_list_destroy(instance, &proc_list);
     remove_all(directory);
 

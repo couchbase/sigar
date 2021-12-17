@@ -118,9 +118,6 @@ typedef struct {
     sigar_pid_t *data;
 } sigar_proc_list_t;
 
-SIGAR_DECLARE(int) sigar_proc_list_get(sigar_t *sigar,
-                                       sigar_proc_list_t *proclist);
-
 SIGAR_DECLARE(int)
 sigar_proc_list_get_children(sigar_t* sigar,
                              sigar_pid_t ppid,

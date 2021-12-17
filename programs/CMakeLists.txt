@@ -4,6 +4,3 @@ ADD_EXECUTABLE(sigar_port sigar_port.c)
 TARGET_LINK_LIBRARIES(sigar_port sigar)
 
 INSTALL(TARGETS sigar_port RUNTIME DESTINATION bin)
-
-ADD_EXECUTABLE(pchilds pchilds.c)
-TARGET_LINK_LIBRARIES(pchilds sigar)

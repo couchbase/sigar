@@ -66,9 +66,6 @@
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
 #define SIGAR_PROC_STATE_IDLE   'D'
 
-#define SIGAR_EPERM_KMEM (SIGAR_OS_START_ERROR+EACCES)
-#define SIGAR_EPROC_NOENT (SIGAR_OS_START_ERROR+2)
-
 sigar_t::sigar_t()
     : ticks(sysconf(_SC_CLK_TCK)),
       pagesize(getpagesize()),
@@ -79,15 +76,8 @@ sigar_t* sigar_t::New() {
     return new sigar_t;
 }
 
-const char* sigar_os_error_string(sigar_t* sigar, int err) {
-    switch (err) {
-      case SIGAR_EPERM_KMEM:
-        return "Failed to open /dev/kmem for reading";
-      case SIGAR_EPROC_NOENT:
-        return "/proc filesystem is not mounted";
-      default:
-        return NULL;
-    }
+const char* sigar_os_error_string(sigar_t*, int) {
+    return nullptr;
 }
 
 static int sigar_vmstat(sigar_t *sigar, vm_statistics_data_t *vmstat)

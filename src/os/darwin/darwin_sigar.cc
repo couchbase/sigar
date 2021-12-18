@@ -41,25 +41,6 @@
 
 #define NMIB(mib) (sizeof(mib)/sizeof(mib[0]))
 
-#define KI_FD   kp_proc.p_fd
-#define KI_PID  kp_proc.p_pid
-#define KI_PPID kp_eproc.e_ppid
-#define KI_PRI  kp_proc.p_priority
-#define KI_NICE kp_proc.p_nice
-#define KI_COMM kp_proc.p_comm
-#define KI_STAT kp_proc.p_stat
-#define KI_UID  kp_eproc.e_pcred.p_ruid
-#define KI_GID  kp_eproc.e_pcred.p_rgid
-#define KI_EUID kp_eproc.e_pcred.p_svuid
-#define KI_EGID kp_eproc.e_pcred.p_svgid
-#define KI_SIZE XXX
-#define KI_RSS  kp_eproc.e_vm.vm_rssize
-#define KI_TSZ  kp_eproc.e_vm.vm_tsize
-#define KI_DSZ  kp_eproc.e_vm.vm_dsize
-#define KI_SSZ  kp_eproc.e_vm.vm_ssize
-#define KI_FLAG kp_eproc.e_flag
-#define KI_START kp_proc.p_starttime
-
 #define SIGAR_PROC_STATE_SLEEP  'S'
 #define SIGAR_PROC_STATE_RUN    'R'
 #define SIGAR_PROC_STATE_STOP   'T'
@@ -269,7 +250,7 @@ static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
                                             int nproc,
                                             pid_t pid) {
     for (int  i = 0; i < nproc; i++) {
-        if (proc[i].KI_PID == pid) {
+        if (proc[i].kp_proc.p_pid == pid) {
             return proc + i;
         }
     }
@@ -287,11 +268,11 @@ static int sigar_os_check_parents(const struct kinfo_proc* proc,
             return -1;
         }
 
-        if (p->KI_PPID == ppid) {
+        if (p->kp_eproc.e_ppid == ppid) {
             return SIGAR_OK;
         }
-        pid = p->KI_PPID;
-    } while (p->KI_PPID != 0);
+        pid = p->kp_eproc.e_ppid;
+    } while (p->kp_eproc.e_ppid != 0);
     return -1;
 }
 
@@ -317,10 +298,10 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
     num = len / sizeof(*proc);
 
     for (i = 0; i < num; i++) {
-        if (sigar_os_check_parents(proc, num, proc[i].KI_PID, ppid) ==
+        if (sigar_os_check_parents(proc, num, proc[i].kp_proc.p_pid, ppid) ==
             SIGAR_OK) {
             SIGAR_PROC_LIST_GROW(proclist);
-            proclist->data[proclist->number++] = proc[i].KI_PID;
+            proclist->data[proclist->number++] = proc[i].kp_proc.p_pid;
         }
     }
 
@@ -520,7 +501,7 @@ int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
         return st;
     }
 
-    proctime.start_time = tv2msec(pinfo.KI_START);
+    proctime.start_time = tv2msec(pinfo.kp_proc.p_starttime);
     return SIGAR_OK;
 }
 
@@ -601,12 +582,12 @@ int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
     if (status != SIGAR_OK) {
         return status;
     }
-    int state = pinfo.KI_STAT;
+    int state = pinfo.kp_proc.p_stat;
 
-    SIGAR_SSTRCPY(procstate.name, pinfo.KI_COMM);
-    procstate.ppid = pinfo.KI_PPID;
-    procstate.priority = pinfo.KI_PRI;
-    procstate.nice = pinfo.KI_NICE;
+    SIGAR_SSTRCPY(procstate.name, pinfo.kp_proc.p_comm);
+    procstate.ppid = pinfo.kp_eproc.e_ppid;
+    procstate.priority = pinfo.kp_proc.p_priority;
+    procstate.nice = pinfo.kp_proc.p_nice;
 
     auto st = sigar_proc_threads_get(this, pid, &procstate);
     if (st == SIGAR_OK) {

@@ -93,9 +93,6 @@ public:
     sigar_proc_list_t* pids = nullptr;
     std::unordered_map<sigar_pid_t, sigar_proc_cpu_t> process_cache;
 #ifdef __linux__
-    unsigned long boot_time = 0;
-    int pagesize = 0;
-    const int ticks = 0;
 #elif defined(WIN32)
     long pagesize = 0;
     HKEY handle;

@@ -34,7 +34,11 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
-#define pageshift(x) ((x) << sigar->pagesize)
+#define pageshift(x) ((x)*SystemConstants::instance().pagesize)
+#undef SIGAR_TICK2MSEC
+#define SIGAR_TICK2MSEC(s) \
+    ((uint64_t)(s) *       \
+     ((uint64_t)SIGAR_MSEC / (double)SystemConstants::instance().ticks))
 
 #define PROC_FS_ROOT "/proc/"
 #define PROC_STAT    PROC_FS_ROOT "stat"
@@ -207,8 +211,15 @@ static int sigar_proc_file2str(char* buffer,
     ++ptr
 
 struct SystemConstants {
-    SystemConstants() : pagesize(getpagesize()), boot_time(get_boot_time()) {
+    static SystemConstants instance() {
+        static SystemConstants inst;
+        return inst;
+    }
 
+    SystemConstants()
+        : pagesize(getpagesize()),
+          boot_time(get_boot_time()),
+          ticks(sysconf(_SC_CLK_TCK)) {
     }
     static uint64_t get_boot_time() {
         uint64_t ret = 0;
@@ -228,18 +239,10 @@ struct SystemConstants {
 
     const int pagesize;
     const long boot_time;
+    const int ticks;
 };
 
-sigar_t::sigar_t() : ticks(sysconf(_SC_CLK_TCK)) {
-    static const SystemConstants constants;
-
-    int i = constants.pagesize;
-    while ((i >>= 1) > 0) {
-        pagesize++;
-    }
-
-    boot_time = constants.boot_time;
-}
+sigar_t::sigar_t() = default;
 
 sigar_t* sigar_t::New() {
     return new sigar_t;
@@ -463,8 +466,8 @@ static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_t *sigar, sigar_pi
     ptr = sigar_skip_token(ptr); /* (21) it_real_value */
 
     pstat.start_time  = sigar_strtoul(ptr); /* (22) */
-    pstat.start_time /= sigar->ticks;
-    pstat.start_time += sigar->boot_time; /* seconds */
+    pstat.start_time /= SystemConstants::instance().ticks;
+    pstat.start_time += SystemConstants::instance().boot_time; /* seconds */
     pstat.start_time *= 1000; /* milliseconds */
 
     pstat.vsize = sigar_strtoull(ptr); /* (23) */

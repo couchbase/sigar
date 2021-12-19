@@ -32,12 +32,22 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
+#ifdef WIN32
+#include <windows.h>
+#endif
+
 static const char* sigar_error_string(int err) {
     switch (err) {
     case SIGAR_ENOTIMPL:
         return "This function has not been implemented on this platform";
     case SIGAR_NO_SUCH_PROCESS:
         return "No such process";
+    case SIGAR_NO_MEMORY_COUNTER:
+        return "No Memory counters defined (disabled?)";
+    case SIGAR_NO_PROCESS_COUNTER:
+        return "No Process counters defined (disabled?)";
+    case SIGAR_NO_PROCESSOR_COUNTER:
+        return "No Processor counters defined (disabled?)";
     default:
         return "Error string not specified yet";
     }
@@ -46,14 +56,13 @@ static const char* sigar_error_string(int err) {
 static const char* sigar_strerror_get(int err, char* errbuf, int buflen) {
 #ifdef WIN32
     /* force english error message */
-    DWORD len = FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
-                        FORMAT_MESSAGE_IGNORE_INSERTS,
-                        NULL,
-                        err,
-                        MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
-                        (LPTSTR)errbuf,
-                        (DWORD)buflen,
-                        NULL);
+    FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                  nullptr,
+                  err,
+                  MAKELANGID(LANG_ENGLISH, SUBLANG_DEFAULT),
+                  (LPTSTR)errbuf,
+                  (DWORD)buflen,
+                  nullptr);
 #else
     int ret = strerror_r(err, errbuf, buflen);
     if (ret != EINVAL) {

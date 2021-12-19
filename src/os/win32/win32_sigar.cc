@@ -19,39 +19,109 @@
 #include "sigar.h"
 #include "sigar_private.h"
 #include "sigar_pdh.h"
-#include "sigar_os.h"
-#include <shellapi.h>
-#include <assert.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <vector>
 
+#include <windows.h>
 #include <processthreadsapi.h>
 #include <psapi.h>
+#include <shellapi.h>
+#include <tlhelp32.h>
+#include <winperf.h>
+#include <winreg.h>
+
+#include <assert.h>
+#include <errno.h>
+#include <malloc.h>
+#include <stddef.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <sys/types.h>
 #include <time.h>
 #include <system_error>
+#include <vector>
 
-#define PERFBUF_SIZE 8192
+#define EPOCH_DELTA 11644473600000000L
+
+/* XXX: support CP_UTF8 ? */
+#define SIGAR_W2A(lpw, lpa, chars) \
+    (lpa[0] = '\0', WideCharToMultiByte(CP_ACP, 0, \
+                                        lpw, -1, (LPSTR)lpa, chars, \
+                                        NULL, NULL))
+
+struct sigar_win32_pinfo_t {
+    sigar_pid_t pid;
+    int ppid;
+    int priority;
+    time_t mtime;
+    uint64_t size;
+    uint64_t resident;
+    char name[SIGAR_PROC_NAME_LEN];
+    char state;
+    uint64_t handles;
+    uint64_t threads;
+    uint64_t page_faults;
+};
+
+class Win32Sigar : public sigar_t {
+public:
+    Win32Sigar() : sigar_t() {
+        auto result = RegConnectRegistryA("", HKEY_PERFORMANCE_DATA, &handle);
+        if (result != ERROR_SUCCESS) {
+            throw std::system_error(
+                    std::error_code(result, std::system_category()),
+                    "sigar_t(): RegConnectRegistryA");
+        }
+
+        enable_debug_privilege();
+    }
+
+    ~Win32Sigar() override {
+        RegCloseKey(handle);
+    }
+
+    int get_memory(sigar_mem_t& mem) override;
+    int get_swap(sigar_swap_t& swap) override;
+    int get_cpu(sigar_cpu_t& cpu) override;
+    int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
+    int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
+    int get_proc_list_children(sigar_pid_t ppid,
+                               sigar_proc_list_t* proclist) override;
+
+protected:
+    static constexpr size_t PERFBUF_SIZE = 8192;
+
+    int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
+    static void enable_debug_privilege();
+    int check_parents(sigar_pid_t pid, sigar_pid_t ppid);
+    std::pair<int, std::vector<sigar_pid_t>> get_all_pids();
+    std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
+    int get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem);
+    PERF_OBJECT_TYPE* get_perf_object_inst(char* counter_key,
+                                           DWORD inst,
+                                           DWORD* err);
+
+    DWORD perfbuf_init() {
+        if (perfbuf.empty()) {
+            perfbuf.resize(PERFBUF_SIZE);
+        }
+
+        return perfbuf.size();
+    }
+
+    DWORD perfbuf_grow() {
+        perfbuf.resize(perfbuf.size() + PERFBUF_SIZE);
+        return perfbuf.size();
+    }
+
+public:
+    HKEY handle;
+    std::vector<BYTE> perfbuf;
+};
 
 #define PERF_TITLE_PROC       230
-#define PERF_TITLE_SYS_KEY   "2"
 #define PERF_TITLE_MEM_KEY   "4"
 #define PERF_TITLE_PROC_KEY  "230"
 #define PERF_TITLE_CPU_KEY   "238"
-#define PERF_TITLE_DISK_KEY  "236"
 
-#define PERF_TITLE_CPU_USER    142
-#define PERF_TITLE_CPU_IDLE    1746
-#define PERF_TITLE_CPU_SYS     144
-#define PERF_TITLE_CPU_IRQ     698
-
-typedef enum {
-    PERF_IX_CPU_USER,
-    PERF_IX_CPU_IDLE,
-    PERF_IX_CPU_SYS,
-    PERF_IX_CPU_IRQ,
-    PERF_IX_CPU_MAX
-} perf_cpu_offsets_t;
 
 #define PERF_TITLE_CPUTIME    6
 #define PERF_TITLE_PAGE_FAULTS 28
@@ -78,38 +148,6 @@ typedef enum {
     PERF_IX_MAX
 } perf_proc_offsets_t;
 
-typedef enum {
-    PERF_IX_DISK_TIME,
-    PERF_IX_DISK_READ_TIME,
-    PERF_IX_DISK_WRITE_TIME,
-    PERF_IX_DISK_READ,
-    PERF_IX_DISK_WRITE,
-    PERF_IX_DISK_READ_BYTES,
-    PERF_IX_DISK_WRITE_BYTES,
-    PERF_IX_DISK_QUEUE,
-    PERF_IX_DISK_MAX
-} perf_disk_offsets_t;
-
-#define PERF_TITLE_DISK_TIME 200 /* % Disk Time */
-#define PERF_TITLE_DISK_READ_TIME 202 /* % Disk Read Time */
-#define PERF_TITLE_DISK_WRITE_TIME 204 /* % Disk Write Time */
-#define PERF_TITLE_DISK_READ  214 /* Disk Reads/sec */
-#define PERF_TITLE_DISK_WRITE 216 /* Disk Writes/sec */
-#define PERF_TITLE_DISK_READ_BYTES  220 /* Disk Read Bytes/sec */
-#define PERF_TITLE_DISK_WRITE_BYTES 222 /* Disk Write Bytes/sec */
-#define PERF_TITLE_DISK_QUEUE 198 /* Current Disk Queue Length */
-
-/*
- * diff is:
- *   ExW      -> ExA
- *   wcounter -> counter
- */
-#define MyRegQueryValue() \
-        RegQueryValueExA(sigar->handle, \
-                         counter_key, NULL, &type, \
-                         sigar->perfbuf, \
-                         &bytes)
-
 #define PERF_VAL(ix) \
     perf_offsets[ix] ? \
         *((DWORD *)((BYTE *)counter_block + perf_offsets[ix])) : 0
@@ -124,33 +162,6 @@ typedef enum {
 #define PERF_VAL_CPU(ix) \
     NS100_2MSEC(PERF_VAL(ix))
 
-typedef struct {
-    sigar_pid_t pid;
-    int ppid;
-    int priority;
-    time_t mtime;
-    uint64_t size;
-    uint64_t resident;
-    char name[SIGAR_PROC_NAME_LEN];
-    char state;
-    uint64_t handles;
-    uint64_t threads;
-    uint64_t page_faults;
-} sigar_win32_pinfo_t;
-
-static std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_t* sigar,
-                                                         sigar_pid_t pid);
-
-static void sigar_strerror_printf(sigar_t *sigar, const char *format, ...)
-{
-    va_list args;
-
-    va_start(args, format);
-    _vsnprintf(sigar->errbuf, sizeof(sigar->errbuf), format, args);
-    va_end(args);
-}
-
-
 static uint64_t sigar_FileTimeToTime(FILETIME *ft)
 {
     uint64_t time;
@@ -162,77 +173,48 @@ static uint64_t sigar_FileTimeToTime(FILETIME *ft)
     return time;
 }
 
-static DWORD perfbuf_init(sigar_t *sigar)
-{
-    if (!sigar->perfbuf) {
-        sigar->perfbuf = (LPBYTE)malloc(PERFBUF_SIZE);
-        sigar->perfbuf_size = PERFBUF_SIZE;
+static int get_counter_error_code(std::string_view key) {
+    if (key == PERF_TITLE_MEM_KEY) {
+        return SIGAR_NO_MEMORY_COUNTER;
+    } else if (key == PERF_TITLE_PROC_KEY) {
+        return SIGAR_NO_PROCESS_COUNTER;
+    } else if (key == PERF_TITLE_CPU_KEY) {
+        return SIGAR_NO_PROCESSOR_COUNTER;
     }
 
-    return sigar->perfbuf_size;
+    throw std::invalid_argument(
+            std::string("get_counter_error_code(): Invalid key: ") +
+            std::string(key));
 }
 
-static DWORD perfbuf_grow(sigar_t *sigar)
-{
-    sigar->perfbuf_size += PERFBUF_SIZE;
-
-    sigar->perfbuf =
-        (LPBYTE)realloc(sigar->perfbuf, sigar->perfbuf_size);
-
-    return sigar->perfbuf_size;
-}
-
-static char *get_counter_name(char *key)
-{
-    if (strEQ(key, PERF_TITLE_MEM_KEY)) {
-        return "Memory";
-    }
-    else if (strEQ(key, PERF_TITLE_PROC_KEY)) {
-        return "Process";
-    }
-    else if (strEQ(key, PERF_TITLE_CPU_KEY)) {
-        return "Processor";
-    }
-    else if (strEQ(key, PERF_TITLE_DISK_KEY)) {
-        return "LogicalDisk";
-    }
-    else {
-        return key;
-    }
-}
-
-static PERF_OBJECT_TYPE *get_perf_object_inst(sigar_t *sigar,
-                                              char *counter_key,
-                                              DWORD inst, DWORD *err)
-{
-    DWORD retval, type, bytes;
-    WCHAR wcounter_key[MAX_PATH+1];
-    PERF_DATA_BLOCK *block;
-    PERF_OBJECT_TYPE *object;
-
+PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
+                                                   DWORD inst,
+                                                   DWORD* err) {
     *err = SIGAR_OK;
 
-    bytes = perfbuf_init(sigar);
-
-    while ((retval = MyRegQueryValue()) != ERROR_SUCCESS) {
+    DWORD retval;
+    DWORD type;
+    auto bytes = perfbuf_init();
+    while ((retval = RegQueryValueExA(handle,
+                                      counter_key,
+                                      NULL,
+                                      &type,
+                                      perfbuf.data(),
+                                      &bytes)) != ERROR_SUCCESS) {
         if (retval == ERROR_MORE_DATA) {
-            bytes = perfbuf_grow(sigar);
-        }
-        else {
+            bytes = perfbuf_grow();
+        } else {
             *err = retval;
             return NULL;
         }
     }
 
-    block = (PERF_DATA_BLOCK *)sigar->perfbuf;
+    auto* block = reinterpret_cast<PERF_DATA_BLOCK*>(perfbuf.data());
     if (block->NumObjectTypes == 0) {
-        counter_key = get_counter_name(counter_key);
-        sigar_strerror_printf(sigar, "No %s counters defined (disabled?)",
-                              counter_key);
-        *err = -1;
-        return NULL;
+        *err = get_counter_error_code(counter_key);
+        return nullptr;
     }
-    object = PdhFirstObject(block);
+    auto* object = PdhFirstObject(block);
 
     /*
      * only seen on windows 2003 server when pdh.dll
@@ -242,27 +224,21 @@ static PERF_OBJECT_TYPE *get_perf_object_inst(sigar_t *sigar,
     if (inst && (object->NumInstances == PERF_NO_INSTANCES)) {
         int i;
 
-        for (i=0; i<block->NumObjectTypes; i++) {
+        for (i = 0; i < block->NumObjectTypes; i++) {
             if (object->NumInstances != PERF_NO_INSTANCES) {
                 return object;
             }
             object = PdhNextObject(object);
         }
         return NULL;
-    }
-    else {
+    } else {
         return object;
     }
 }
 
-#define get_perf_object(sigar, counter_key, err) \
-    get_perf_object_inst(sigar, counter_key, 1, err)
-
-static int get_mem_counters(sigar_t *sigar, sigar_swap_t *swap, sigar_mem_t *mem)
-{
+int Win32Sigar::get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem) {
     DWORD status;
-    PERF_OBJECT_TYPE *object =
-        get_perf_object_inst(sigar, PERF_TITLE_MEM_KEY, 0, &status);
+    auto* object = get_perf_object_inst(PERF_TITLE_MEM_KEY, 0, &status);
     PERF_COUNTER_DEFINITION *counter;
     BYTE *data;
     DWORD i;
@@ -301,70 +277,33 @@ static int get_mem_counters(sigar_t *sigar, sigar_swap_t *swap, sigar_mem_t *mem
     return SIGAR_OK;
 }
 
-static void get_sysinfo(sigar_t *sigar)
-{
-    SYSTEM_INFO sysinfo;
-
-    GetSystemInfo(&sysinfo);
-
-    sigar->pagesize = sysinfo.dwPageSize;
-}
-
-static int sigar_enable_privilege(char *name)
-{
-    int status;
+void Win32Sigar::enable_debug_privilege() {
     HANDLE handle;
     TOKEN_PRIVILEGES tok;
-
-    SIGAR_ZERO(&tok);
+    memset(&tok, 0, sizeof(tok));
 
     if (!OpenProcessToken(GetCurrentProcess(),
-                          TOKEN_ADJUST_PRIVILEGES|TOKEN_QUERY,
-                          &handle))
-    {
-        return GetLastError();
+                          TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
+                          &handle)) {
+        return;
     }
 
-    if (LookupPrivilegeValue(NULL, name,
-                             &tok.Privileges[0].Luid))
-    {
+    if (LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &tok.Privileges[0].Luid)) {
         tok.PrivilegeCount = 1;
         tok.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-        if (AdjustTokenPrivileges(handle, FALSE, &tok, 0, NULL, 0)) {
-            status = SIGAR_OK;
-        }
-        else {
-            status = GetLastError();
-        }
-    }
-    else {
-        status = GetLastError();
+        AdjustTokenPrivileges(handle, FALSE, &tok, 0, nullptr, 0);
     }
 
     CloseHandle(handle);
-
-    return status;
 }
 
-sigar_t::sigar_t() {
-    auto result = RegConnectRegistryA("", HKEY_PERFORMANCE_DATA, &handle);
-    if (result != ERROR_SUCCESS) {
-        throw std::system_error(std::error_code(result, std::system_category()),
-                                "sigar_t(): RegConnectRegistryA");
-    }
-
-    get_sysinfo(this);
-
-    /* increase process visibility */
-    sigar_enable_privilege(SE_DEBUG_NAME);
-}
+sigar_t::sigar_t() = default;
 
 sigar_t* sigar_t::New() {
-    return new sigar_t;
+    return new Win32Sigar;
 }
 
-int sigar_t::get_memory(sigar_mem_t& mem) {
+int Win32Sigar::get_memory(sigar_mem_t& mem) {
     MEMORYSTATUSEX memstat;
     memstat.dwLength = sizeof(memstat);
 
@@ -378,14 +317,14 @@ int sigar_t::get_memory(sigar_mem_t& mem) {
     mem.actual_free = mem.free;
     mem.actual_used = mem.used;
     /* set actual_{free,used} */
-    get_mem_counters(this, NULL, &mem);
+    get_mem_counters(nullptr, &mem);
 
     mem_calc_ram(mem);
 
     return SIGAR_OK;
 }
 
-int sigar_t::get_swap(sigar_swap_t& swap) {
+int Win32Sigar::get_swap(sigar_swap_t& swap) {
     MEMORYSTATUSEX memstat;
     memstat.dwLength = sizeof(memstat);
 
@@ -397,75 +336,69 @@ int sigar_t::get_swap(sigar_swap_t& swap) {
     swap.free = memstat.ullAvailPageFile;
     swap.used = swap.total - swap.free;
 
-    get_mem_counters(this, &swap, NULL);
+    get_mem_counters(&swap, nullptr);
 
     return SIGAR_OK;
 }
 
-static uint64_t filetime2uint(const FILETIME* val) {
+static uint64_t filetime2uint(const FILETIME& val) {
     ULARGE_INTEGER ularge;
-    ularge.u.LowPart = val->dwLowDateTime;
-    ularge.u.HighPart = val->dwHighDateTime;
+    ularge.u.LowPart = val.dwLowDateTime;
+    ularge.u.HighPart = val.dwHighDateTime;
     return ularge.QuadPart;
 }
 
-int sigar_t::get_cpu(sigar_cpu_t& cpu) {
+int Win32Sigar::get_cpu(sigar_cpu_t& cpu) {
     FILETIME idle, kernel, user;
     if (!GetSystemTimes(&idle, &kernel, &user)) {
         return GetLastError();
     }
-    cpu.idle = NS100_2MSEC(filetime2uint(&idle));
-    cpu.sys = NS100_2MSEC(filetime2uint(&kernel)) - cpu.idle;
-    cpu.user = NS100_2MSEC(filetime2uint(&user));
+    cpu.idle = NS100_2MSEC(filetime2uint(idle));
+    cpu.sys = NS100_2MSEC(filetime2uint(kernel)) - cpu.idle;
+    cpu.user = NS100_2MSEC(filetime2uint(user));
     cpu.total = cpu.idle + cpu.user + cpu.sys;
 
     return SIGAR_OK;
 }
 
-#define PERF_TITLE_UPTIME_KEY 674 /* System Up Time */
-
-#define get_process_object(sigar, err) \
-    get_perf_object(sigar, PERF_TITLE_PROC_KEY, err)
-
-static int sigar_os_proc_list_get(sigar_t* sigar, sigar_proc_list_t* proclist) {
-    DWORD retval, *pids;
-    DWORD size = 0, i;
+std::pair<int, std::vector<sigar_pid_t>> Win32Sigar::get_all_pids() {
+    std::vector<sigar_pid_t> allpids;
+    DWORD retval;
+    DWORD size = 0;
 
     do {
         /* re-use the perfbuf */
         if (size == 0) {
-            size = perfbuf_init(sigar);
+            size = perfbuf_init();
         } else {
-            size = perfbuf_grow(sigar);
+            size = perfbuf_grow();
         }
 
-        if (!EnumProcesses(
-                    (DWORD*)sigar->perfbuf, sigar->perfbuf_size, &retval)) {
-            return GetLastError();
+        if (!EnumProcesses((DWORD*)perfbuf.data(), perfbuf.size(), &retval)) {
+            return {int(GetLastError()),{}};
         }
-    } while (retval == sigar->perfbuf_size); // unlikely
+    } while (retval == perfbuf.size()); // unlikely
 
-    pids = (DWORD*)sigar->perfbuf;
+    auto* pids = (DWORD*)perfbuf.data();
 
     size = retval / sizeof(DWORD);
 
-    for (i = 0; i < size; i++) {
+    for (DWORD i = 0; i < size; i++) {
         DWORD pid = pids[i];
         if (pid == 0) {
             continue; /* dont include the system Idle process */
         }
-        SIGAR_PROC_LIST_GROW(proclist);
-        proclist->data[proclist->number++] = pid;
+        allpids.emplace_back(pid);
     }
 
-    return SIGAR_OK;
+    return {SIGAR_OK, std::move(allpids)};
 }
 
-static int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t ppid) {
+int Win32Sigar::check_parents(sigar_pid_t pid, sigar_pid_t ppid) {
     try {
         std::vector<sigar_pid_t> pids;
         do {
-            const auto [status, pinfo] = get_proc_info(sigar, pid);
+            const auto [status, pinfo] = get_proc_info(pid);
             if (status != SIGAR_OK) {
                 return -1;
             }
@@ -487,40 +420,26 @@ static int sigar_os_check_parents(sigar_t* sigar, sigar_pid_t pid, sigar_pid_t p
     return -1;
 }
 
-int sigar_os_proc_list_get_children(sigar_t* sigar,
-                                    sigar_pid_t ppid,
-                                    sigar_proc_list_t* proclist) {
-    sigar_proc_list_t allprocs;
-    sigar_proc_list_create(&allprocs);
-
-    int ret = sigar_os_proc_list_get(sigar, &allprocs);
-
+int Win32Sigar::get_proc_list_children(sigar_pid_t ppid,
+                                       sigar_proc_list_t* proclist) {
+    const auto [ret, allpids] = get_all_pids();
     if (ret == SIGAR_OK) {
-        for (int i = 0; i < allprocs.number; ++i) {
-            sigar_pid_t pid = allprocs.data[i];
-            if (sigar_os_check_parents(sigar, pid, ppid) == SIGAR_OK) {
+        for (const auto& pid : allpids) {
+            if (check_parents(pid, ppid) == SIGAR_OK) {
                 SIGAR_PROC_LIST_GROW(proclist);
                 proclist->data[proclist->number++] = pid;
             }
         }
     }
-    sigar_proc_list_destroy(sigar, &allprocs);
     return ret;
-}
-
-#define PROCESS_DAC (PROCESS_QUERY_INFORMATION|PROCESS_VM_READ)
-
-static HANDLE open_process(sigar_pid_t pid)
-{
-    return OpenProcess(PROCESS_DAC, 0, (DWORD)pid);
 }
 
 /*
  * Pretty good explanation of counters:
  * http://www.semack.net/wiki/default.asp?db=SemackNetWiki&o=VirtualMemory
  */
-int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
-    const auto [status, pinfo] = get_proc_info(this, pid);
+int Win32Sigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
+    const auto [status, pinfo] = get_proc_info(pid);
     if (status != SIGAR_OK) {
         return status;
     }
@@ -532,19 +451,15 @@ int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     return SIGAR_OK;
 }
 
-#define TOKEN_DAC (STANDARD_RIGHTS_READ | READ_CONTROL | TOKEN_QUERY)
-
-#define FILETIME2MSEC(ft) \
-        NS100_2MSEC((((long long)ft.dwHighDateTime << 32) | ft.dwLowDateTime))
-
-int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
-    HANDLE proc = open_process(pid);
-    FILETIME start_time, exit_time, system_time, user_time;
-    int status = ERROR_SUCCESS;
-
+int Win32Sigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
+    auto proc = OpenProcess(
+            PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, (DWORD)pid);
     if (!proc) {
         return GetLastError();
     }
+
+    FILETIME start_time, exit_time, system_time, user_time;
+    int status = ERROR_SUCCESS;
 
     if (!GetProcessTimes(
                 proc, &start_time, &exit_time, &system_time, &user_time)) {
@@ -563,15 +478,15 @@ int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
         proctime.start_time = 0;
     }
 
-    proctime.user = FILETIME2MSEC(user_time);
-    proctime.sys = FILETIME2MSEC(system_time);
+    proctime.user = NS100_2MSEC(filetime2uint(user_time));
+    proctime.sys = NS100_2MSEC(filetime2uint(system_time));
     proctime.total = proctime.user + proctime.sys;
 
     return SIGAR_OK;
 }
 
-int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
-    const auto [status, pinfo] = get_proc_info(this, pid);
+int Win32Sigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
+    const auto [status, pinfo] = get_proc_info(pid);
     if (status != SIGAR_OK) {
         return status;
     }
@@ -585,8 +500,7 @@ int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
     return SIGAR_OK;
 }
 
-static std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_t* sigar,
-                                                         sigar_pid_t pid) {
+std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
     PERF_OBJECT_TYPE *object;
     PERF_INSTANCE_DEFINITION *inst;
     PERF_COUNTER_DEFINITION *counter;
@@ -595,7 +509,7 @@ static std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_t* sigar,
     sigar_win32_pinfo_t pinfo = {};
 
     memset(&perf_offsets, 0, sizeof(perf_offsets));
-    object = get_process_object(sigar, &err);
+    object = get_perf_object_inst(PERF_TITLE_PROC_KEY, 1, &err);
 
     if (object == NULL) {
         return {int(err), {}};

@@ -35,10 +35,11 @@
 #include "sigar_private.h"
 
 #define pageshift(x) ((x)*SystemConstants::instance().pagesize)
-#undef SIGAR_TICK2MSEC
 #define SIGAR_TICK2MSEC(s) \
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_MSEC / (double)SystemConstants::instance().ticks))
+#define SSTRLEN(s) \
+    (sizeof(s)-1)
 
 #define PROC_FS_ROOT "/proc/"
 #define PROC_STAT    PROC_FS_ROOT "stat"
@@ -242,10 +243,27 @@ struct SystemConstants {
     const int ticks;
 };
 
+class LinuxSigar : public sigar_t {
+public:
+    int get_memory(sigar_mem_t& mem) override;
+    int get_swap(sigar_swap_t& swap) override;
+    int get_cpu(sigar_cpu_t& cpu) override;
+    int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
+    int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
+    int get_proc_list_children(sigar_pid_t ppid,
+                               sigar_proc_list_t* proclist) override;
+
+protected:
+    int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
+
+    static int check_parents(pid_t pid, pid_t ppid);
+    static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
+};
+
 sigar_t::sigar_t() = default;
 
 sigar_t* sigar_t::New() {
-    return new sigar_t;
+    return new LinuxSigar;
 }
 
 static uint64_t stoull(std::string_view value) {
@@ -274,7 +292,7 @@ static uint64_t stoull(std::string_view value) {
     return -1;
 }
 
-int sigar_t::get_memory(sigar_mem_t& mem) {
+int LinuxSigar::get_memory(sigar_mem_t& mem) {
     uint64_t buffers = 0;
     uint64_t cached = 0;
     sigar_tokenize_file_line_by_line(
@@ -314,7 +332,7 @@ int sigar_t::get_memory(sigar_mem_t& mem) {
     return SIGAR_OK;
 }
 
-int sigar_t::get_swap(sigar_swap_t& swap) {
+int LinuxSigar::get_swap(sigar_swap_t& swap) {
     sigar_tokenize_file_line_by_line(
             0,
             "meminfo",
@@ -366,7 +384,7 @@ int sigar_t::get_swap(sigar_swap_t& swap) {
     return SIGAR_OK;
 }
 
-int sigar_t::get_cpu(sigar_cpu_t& cpu) {
+int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
     int status = ENOENT;
     sigar_tokenize_file_line_by_line(
             0,
@@ -407,8 +425,7 @@ int sigar_t::get_cpu(sigar_cpu_t& cpu) {
     return status;
 }
 
-static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_t *sigar, sigar_pid_t pid)
-{
+std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
     char buffer[BUFSIZ], *ptr=buffer, *tmp;
     unsigned int len;
     linux_proc_stat_t pstat = {};
@@ -493,9 +510,9 @@ static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_t *sigar, sigar_pi
     return {SIGAR_OK, pstat};
 }
 
-static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
+int LinuxSigar::check_parents(pid_t pid, pid_t ppid) {
     do {
-        const auto [status, pstat] = proc_stat_read(sigar, pid);
+        const auto [status, pstat] = proc_stat_read(pid);
         if (status != SIGAR_OK) {
             return -1;
         }
@@ -508,9 +525,8 @@ static int sigar_os_check_parents(sigar_t* sigar, pid_t pid, pid_t ppid) {
     return -1;
 }
 
-int sigar_os_proc_list_get_children(sigar_t* sigar,
-                                    sigar_pid_t ppid,
-                                    sigar_proc_list_t* proclist) {
+int LinuxSigar::get_proc_list_children(sigar_pid_t ppid,
+                                       sigar_proc_list_t* proclist) {
     DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent* ent;
 
@@ -525,7 +541,7 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
 
         /* XXX: more sanity checking */
         sigar_pid_t pid = strtoul(ent->d_name, nullptr, 10);
-        if (sigar_os_check_parents(sigar, pid, ppid) == SIGAR_OK) {
+        if (check_parents(pid, ppid) == SIGAR_OK) {
             SIGAR_PROC_LIST_GROW(proclist);
             proclist->data[proclist->number++] = pid;
         }
@@ -535,8 +551,8 @@ int sigar_os_proc_list_get_children(sigar_t* sigar,
     return SIGAR_OK;
 }
 
-int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
-    const auto [status, pstat] = proc_stat_read(this, pid);
+int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
+    const auto [status, pstat] = proc_stat_read(pid);
     if (status != SIGAR_OK) {
         return status;
     }
@@ -566,8 +582,8 @@ int sigar_t::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     return SIGAR_OK;
 }
 
-int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
-    const auto [status, pstat] = proc_stat_read(this, pid);
+int LinuxSigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
+    const auto [status, pstat] = proc_stat_read(pid);
     if (status != SIGAR_OK) {
         return status;
     }
@@ -580,8 +596,8 @@ int sigar_t::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
     return SIGAR_OK;
 }
 
-int sigar_t::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
-    const auto [status, pstat] = proc_stat_read(this, pid);
+int LinuxSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
+    const auto [status, pstat] = proc_stat_read(pid);
     if (status != SIGAR_OK) {
         return status;
     }

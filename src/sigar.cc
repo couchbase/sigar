@@ -169,6 +169,8 @@ int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {
     return SIGAR_OK;
 }
 
+#define SIGAR_PROC_LIST_MAX 256
+
 int sigar_proc_list_create(sigar_proc_list_t* proclist) {
     proclist->number = 0;
     proclist->size = SIGAR_PROC_LIST_MAX;
@@ -215,7 +217,15 @@ sigar_proc_list_get_children(sigar_t* sigar,
         sigar_proc_list_create(proclist);
     }
 
-    return sigar_os_proc_list_get_children(sigar, ppid, proclist);
+    try {
+        return sigar->get_proc_list_children(ppid, proclist);
+    } catch (const std::bad_alloc&) {
+        return ENOMEM;
+    } catch (const std::system_error& ex) {
+        return ex.code().value();
+    } catch (...) {
+        return EINVAL;
+    }
 }
 
 SIGAR_DECLARE(int)

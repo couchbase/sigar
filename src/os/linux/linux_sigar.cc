@@ -25,11 +25,11 @@
 #include <platform/dirutils.h>
 #include <cassert>
 #include <cerrno>
+#include <charconv>
 #include <cstdio>
 #include <cstdlib>
 #include <ctime>
 #include <functional>
-#include <charconv>
 
 #include "sigar.h"
 #include "sigar_private.h"
@@ -38,13 +38,12 @@
 #define SIGAR_TICK2MSEC(s) \
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_MSEC / (double)SystemConstants::instance().ticks))
-#define SSTRLEN(s) \
-    (sizeof(s)-1)
+#define SSTRLEN(s) (sizeof(s) - 1)
 
 #define PROC_FS_ROOT "/proc/"
-#define PROC_STAT    PROC_FS_ROOT "stat"
+#define PROC_STAT PROC_FS_ROOT "stat"
 
-#define PROC_PSTAT   "/stat"
+#define PROC_PSTAT "/stat"
 
 #define sigar_strtoul(ptr) strtoul(ptr, &ptr, 10)
 
@@ -99,7 +98,7 @@ struct linux_proc_stat_t {
     char name[SIGAR_PROC_NAME_LEN];
     char state;
     int processor;
-} ;
+};
 
 static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
     char* start = buf + UITOA_BUFFER_SIZE - 1;
@@ -426,7 +425,7 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
 }
 
 std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
-    char buffer[BUFSIZ], *ptr=buffer, *tmp;
+    char buffer[BUFSIZ], *ptr = buffer, *tmp;
     unsigned int len;
     linux_proc_stat_t pstat = {};
     pstat.pid = pid;
@@ -441,18 +440,18 @@ std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
         return {EINVAL, {}};
     }
     if (!(tmp = strrchr(++ptr, ')'))) {
-        return {EINVAL,{}};
+        return {EINVAL, {}};
     }
-    len = tmp-ptr;
+    len = tmp - ptr;
 
     if (len >= sizeof(pstat.name)) {
-        len = sizeof(pstat.name)-1;
+        len = sizeof(pstat.name) - 1;
     }
 
     /* (1,2) */
     memcpy(pstat.name, ptr, len);
     pstat.name[len] = '\0';
-    ptr = tmp+1;
+    ptr = tmp + 1;
 
     SIGAR_SKIP_SPACE(ptr);
     pstat.state = *ptr++; /* (3) */
@@ -477,18 +476,18 @@ std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
     ptr = sigar_skip_token(ptr); /* (17) cstime */
 
     pstat.priority = sigar_strtoul(ptr); /* (18) */
-    pstat.nice     = sigar_strtoul(ptr); /* (19) */
+    pstat.nice = sigar_strtoul(ptr); /* (19) */
 
     ptr = sigar_skip_token(ptr); /* (20) timeout */
     ptr = sigar_skip_token(ptr); /* (21) it_real_value */
 
-    pstat.start_time  = sigar_strtoul(ptr); /* (22) */
+    pstat.start_time = sigar_strtoul(ptr); /* (22) */
     pstat.start_time /= SystemConstants::instance().ticks;
     pstat.start_time += SystemConstants::instance().boot_time; /* seconds */
     pstat.start_time *= 1000; /* milliseconds */
 
     pstat.vsize = sigar_strtoull(ptr); /* (23) */
-    pstat.rss   = pageshift(sigar_strtoull(ptr)); /* (24) */
+    pstat.rss = pageshift(sigar_strtoull(ptr)); /* (24) */
 
     ptr = sigar_skip_token(ptr); /* (25) rlim */
     ptr = sigar_skip_token(ptr); /* (26) startcode */

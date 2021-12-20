@@ -16,24 +16,24 @@
  */
 #include <errno.h>
 #include <inttypes.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <stdint.h>
-#include <string.h>
 #include <sigar.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 #ifdef _WIN32
-#include <io.h>
 #include <fcntl.h>
+#include <io.h>
 #endif
 
 #define DEFAULT(value, def) ((value) == SIGAR_FIELD_NOTIMPL ? (def) : (value))
-#define MUST_SUCCEED(body)                      \
-    do {                                        \
-        int _ret = (body);                      \
-        if (_ret != SIGAR_OK) {                 \
-            exit(1);                            \
-        }                                       \
+#define MUST_SUCCEED(body)      \
+    do {                        \
+        int _ret = (body);      \
+        if (_ret != SIGAR_OK) { \
+            exit(1);            \
+        }                       \
     } while (0)
 
 #define NUM_INTERESTING_PROCS 40
@@ -86,14 +86,10 @@ struct system_stats {
     struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
 };
 
-static int is_interesting_process(const char *name)
-{
-    return (strcmp(name, "moxi") != 0 &&
-            strcmp(name, "inet_gethost") != 0 &&
-            strcmp(name, "memsup") != 0 &&
-            strcmp(name, "cpu_sup") != 0 &&
-            strcmp(name, "sh") != 0 &&
-            strcmp(name, "epmd") != 0);
+static int is_interesting_process(const char* name) {
+    return (strcmp(name, "moxi") != 0 && strcmp(name, "inet_gethost") != 0 &&
+            strcmp(name, "memsup") != 0 && strcmp(name, "cpu_sup") != 0 &&
+            strcmp(name, "sh") != 0 && strcmp(name, "epmd") != 0);
 }
 
 /// Find all of the descendants of the babysitter process and populate the
@@ -160,23 +156,22 @@ static int find_interesting_procs(
     return interesting_count;
 }
 
-static int populate_interesting_procs(sigar_t *sigar,
-                                      struct proc *procs, int procs_count,
-                                      struct system_stats *reply)
-{
+static int populate_interesting_procs(sigar_t* sigar,
+                                      struct proc* procs,
+                                      int procs_count,
+                                      struct system_stats* reply) {
     int i;
     int stale = 0;
 
     sigar_proc_mem_t proc_mem;
     sigar_proc_cpu_t proc_cpu;
 
-    struct proc_stats *child = reply->interesting_procs;
+    struct proc_stats* child = reply->interesting_procs;
 
     for (i = 0; i < procs_count; ++i) {
         if (sigar_proc_mem_get(sigar, procs[i].pid, &proc_mem) != SIGAR_OK ||
             sigar_proc_cpu_get(sigar, procs[i].pid, &proc_cpu) != SIGAR_OK ||
-            procs[i].start_time != proc_cpu.start_time)
-        {
+            procs[i].start_time != proc_cpu.start_time) {
             stale = 1;
             continue;
         }
@@ -184,7 +179,7 @@ static int populate_interesting_procs(sigar_t *sigar,
         child->pid = procs[i].pid;
         child->ppid = procs[i].ppid;
         strncpy(child->name, procs[i].name, PROC_NAME_LEN);
-        child->cpu_utilization = DEFAULT((uint32_t) (100 * proc_cpu.percent), 0);
+        child->cpu_utilization = DEFAULT((uint32_t)(100 * proc_cpu.percent), 0);
         child->mem_size = DEFAULT(proc_mem.size, 0);
         child->mem_resident = DEFAULT(proc_mem.resident, 0);
         child->mem_share = DEFAULT(proc_mem.share, 0);
@@ -198,13 +193,12 @@ static int populate_interesting_procs(sigar_t *sigar,
     return stale;
 }
 
-static int parse_pid(char *pidstr, sigar_pid_t *result)
-{
+static int parse_pid(char* pidstr, sigar_pid_t* result) {
     // The size and signed-ness of sigar_pid_t is different depending on the
     // system, but it is an integral type. So we use a maximum size integer
     // type to handle all systems uniformly.
     uintmax_t pid;
-    char *pidend;
+    char* pidend;
 
     errno = 0;
     pid = strtoumax(pidstr, &pidend, 10);
@@ -216,13 +210,12 @@ static int parse_pid(char *pidstr, sigar_pid_t *result)
     // fit into the type. And there's no easy way to check that it will given
     // that we don't even know what sigar_pid_t is a typedef for. But since in
     // our case it's ns_server that passes the value, we should be fine.
-    *result = (sigar_pid_t) pid;
+    *result = (sigar_pid_t)pid;
     return 1;
 }
 
-int main(int argc, char *argv[])
-{
-    sigar_t *sigar;
+int main(int argc, char* argv[]) {
+    sigar_t* sigar;
     sigar_mem_t mem;
     sigar_swap_t swap;
     sigar_cpu_t cpu;
@@ -281,13 +274,11 @@ int main(int argc, char *argv[])
 
         if (swap.allocstall != -1) {
             reply.allocstall = swap.allocstall;
-        } else if (swap.allocstall_dma != -1 &&
-                swap.allocstall_dma32 != -1 &&
-                swap.allocstall_normal != -1 &&
-                swap.allocstall_movable != -1) {
-            reply.allocstall = swap.allocstall_dma +
-                swap.allocstall_dma32 + swap.allocstall_normal +
-                swap.allocstall_movable;
+        } else if (swap.allocstall_dma != -1 && swap.allocstall_dma32 != -1 &&
+                   swap.allocstall_normal != -1 &&
+                   swap.allocstall_movable != -1) {
+            reply.allocstall = swap.allocstall_dma + swap.allocstall_dma32 +
+                               swap.allocstall_normal + swap.allocstall_movable;
         } else {
             reply.allocstall = -1;
         }
@@ -297,7 +288,8 @@ int main(int argc, char *argv[])
             procs_count = find_interesting_procs(sigar, babysitter_pid, procs);
         }
 
-        procs_stale = populate_interesting_procs(sigar, procs, procs_count, &reply);
+        procs_stale =
+                populate_interesting_procs(sigar, procs, procs_count, &reply);
 
         fwrite(&reply, sizeof(reply), 1, stdout);
         fflush(stdout);

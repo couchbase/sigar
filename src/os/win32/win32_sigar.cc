@@ -17,10 +17,11 @@
  */
 
 #include "sigar.h"
-#include "sigar_private.h"
 #include "sigar_pdh.h"
+#include "sigar_private.h"
 
 #include <windows.h>
+
 #include <processthreadsapi.h>
 #include <psapi.h>
 #include <shellapi.h>
@@ -43,9 +44,8 @@
 
 /* XXX: support CP_UTF8 ? */
 #define SIGAR_W2A(lpw, lpa, chars) \
-    (lpa[0] = '\0', WideCharToMultiByte(CP_ACP, 0, \
-                                        lpw, -1, (LPSTR)lpa, chars, \
-                                        NULL, NULL))
+    (lpa[0] = '\0',                \
+     WideCharToMultiByte(CP_ACP, 0, lpw, -1, (LPSTR)lpa, chars, NULL, NULL))
 
 struct sigar_win32_pinfo_t {
     sigar_pid_t pid;
@@ -117,21 +117,20 @@ public:
     std::vector<BYTE> perfbuf;
 };
 
-#define PERF_TITLE_PROC       230
-#define PERF_TITLE_MEM_KEY   "4"
-#define PERF_TITLE_PROC_KEY  "230"
-#define PERF_TITLE_CPU_KEY   "238"
+#define PERF_TITLE_PROC 230
+#define PERF_TITLE_MEM_KEY "4"
+#define PERF_TITLE_PROC_KEY "230"
+#define PERF_TITLE_CPU_KEY "238"
 
-
-#define PERF_TITLE_CPUTIME    6
+#define PERF_TITLE_CPUTIME 6
 #define PERF_TITLE_PAGE_FAULTS 28
-#define PERF_TITLE_MEM_VSIZE  174
-#define PERF_TITLE_MEM_SIZE   180
+#define PERF_TITLE_MEM_VSIZE 174
+#define PERF_TITLE_MEM_SIZE 180
 #define PERF_TITLE_THREAD_CNT 680
 #define PERF_TITLE_HANDLE_CNT 952
-#define PERF_TITLE_PID        784
-#define PERF_TITLE_PPID       1410
-#define PERF_TITLE_PRIORITY   682
+#define PERF_TITLE_PID 784
+#define PERF_TITLE_PPID 1410
+#define PERF_TITLE_PRIORITY 682
 #define PERF_TITLE_START_TIME 684
 
 typedef enum {
@@ -149,21 +148,18 @@ typedef enum {
 } perf_proc_offsets_t;
 
 #define PERF_VAL(ix) \
-    perf_offsets[ix] ? \
-        *((DWORD *)((BYTE *)counter_block + perf_offsets[ix])) : 0
+    perf_offsets[ix] ? *((DWORD*)((BYTE*)counter_block + perf_offsets[ix])) : 0
 
-#define PERF_VAL64(ix) \
-    perf_offsets[ix] ? \
-        *((uint64_t *)((BYTE *)counter_block + perf_offsets[ix])) : 0
+#define PERF_VAL64(ix)                                                         \
+    perf_offsets[ix] ? *((uint64_t*)((BYTE*)counter_block + perf_offsets[ix])) \
+                     : 0
 
 /* 1/100ns units to milliseconds */
 #define NS100_2MSEC(t) ((t) / 10000)
 
-#define PERF_VAL_CPU(ix) \
-    NS100_2MSEC(PERF_VAL(ix))
+#define PERF_VAL_CPU(ix) NS100_2MSEC(PERF_VAL(ix))
 
-static uint64_t sigar_FileTimeToTime(FILETIME *ft)
-{
+static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     uint64_t time;
     time = ft->dwHighDateTime;
     time = time << 32;
@@ -239,37 +235,37 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
 int Win32Sigar::get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem) {
     DWORD status;
     auto* object = get_perf_object_inst(PERF_TITLE_MEM_KEY, 0, &status);
-    PERF_COUNTER_DEFINITION *counter;
-    BYTE *data;
+    PERF_COUNTER_DEFINITION* counter;
+    BYTE* data;
     DWORD i;
 
     if (!object) {
         return status;
     }
 
-    data = (BYTE *)((BYTE *)object + object->DefinitionLength);
+    data = (BYTE*)((BYTE*)object + object->DefinitionLength);
 
-    for (i=0, counter = PdhFirstCounter(object);
-         i<object->NumCounters;
-         i++, counter = PdhNextCounter(counter))
-    {
+    for (i = 0, counter = PdhFirstCounter(object); i < object->NumCounters;
+         i++, counter = PdhNextCounter(counter)) {
         DWORD offset = counter->CounterOffset;
 
         switch (counter->CounterNameTitleIndex) {
-          case 48: /* "Pages Output/sec" */
-            if (swap) swap->page_out = *((DWORD *)(data + offset));
+        case 48: /* "Pages Output/sec" */
+            if (swap)
+                swap->page_out = *((DWORD*)(data + offset));
             break;
-          case 76: /* "System Cache Resident Bytes" aka file cache */
+        case 76: /* "System Cache Resident Bytes" aka file cache */
             if (mem) {
-                uint64_t kern = *((DWORD *)(data + offset));
+                uint64_t kern = *((DWORD*)(data + offset));
                 mem->actual_free = mem->free + kern;
                 mem->actual_used = mem->used - kern;
                 return SIGAR_OK;
             }
-          case 822: /* "Pages Input/sec" */
-            if (swap) swap->page_in = *((DWORD *)(data + offset));
+        case 822: /* "Pages Input/sec" */
+            if (swap)
+                swap->page_in = *((DWORD*)(data + offset));
             break;
-          default:
+        default:
             continue;
         }
     }
@@ -375,7 +371,7 @@ std::pair<int, std::vector<sigar_pid_t>> Win32Sigar::get_all_pids() {
         }
 
         if (!EnumProcesses((DWORD*)perfbuf.data(), perfbuf.size(), &retval)) {
-            return {int(GetLastError()),{}};
+            return {int(GetLastError()), {}};
         }
     } while (retval == perfbuf.size()); // unlikely
 
@@ -501,9 +497,9 @@ int Win32Sigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
 }
 
 std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
-    PERF_OBJECT_TYPE *object;
-    PERF_INSTANCE_DEFINITION *inst;
-    PERF_COUNTER_DEFINITION *counter;
+    PERF_OBJECT_TYPE* object;
+    PERF_INSTANCE_DEFINITION* inst;
+    PERF_COUNTER_DEFINITION* counter;
     DWORD i, err;
     DWORD perf_offsets[PERF_IX_MAX];
     sigar_win32_pinfo_t pinfo = {};
@@ -525,53 +521,49 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
      * which should always be the case.
      */
 
-    for (i=0, counter = PdhFirstCounter(object);
-         i<object->NumCounters;
-         i++, counter = PdhNextCounter(counter))
-    {
+    for (i = 0, counter = PdhFirstCounter(object); i < object->NumCounters;
+         i++, counter = PdhNextCounter(counter)) {
         DWORD offset = counter->CounterOffset;
 
         switch (counter->CounterNameTitleIndex) {
-          case PERF_TITLE_CPUTIME:
+        case PERF_TITLE_CPUTIME:
             perf_offsets[PERF_IX_CPUTIME] = offset;
             break;
-          case PERF_TITLE_PAGE_FAULTS:
+        case PERF_TITLE_PAGE_FAULTS:
             perf_offsets[PERF_IX_PAGE_FAULTS] = offset;
             break;
-          case PERF_TITLE_MEM_VSIZE:
+        case PERF_TITLE_MEM_VSIZE:
             assert(counter->CounterSize >= 8);
             perf_offsets[PERF_IX_MEM_VSIZE] = offset;
             break;
-          case PERF_TITLE_MEM_SIZE:
+        case PERF_TITLE_MEM_SIZE:
             assert(counter->CounterSize >= 8);
             perf_offsets[PERF_IX_MEM_SIZE] = offset;
             break;
-          case PERF_TITLE_THREAD_CNT:
+        case PERF_TITLE_THREAD_CNT:
             perf_offsets[PERF_IX_THREAD_CNT] = offset;
             break;
-          case PERF_TITLE_HANDLE_CNT:
+        case PERF_TITLE_HANDLE_CNT:
             perf_offsets[PERF_IX_HANDLE_CNT] = offset;
             break;
-          case PERF_TITLE_PID:
+        case PERF_TITLE_PID:
             perf_offsets[PERF_IX_PID] = offset;
             break;
-          case PERF_TITLE_PPID:
+        case PERF_TITLE_PPID:
             perf_offsets[PERF_IX_PPID] = offset;
             break;
-          case PERF_TITLE_PRIORITY:
+        case PERF_TITLE_PRIORITY:
             perf_offsets[PERF_IX_PRIORITY] = offset;
             break;
-          case PERF_TITLE_START_TIME:
+        case PERF_TITLE_START_TIME:
             perf_offsets[PERF_IX_START_TIME] = offset;
             break;
         }
     }
 
-    for (i=0, inst = PdhFirstInstance(object);
-         i<object->NumInstances;
-         i++, inst = PdhNextInstance(inst))
-    {
-        PERF_COUNTER_BLOCK *counter_block = PdhGetCounterBlock(inst);
+    for (i = 0, inst = PdhFirstInstance(object); i < object->NumInstances;
+         i++, inst = PdhNextInstance(inst)) {
+        PERF_COUNTER_BLOCK* counter_block = PdhGetCounterBlock(inst);
         sigar_pid_t this_pid = PERF_VAL(PERF_IX_PID);
 
         if (this_pid != pid) {
@@ -579,15 +571,14 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
         }
 
         pinfo.state = 'R'; /* XXX? */
-        SIGAR_W2A(PdhInstanceName(inst),
-                  pinfo.name, sizeof(pinfo.name));
+        SIGAR_W2A(PdhInstanceName(inst), pinfo.name, sizeof(pinfo.name));
 
-        pinfo.size     = PERF_VAL64(PERF_IX_MEM_VSIZE);
+        pinfo.size = PERF_VAL64(PERF_IX_MEM_VSIZE);
         pinfo.resident = PERF_VAL64(PERF_IX_MEM_SIZE);
-        pinfo.ppid     = PERF_VAL(PERF_IX_PPID);
+        pinfo.ppid = PERF_VAL(PERF_IX_PPID);
         pinfo.priority = PERF_VAL(PERF_IX_PRIORITY);
-        pinfo.handles  = PERF_VAL(PERF_IX_HANDLE_CNT);
-        pinfo.threads  = PERF_VAL(PERF_IX_THREAD_CNT);
+        pinfo.handles = PERF_VAL(PERF_IX_HANDLE_CNT);
+        pinfo.threads = PERF_VAL(PERF_IX_THREAD_CNT);
         pinfo.page_faults = PERF_VAL(PERF_IX_PAGE_FAULTS);
 
         return {SIGAR_OK, pinfo};

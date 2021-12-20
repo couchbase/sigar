@@ -38,22 +38,20 @@
 #include <unistd.h>
 #include <utility>
 
-#define SIGAR_SEC2NANO(s) \
-    ((uint64_t)(s) * (uint64_t)SIGAR_NSEC)
+#define SIGAR_SEC2NANO(s) ((uint64_t)(s) * (uint64_t)SIGAR_NSEC)
 
 #define SIGAR_TICK2MSEC(s) \
-   ((uint64_t)(s) * ((uint64_t)SIGAR_MSEC / (double)sigar->ticks))
+    ((uint64_t)(s) * ((uint64_t)SIGAR_MSEC / (double)sigar->ticks))
 
-#define SIGAR_NSEC2MSEC(s) \
-   ((uint64_t)(s) / ((uint64_t)1000000L))
+#define SIGAR_NSEC2MSEC(s) ((uint64_t)(s) / ((uint64_t)1000000L))
 
-#define NMIB(mib) (sizeof(mib)/sizeof(mib[0]))
+#define NMIB(mib) (sizeof(mib) / sizeof(mib[0]))
 
-#define SIGAR_PROC_STATE_SLEEP  'S'
-#define SIGAR_PROC_STATE_RUN    'R'
-#define SIGAR_PROC_STATE_STOP   'T'
+#define SIGAR_PROC_STATE_SLEEP 'S'
+#define SIGAR_PROC_STATE_RUN 'R'
+#define SIGAR_PROC_STATE_STOP 'T'
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
-#define SIGAR_PROC_STATE_IDLE   'D'
+#define SIGAR_PROC_STATE_IDLE 'D'
 
 class AppleSigar : public sigar_t {
 public:
@@ -158,7 +156,7 @@ int AppleSigar::get_swap(sigar_swap_t& swap) {
     swap.free = sw_usage.xsu_avail;
 
     vm_statistics_data_t vmstat;
-    const auto status=get_vmstat(&vmstat);
+    const auto status = get_vmstat(&vmstat);
     if (status != SIGAR_OK) {
         return status;
     }
@@ -175,8 +173,8 @@ int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
     host_cpu_load_info_data_t cpuload;
 
-    status = host_statistics(mach_port, HOST_CPU_LOAD_INFO,
-                             (host_info_t)&cpuload, &count);
+    status = host_statistics(
+            mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&cpuload, &count);
 
     if (status != KERN_SUCCESS) {
         return errno;
@@ -195,7 +193,7 @@ int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
 static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
                                             int nproc,
                                             pid_t pid) {
-    for (int  i = 0; i < nproc; i++) {
+    for (int i = 0; i < nproc; i++) {
         if (proc[i].kp_proc.p_pid == pid) {
             return proc + i;
         }
@@ -233,7 +231,7 @@ int AppleSigar::get_proc_list_children(sigar_pid_t ppid,
         return errno;
     }
 
-    proc = (kinfo_proc *)malloc(len);
+    proc = (kinfo_proc*)malloc(len);
 
     if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
         free(proc);
@@ -256,7 +254,7 @@ int AppleSigar::get_proc_list_children(sigar_pid_t ppid,
 }
 
 std::pair<int, kinfo_proc> AppleSigar::get_pinfo(sigar_pid_t pid) {
-    int mib[] = { CTL_KERN, KERN_PROC, KERN_PROC_PID, 0 };
+    int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, 0};
     mib[3] = pid;
 
     kinfo_proc pinfo = {};
@@ -286,20 +284,19 @@ static int sigar_proc_cpu_type(sigar_pid_t pid, cpu_type_t* type) {
 }
 
 /* shared memory region size for the given cpu_type_t */
-static mach_vm_size_t sigar_shared_region_size(cpu_type_t type)
-{
+static mach_vm_size_t sigar_shared_region_size(cpu_type_t type) {
     switch (type) {
-      case CPU_TYPE_ARM:
+    case CPU_TYPE_ARM:
         return SHARED_REGION_SIZE_ARM;
-      case CPU_TYPE_POWERPC:
+    case CPU_TYPE_POWERPC:
         return SHARED_REGION_SIZE_PPC;
-      case CPU_TYPE_POWERPC64:
+    case CPU_TYPE_POWERPC64:
         return SHARED_REGION_SIZE_PPC64;
-      case CPU_TYPE_I386:
+    case CPU_TYPE_I386:
         return SHARED_REGION_SIZE_I386;
-      case CPU_TYPE_X86_64:
+    case CPU_TYPE_X86_64:
         return SHARED_REGION_SIZE_X86_64;
-      default:
+    default:
         return SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
     }
 }
@@ -368,16 +365,17 @@ int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
 }
 
 #define tv2msec(tv) \
-   (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
+    (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
 
 #define tval2msec(tval) \
-   ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))
+    ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))
 
 #define tval2nsec(tval) \
     (SIGAR_SEC2NANO((tval).seconds) + SIGAR_MICROSEC2NANO((tval).microseconds))
 
-static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *time)
-{
+static int get_proc_times(sigar_t* sigar,
+                          sigar_pid_t pid,
+                          sigar_proc_time_t* time) {
     unsigned int count;
     time_value_t utime = {0, 0}, stime = {0, 0};
     task_basic_info_data_t ti;
@@ -390,7 +388,7 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
 
     if (sz == sizeof(pti)) {
         time->user = SIGAR_NSEC2MSEC(pti.pti_total_user);
-        time->sys  = SIGAR_NSEC2MSEC(pti.pti_total_system);
+        time->sys = SIGAR_NSEC2MSEC(pti.pti_total_system);
         time->total = time->user + time->sys;
         return SIGAR_OK;
     }
@@ -402,8 +400,7 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     }
 
     count = TASK_BASIC_INFO_COUNT;
-    status = task_info(task, TASK_BASIC_INFO,
-                       (task_info_t)&ti, &count);
+    status = task_info(task, TASK_BASIC_INFO, (task_info_t)&ti, &count);
     if (status != KERN_SUCCESS) {
         if (task != self) {
             mach_port_deallocate(self, task);
@@ -412,8 +409,7 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     }
 
     count = TASK_THREAD_TIMES_INFO_COUNT;
-    status = task_info(task, TASK_THREAD_TIMES_INFO,
-                       (task_info_t)&tti, &count);
+    status = task_info(task, TASK_THREAD_TIMES_INFO, (task_info_t)&tti, &count);
     if (status != KERN_SUCCESS) {
         if (task != self) {
             mach_port_deallocate(self, task);
@@ -427,7 +423,7 @@ static int get_proc_times(sigar_t *sigar, sigar_pid_t pid, sigar_proc_time_t *ti
     time_value_add(&stime, &tti.system_time);
 
     time->user = tval2msec(utime);
-    time->sys  = tval2msec(stime);
+    time->sys = tval2msec(stime);
     time->total = time->user + time->sys;
 
     return SIGAR_OK;
@@ -450,30 +446,28 @@ int AppleSigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
 
 /* thread state mapping derived from ps.tproj */
 static const char thread_states[] = {
-    /*0*/ '-',
-    /*1*/ SIGAR_PROC_STATE_RUN,
-    /*2*/ SIGAR_PROC_STATE_ZOMBIE,
-    /*3*/ SIGAR_PROC_STATE_SLEEP,
-    /*4*/ SIGAR_PROC_STATE_IDLE,
-    /*5*/ SIGAR_PROC_STATE_STOP,
-    /*6*/ SIGAR_PROC_STATE_STOP,
-    /*7*/ '?'
-};
+        /*0*/ '-',
+        /*1*/ SIGAR_PROC_STATE_RUN,
+        /*2*/ SIGAR_PROC_STATE_ZOMBIE,
+        /*3*/ SIGAR_PROC_STATE_SLEEP,
+        /*4*/ SIGAR_PROC_STATE_IDLE,
+        /*5*/ SIGAR_PROC_STATE_STOP,
+        /*6*/ SIGAR_PROC_STATE_STOP,
+        /*7*/ '?'};
 
-static int thread_state_get(thread_basic_info_data_t *info)
-{
+static int thread_state_get(thread_basic_info_data_t* info) {
     switch (info->run_state) {
-      case TH_STATE_RUNNING:
+    case TH_STATE_RUNNING:
         return 1;
-      case TH_STATE_UNINTERRUPTIBLE:
+    case TH_STATE_UNINTERRUPTIBLE:
         return 2;
-      case TH_STATE_WAITING:
+    case TH_STATE_WAITING:
         return (info->sleep_time > 20) ? 4 : 3;
-      case TH_STATE_STOPPED:
+    case TH_STATE_STOPPED:
         return 5;
-      case TH_STATE_HALTED:
+    case TH_STATE_HALTED:
         return 6;
-      default:
+    default:
         return 7;
     }
 }
@@ -498,12 +492,14 @@ int AppleSigar::get_proc_threads(sigar_pid_t pid,
 
     procstate.threads = count;
 
-    for (i=0; i<count; i++) {
+    for (i = 0; i < count; i++) {
         mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
         thread_basic_info_data_t info;
 
-        status = thread_info(threads[i], THREAD_BASIC_INFO,
-                             (thread_info_t)&info, &info_count);
+        status = thread_info(threads[i],
+                             THREAD_BASIC_INFO,
+                             (thread_info_t)&info,
+                             &info_count);
         if (status == KERN_SUCCESS) {
             int tstate = thread_state_get(&info);
             if (tstate < state) {
@@ -536,27 +532,27 @@ int AppleSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
     }
 
     switch (state) {
-      case SIDL:
-          procstate.state = 'D';
-          break;
-      case SRUN:
+    case SIDL:
+        procstate.state = 'D';
+        break;
+    case SRUN:
 #ifdef SONPROC
-      case SONPROC:
+    case SONPROC:
 #endif
-          procstate.state = 'R';
-          break;
-      case SSLEEP:
-          procstate.state = 'S';
-          break;
-      case SSTOP:
-          procstate.state = 'T';
-          break;
-      case SZOMB:
-          procstate.state = 'Z';
-          break;
-      default:
-          procstate.state = '?';
-          break;
+        procstate.state = 'R';
+        break;
+    case SSLEEP:
+        procstate.state = 'S';
+        break;
+    case SSTOP:
+        procstate.state = 'T';
+        break;
+    case SZOMB:
+        procstate.state = 'Z';
+        break;
+    default:
+        procstate.state = '?';
+        break;
     }
 
     return SIGAR_OK;

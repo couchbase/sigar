@@ -87,23 +87,20 @@ public:
 };
 
 #define SIGAR_STRNCPY(dest, src, len) \
-    strncpy(dest, src, len); \
-    dest[len-1] = '\0'
+    strncpy(dest, src, len);          \
+    dest[len - 1] = '\0'
 
 /* we use fixed size buffers pretty much everywhere */
 /* this is strncpy + ensured \0 terminator */
-#define SIGAR_SSTRCPY(dest, src) \
-    SIGAR_STRNCPY(dest, src, sizeof(dest))
-
+#define SIGAR_SSTRCPY(dest, src) SIGAR_STRNCPY(dest, src, sizeof(dest))
 
 #define SIGAR_MSEC 1000L
 
-int sigar_proc_list_create(sigar_proc_list_t *proclist);
+int sigar_proc_list_create(sigar_proc_list_t* proclist);
 
-int sigar_proc_list_grow(sigar_proc_list_t *proclist);
+int sigar_proc_list_grow(sigar_proc_list_t* proclist);
 
-#define SIGAR_PROC_LIST_GROW(proclist) \
+#define SIGAR_PROC_LIST_GROW(proclist)        \
     if (proclist->number >= proclist->size) { \
-        sigar_proc_list_grow(proclist); \
+        sigar_proc_list_grow(proclist);       \
     }
-

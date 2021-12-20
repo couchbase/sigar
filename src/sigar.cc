@@ -17,8 +17,8 @@
  */
 
 #include <stdio.h>
-#include <system_error>
 #include <chrono>
+#include <system_error>
 #ifdef WIN32
 #include <process.h>
 #endif
@@ -68,7 +68,7 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t* sigar, sigar_mem_t* mem) {
     }
 }
 
-SIGAR_DECLARE(int) sigar_swap_get(sigar_t *sigar, sigar_swap_t *swap) {
+SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap) {
     if (!sigar || !swap) {
         return EINVAL;
     }

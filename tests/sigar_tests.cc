@@ -124,8 +124,8 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
     // 6 processes
     sigar_proc_list_t proc_list;
     auto ret = sigar_proc_list_get_children(instance, getpid(), &proc_list);
-    ASSERT_EQ(SIGAR_OK, ret)
-            << "sigar_proc_list_get_children: " << sigar_strerror(instance, ret);
+    ASSERT_EQ(SIGAR_OK, ret) << "sigar_proc_list_get_children: "
+                             << sigar_strerror(instance, ret);
 
     EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
 
@@ -210,8 +210,7 @@ TEST_F(Sigar, test_sigar_proc_state_get) {
     EXPECT_EQ(1, proc_state.threads);
     std::thread second{[&proc_state, &ret, i = instance]() {
         ret = sigar_proc_state_get(i, getpid(), &proc_state);
-    }
-    };
+    }};
     second.join();
     ASSERT_EQ(SIGAR_OK, ret);
     EXPECT_EQ(2, proc_state.threads);

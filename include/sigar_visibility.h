@@ -19,7 +19,7 @@
 #ifdef BUILDING_SIGAR
 
 #if defined(__GNUC__)
-#define SIGAR_PUBLIC_API __attribute__ ((visibility("default")))
+#define SIGAR_PUBLIC_API __attribute__((visibility("default")))
 #elif defined(_MSC_VER)
 #define SIGAR_PUBLIC_API __declspec(dllexport)
 #else

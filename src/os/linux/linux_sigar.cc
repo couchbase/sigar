@@ -255,7 +255,10 @@ public:
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
 
-    static int check_parents(pid_t pid, pid_t ppid);
+    static bool check_parents(
+            pid_t pid,
+            pid_t ppid,
+            const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs);
     static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
 };
 
@@ -509,26 +512,30 @@ std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
     return {SIGAR_OK, pstat};
 }
 
-int LinuxSigar::check_parents(pid_t pid, pid_t ppid) {
+bool LinuxSigar::check_parents(
+        pid_t pid,
+        pid_t ppid,
+        const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs) {
     do {
-        const auto [status, pstat] = proc_stat_read(pid);
-        if (status != SIGAR_OK) {
-            return -1;
+        auto iter = procs.find(pid);
+        if (iter == procs.end()) {
+            return false;
         }
 
-        if (pstat.ppid == uint64_t(ppid)) {
-            return SIGAR_OK;
+        if (iter->second.ppid == uint64_t(ppid)) {
+            return true;
         }
-        pid = pstat.ppid;
+        pid = iter->second.ppid;
     } while (pid != 0);
-    return -1;
+    return false;
 }
 
 int LinuxSigar::get_proc_list_children(sigar_pid_t ppid,
                                        sigar_proc_list_t* proclist) {
+    std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
+
     DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent* ent;
-
     if (!dirp) {
         return errno;
     }
@@ -540,13 +547,21 @@ int LinuxSigar::get_proc_list_children(sigar_pid_t ppid,
 
         /* XXX: more sanity checking */
         sigar_pid_t pid = strtoul(ent->d_name, nullptr, 10);
-        if (check_parents(pid, ppid) == SIGAR_OK) {
+        auto [status, pinfo] = proc_stat_read(pid);
+        if (status == SIGAR_OK) {
+            allprocs[pid] = std::move(pinfo);
+        }
+    }
+    closedir(dirp);
+
+    for (const auto& [pid, pinfo] : allprocs) {
+        (void)pinfo;
+        if (check_parents(pid, ppid, allprocs)) {
             SIGAR_PROC_LIST_GROW(proclist);
             proclist->data[proclist->number++] = pid;
         }
     }
 
-    closedir(dirp);
     return SIGAR_OK;
 }
 

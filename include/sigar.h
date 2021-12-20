@@ -28,6 +28,8 @@
 #include <sys/types.h>
 
 #ifdef __cplusplus
+#include <functional>
+#include <string_view>
 extern "C" {
 #endif
 
@@ -87,20 +89,6 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu);
 
 typedef struct {
-    unsigned long number;
-    unsigned long size;
-    sigar_pid_t* data;
-} sigar_proc_list_t;
-
-SIGAR_DECLARE(int)
-sigar_proc_list_get_children(sigar_t* sigar,
-                             sigar_pid_t ppid,
-                             sigar_proc_list_t* proclist);
-
-SIGAR_DECLARE(int)
-sigar_proc_list_destroy(sigar_t* sigar, sigar_proc_list_t* proclist);
-
-typedef struct {
     uint64_t size, resident, share, minor_faults, major_faults, page_faults;
 } sigar_proc_mem_t;
 
@@ -141,6 +129,31 @@ SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root);
 #endif
 
 #ifdef __cplusplus
+namespace sigar {
+
+/**
+ * The IterateChildProcessCallback is called with the following
+ * parameters:
+ *   1. The process pid
+ *   2. The parent pid
+ *   3. The process start time
+ *   4. The process name
+ */
+using IterateChildProcessCallback = std::function<void(
+        sigar_pid_t, sigar_pid_t, uint64_t, std::string_view)>;
+
+/**
+ * Iterate over the child processes
+ *
+ * @param sigar The sigar instance to use
+ * @param pid The process to iterate over the child for
+ * @param callback The callback to call for each child
+ */
+SIGAR_PUBLIC_API
+void iterate_child_pocesses(sigar_t* sigar,
+                            sigar_pid_t pid,
+                            IterateChildProcessCallback callback);
+} // namespace sigar
 }
 #endif
 

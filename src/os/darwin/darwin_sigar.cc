@@ -36,6 +36,7 @@
 #include <sys/resource.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <system_error>
 #include <utility>
 
 #define SIGAR_SEC2NANO(s) ((uint64_t)(s) * (uint64_t)SIGAR_NSEC)
@@ -66,8 +67,9 @@ public:
     int get_cpu(sigar_cpu_t& cpu) override;
     int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
     int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
-    int get_proc_list_children(sigar_pid_t ppid,
-                               sigar_proc_list_t* proclist) override;
+    void iterate_child_pocesses(
+            sigar_pid_t ppid,
+            sigar::IterateChildProcessCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -220,22 +222,30 @@ static int sigar_os_check_parents(const struct kinfo_proc* proc,
     return -1;
 }
 
-int AppleSigar::get_proc_list_children(sigar_pid_t ppid,
-                                       sigar_proc_list_t* proclist) {
+#define tv2msec(tv) \
+    (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
+
+void AppleSigar::iterate_child_pocesses(
+        sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
     int i, num;
     size_t len;
     struct kinfo_proc* proc;
 
     if (sysctl(mib, NMIB(mib), NULL, &len, NULL, 0) < 0) {
-        return errno;
+        throw std::system_error(
+                errno,
+                std::system_category(),
+                "iterate_child_pocesses(): sysctl to determine size failed");
     }
 
     proc = (kinfo_proc*)malloc(len);
 
     if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
         free(proc);
-        return errno;
+        throw std::system_error(errno,
+                                std::system_category(),
+                                "iterate_child_pocesses(): sysctl failed");
     }
 
     num = len / sizeof(*proc);
@@ -243,14 +253,14 @@ int AppleSigar::get_proc_list_children(sigar_pid_t ppid,
     for (i = 0; i < num; i++) {
         if (sigar_os_check_parents(proc, num, proc[i].kp_proc.p_pid, ppid) ==
             SIGAR_OK) {
-            SIGAR_PROC_LIST_GROW(proclist);
-            proclist->data[proclist->number++] = proc[i].kp_proc.p_pid;
+            callback(proc[i].kp_proc.p_pid,
+                     proc[i].kp_eproc.e_ppid,
+                     tv2msec(proc[i].kp_proc.p_starttime),
+                     proc[i].kp_proc.p_comm);
         }
     }
 
     free(proc);
-
-    return SIGAR_OK;
 }
 
 std::pair<int, kinfo_proc> AppleSigar::get_pinfo(sigar_pid_t pid) {
@@ -363,9 +373,6 @@ int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
 
     return SIGAR_OK;
 }
-
-#define tv2msec(tv) \
-    (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
 
 #define tval2msec(tval) \
     ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))

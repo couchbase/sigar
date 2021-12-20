@@ -249,8 +249,9 @@ public:
     int get_cpu(sigar_cpu_t& cpu) override;
     int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
     int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
-    int get_proc_list_children(sigar_pid_t ppid,
-                               sigar_proc_list_t* proclist) override;
+    void iterate_child_pocesses(
+            sigar_pid_t pid,
+            sigar::IterateChildProcessCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -530,14 +531,15 @@ bool LinuxSigar::check_parents(
     return false;
 }
 
-int LinuxSigar::get_proc_list_children(sigar_pid_t ppid,
-                                       sigar_proc_list_t* proclist) {
+void LinuxSigar::iterate_child_pocesses(
+        sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
 
     DIR* dirp = opendir(PROC_FS_ROOT);
     struct dirent* ent;
     if (!dirp) {
-        return errno;
+        throw std::system_error(
+                errno, std::system_category(), "Failed to open /proc");
     }
 
     while ((ent = readdir(dirp)) != nullptr) {
@@ -555,14 +557,10 @@ int LinuxSigar::get_proc_list_children(sigar_pid_t ppid,
     closedir(dirp);
 
     for (const auto& [pid, pinfo] : allprocs) {
-        (void)pinfo;
         if (check_parents(pid, ppid, allprocs)) {
-            SIGAR_PROC_LIST_GROW(proclist);
-            proclist->data[proclist->number++] = pid;
+            callback(pid, pinfo.ppid, pinfo.start_time, pinfo.name);
         }
     }
-
-    return SIGAR_OK;
 }
 
 int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {

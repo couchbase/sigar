@@ -63,12 +63,7 @@ protected:
 public:
     static sigar_t* New();
 
-    virtual ~sigar_t() {
-        if (pids) {
-            sigar_proc_list_destroy(this, pids);
-            free(pids);
-        }
-    }
+    virtual ~sigar_t() = default;
 
     virtual int get_memory(sigar_mem_t& mem) = 0;
     virtual int get_swap(sigar_swap_t& swap) = 0;
@@ -76,13 +71,12 @@ public:
     virtual int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) = 0;
     virtual int get_proc_state(sigar_pid_t pid,
                                sigar_proc_state_t& procstate) = 0;
-    virtual int get_proc_list_children(sigar_pid_t ppid,
-                                       sigar_proc_list_t* proclist) = 0;
+    virtual void iterate_child_pocesses(
+            sigar_pid_t pid, sigar::IterateChildProcessCallback callback) = 0;
 
     int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);
 
     char errbuf[256] = {};
-    sigar_proc_list_t* pids = nullptr;
     std::unordered_map<sigar_pid_t, sigar_proc_cpu_t> process_cache;
 };
 
@@ -95,12 +89,3 @@ public:
 #define SIGAR_SSTRCPY(dest, src) SIGAR_STRNCPY(dest, src, sizeof(dest))
 
 #define SIGAR_MSEC 1000L
-
-int sigar_proc_list_create(sigar_proc_list_t* proclist);
-
-int sigar_proc_list_grow(sigar_proc_list_t* proclist);
-
-#define SIGAR_PROC_LIST_GROW(proclist)        \
-    if (proclist->number >= proclist->size) { \
-        sigar_proc_list_grow(proclist);       \
-    }

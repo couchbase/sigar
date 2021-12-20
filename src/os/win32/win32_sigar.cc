@@ -83,15 +83,19 @@ public:
     int get_cpu(sigar_cpu_t& cpu) override;
     int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
     int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
-    int get_proc_list_children(sigar_pid_t ppid,
-                               sigar_proc_list_t* proclist) override;
+    void iterate_child_pocesses(
+            sigar_pid_t ppid,
+            sigar::IterateChildProcessCallback callback) override;
 
 protected:
     static constexpr size_t PERFBUF_SIZE = 8192;
 
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
     static void enable_debug_privilege();
-    int check_parents(sigar_pid_t pid, sigar_pid_t ppid);
+    bool check_parents(
+            sigar_pid_t pid,
+            sigar_pid_t ppid,
+            std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo);
     std::pair<int, std::vector<sigar_pid_t>> get_all_pids();
     std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
     int get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem);
@@ -390,44 +394,49 @@ std::pair<int, std::vector<sigar_pid_t>> Win32Sigar::get_all_pids() {
     return {SIGAR_OK, std::move(allpids)};
 }
 
-int Win32Sigar::check_parents(sigar_pid_t pid, sigar_pid_t ppid) {
-    try {
-        std::vector<sigar_pid_t> pids;
-        do {
-            const auto [status, pinfo] = get_proc_info(pid);
-            if (status != SIGAR_OK) {
-                return -1;
-            }
+bool Win32Sigar::check_parents(
+        sigar_pid_t pid,
+        sigar_pid_t ppid,
+        std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo) {
+    std::vector<sigar_pid_t> pids;
+    do {
+        auto iter = allprocinfo.find(pid);
+        if (iter == allprocinfo.end()) {
+            return false;
+        }
 
-            if (pinfo.ppid == ppid) {
-                return SIGAR_OK;
-            }
-            pids.push_back(pid);
-            pid = pinfo.ppid;
-            if (std::find(pids.begin(), pids.end(), pid) != pids.end()) {
-                // There is a loop in the process chain
-                return -1;
-            }
-        } while (ppid != 0);
-    } catch (const std::bad_alloc&) {
-        return -1;
-    }
+        if (iter->second.ppid == ppid) {
+            return true;
+        }
+        pids.push_back(pid);
+        pid = iter->second.ppid;
+        if (std::find(pids.begin(), pids.end(), pid) != pids.end()) {
+            // There is a loop in the process chain
+            return false;
+        }
+    } while (ppid != 0);
     // not found
-    return -1;
+    return false;
 }
 
-int Win32Sigar::get_proc_list_children(sigar_pid_t ppid,
-                                       sigar_proc_list_t* proclist) {
+void Win32Sigar::iterate_child_pocesses(
+        sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     const auto [ret, allpids] = get_all_pids();
     if (ret == SIGAR_OK) {
+        std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo;
         for (const auto& pid : allpids) {
-            if (check_parents(pid, ppid) == SIGAR_OK) {
-                SIGAR_PROC_LIST_GROW(proclist);
-                proclist->data[proclist->number++] = pid;
+            auto [st, pinfo] = get_proc_info(pid);
+            if (st == SIGAR_OK) {
+                allprocinfo[pid] = std::move(pinfo);
+            }
+        }
+
+        for (const auto& [pid, pinfo] : allprocinfo) {
+            if (check_parents(pid, ppid, allprocinfo)) {
+                callback(pinfo.pid, pinfo.ppid, pinfo.mtime, pinfo.name);
             }
         }
     }
-    return ret;
 }
 
 /*

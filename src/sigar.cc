@@ -169,65 +169,6 @@ int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {
     return SIGAR_OK;
 }
 
-#define SIGAR_PROC_LIST_MAX 256
-
-int sigar_proc_list_create(sigar_proc_list_t* proclist) {
-    proclist->number = 0;
-    proclist->size = SIGAR_PROC_LIST_MAX;
-    proclist->data = static_cast<sigar_pid_t*>(
-            malloc(sizeof(*(proclist->data)) * proclist->size));
-    return SIGAR_OK;
-}
-
-int sigar_proc_list_grow(sigar_proc_list_t* proclist) {
-    proclist->data = static_cast<sigar_pid_t*>(
-            realloc(proclist->data,
-                    sizeof(*(proclist->data)) *
-                            (proclist->size + SIGAR_PROC_LIST_MAX)));
-    proclist->size += SIGAR_PROC_LIST_MAX;
-
-    return SIGAR_OK;
-}
-
-SIGAR_DECLARE(int)
-sigar_proc_list_destroy(sigar_t* sigar, sigar_proc_list_t* proclist) {
-    if (proclist->size) {
-        free(proclist->data);
-        proclist->number = proclist->size = 0;
-    }
-
-    return SIGAR_OK;
-}
-
-SIGAR_DECLARE(int)
-sigar_proc_list_get_children(sigar_t* sigar,
-                             sigar_pid_t ppid,
-                             sigar_proc_list_t* proclist) {
-    if (proclist == NULL) {
-        /* internal re-use */
-        if (sigar->pids == NULL) {
-            sigar->pids = static_cast<sigar_proc_list_t*>(
-                    malloc(sizeof(*sigar->pids)));
-            sigar_proc_list_create(sigar->pids);
-        } else {
-            sigar->pids->number = 0;
-        }
-        proclist = sigar->pids;
-    } else {
-        sigar_proc_list_create(proclist);
-    }
-
-    try {
-        return sigar->get_proc_list_children(ppid, proclist);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
-}
-
 SIGAR_DECLARE(int)
 sigar_proc_mem_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_mem_t* procmem) {
     if (!sigar || !procmem) {
@@ -292,4 +233,11 @@ sigar_proc_state_get(sigar_t* sigar,
     } catch (...) {
         return EINVAL;
     }
+}
+
+SIGAR_PUBLIC_API
+void sigar::iterate_child_pocesses(sigar_t* sigar,
+                                   sigar_pid_t pid,
+                                   IterateChildProcessCallback callback) {
+    sigar->iterate_child_pocesses(pid, callback);
 }

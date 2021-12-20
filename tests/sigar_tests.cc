@@ -122,17 +122,21 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
 
     // We've got all of the processes running.. now lets check if sigar gives me
     // 6 processes
-    sigar_proc_list_t proc_list;
-    auto ret = sigar_proc_list_get_children(instance, getpid(), &proc_list);
-    ASSERT_EQ(SIGAR_OK, ret) << "sigar_proc_list_get_children: "
-                             << sigar_strerror(instance, ret);
+    std::vector<sigar_pid_t> pids;
+    sigar::iterate_child_pocesses(
+            instance,
+            getpid(),
+            [&pids](auto pid, auto ppid, auto starttime, auto name) {
+                EXPECT_EQ(pids.end(), std::find(pids.begin(), pids.end(), pid))
+                        << "The process should not be reported twice";
+                pids.push_back(pid);
+            });
+    EXPECT_EQ(6, pids.size()) << "I expected to get 6 childs";
 
-    EXPECT_EQ(6, proc_list.number) << "I expected to get 6 childs";
-
-    for (unsigned long ii = 0; ii < proc_list.number; ii++) {
-        sigar_pid_t pid = proc_list.data[ii];
+    for (const auto& pid : pids) {
         sigar_proc_mem_t proc_mem;
         sigar_proc_state_t proc_state;
+        int ret;
 
         if (SIGAR_OK == (ret = sigar_proc_mem_get(instance, pid, &proc_mem))) {
             EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.size);
@@ -167,12 +171,22 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
 #endif
     }
 
-    sigar_proc_list_destroy(instance, &proc_list);
     remove_all(directory);
 
     while (child->isRunning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds{10});
     }
+    // Make sure we get time to reap the process...
+    std::this_thread::sleep_for(std::chrono::milliseconds{10});
+
+    pids.clear();
+    sigar::iterate_child_pocesses(
+            instance,
+            getpid(),
+            [&pids](auto pid, auto ppid, auto starttime, auto name) {
+                pids.push_back(pid);
+            });
+    EXPECT_TRUE(pids.empty()) << "I expected all childs to be gone!";
 }
 
 TEST_F(Sigar, sigar_get_control_group_info) {

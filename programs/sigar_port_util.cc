@@ -13,11 +13,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <stdexcept>
+#include <string>
 
-static int is_interesting_process(const char* name) {
-    return (strcmp(name, "moxi") != 0 && strcmp(name, "inet_gethost") != 0 &&
-            strcmp(name, "memsup") != 0 && strcmp(name, "cpu_sup") != 0 &&
-            strcmp(name, "sh") != 0 && strcmp(name, "epmd") != 0);
+static bool is_interesting_process(std::string_view name) {
+    return !(name == "moxi" || name == "inet_gethost" || name == "memsup" ||
+             name == "cpu_sup" || name == "sh" || name == "epmd");
 }
 
 int find_interesting_procs(
@@ -44,35 +45,31 @@ int find_interesting_procs(
             PROC_NAME_LEN);
     interesting_count++;
 
-    sigar_proc_list_t proc_list;
-    MUST_SUCCEED(
-            sigar_proc_list_get_children(sigar, babysitter_pid, &proc_list));
-
-    for (unsigned long i = 0; i < proc_list.number; ++i) {
-        sigar_pid_t pid = proc_list.data[i];
-
-        if (sigar_proc_state_get(sigar, pid, &proc_state) != SIGAR_OK) {
-            continue;
-        }
-
-        if (sigar_proc_cpu_get(sigar, pid, &proc_cpu) != SIGAR_OK) {
-            continue;
-        }
-
-        if (is_interesting_process(proc_state.name) &&
-            interesting_count < NUM_INTERESTING_PROCS) {
-            interesting_procs[interesting_count].pid = pid;
-            interesting_procs[interesting_count].ppid = proc_state.ppid;
-            interesting_procs[interesting_count].start_time =
-                    proc_cpu.start_time;
-            strncpy(interesting_procs[interesting_count].name,
-                    proc_state.name,
-                    PROC_NAME_LEN);
-            interesting_count++;
-        }
+    try {
+        sigar::iterate_child_pocesses(
+                sigar,
+                babysitter_pid,
+                [&interesting_count, &interesting_procs](
+                        sigar_pid_t pid,
+                        sigar_pid_t ppid,
+                        uint64_t start_time,
+                        std::string_view name) {
+                    if (is_interesting_process(name) &&
+                        interesting_count < NUM_INTERESTING_PROCS) {
+                        std::string procname(name);
+                        interesting_procs[interesting_count].pid = pid;
+                        interesting_procs[interesting_count].ppid = ppid;
+                        interesting_procs[interesting_count].start_time =
+                                start_time;
+                        strncpy(interesting_procs[interesting_count].name,
+                                procname.c_str(),
+                                PROC_NAME_LEN);
+                        interesting_count++;
+                    }
+                });
+    } catch (const std::exception&) {
+        // ignore
     }
-
-    MUST_SUCCEED(sigar_proc_list_destroy(sigar, &proc_list));
 
     return interesting_count;
 }

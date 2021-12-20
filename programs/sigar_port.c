@@ -14,6 +14,9 @@
  *   See the License for the specific language governing permissions and
  *   limitations under the License.
  */
+
+#include "sigar_port.h"
+
 #include <errno.h>
 #include <inttypes.h>
 #include <sigar.h>
@@ -28,24 +31,8 @@
 #endif
 
 #define DEFAULT(value, def) ((value) == SIGAR_FIELD_NOTIMPL ? (def) : (value))
-#define MUST_SUCCEED(body)      \
-    do {                        \
-        int _ret = (body);      \
-        if (_ret != SIGAR_OK) { \
-            exit(1);            \
-        }                       \
-    } while (0)
 
-#define NUM_INTERESTING_PROCS 40
 #define PROCS_REFRESH_INTERVAL 20
-#define PROC_NAME_LEN 60
-
-struct proc {
-    sigar_pid_t pid;
-    sigar_pid_t ppid;
-    uint64_t start_time;
-    char name[PROC_NAME_LEN];
-};
 
 struct proc_stats {
     char name[PROC_NAME_LEN];
@@ -85,76 +72,6 @@ struct system_stats {
 
     struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
 };
-
-static int is_interesting_process(const char* name) {
-    return (strcmp(name, "moxi") != 0 && strcmp(name, "inet_gethost") != 0 &&
-            strcmp(name, "memsup") != 0 && strcmp(name, "cpu_sup") != 0 &&
-            strcmp(name, "sh") != 0 && strcmp(name, "epmd") != 0);
-}
-
-/// Find all of the descendants of the babysitter process and populate the
-/// interesting_proc array with the more information about each process
-///
-/// \param sigar the library handle
-/// \param babysitter_pid the pid of the babysitter
-/// \param interesting_procs the array to populate
-/// \return The number of processes found
-static int find_interesting_procs(
-        sigar_t* sigar,
-        sigar_pid_t babysitter_pid,
-        struct proc interesting_procs[NUM_INTERESTING_PROCS]) {
-    sigar_proc_state_t proc_state;
-    sigar_proc_cpu_t proc_cpu;
-
-    if (sigar_proc_state_get(sigar, babysitter_pid, &proc_state) != SIGAR_OK ||
-        sigar_proc_cpu_get(sigar, babysitter_pid, &proc_cpu) != SIGAR_OK) {
-        fprintf(stderr,
-                "Failed to lookup the babysitter process with pid %u",
-                babysitter_pid);
-        exit(1);
-    }
-
-    int interesting_count = 0;
-    interesting_procs[interesting_count].pid = babysitter_pid;
-    interesting_procs[interesting_count].ppid = proc_state.ppid;
-    interesting_procs[interesting_count].start_time = proc_cpu.start_time;
-    strncpy(interesting_procs[interesting_count].name,
-            proc_state.name,
-            PROC_NAME_LEN);
-    interesting_count++;
-
-    sigar_proc_list_t proc_list;
-    MUST_SUCCEED(
-            sigar_proc_list_get_children(sigar, babysitter_pid, &proc_list));
-
-    for (unsigned long i = 0; i < proc_list.number; ++i) {
-        sigar_pid_t pid = proc_list.data[i];
-
-        if (sigar_proc_state_get(sigar, pid, &proc_state) != SIGAR_OK) {
-            continue;
-        }
-
-        if (sigar_proc_cpu_get(sigar, pid, &proc_cpu) != SIGAR_OK) {
-            continue;
-        }
-
-        if (is_interesting_process(proc_state.name) &&
-            interesting_count < NUM_INTERESTING_PROCS) {
-            interesting_procs[interesting_count].pid = pid;
-            interesting_procs[interesting_count].ppid = proc_state.ppid;
-            interesting_procs[interesting_count].start_time =
-                    proc_cpu.start_time;
-            strncpy(interesting_procs[interesting_count].name,
-                    proc_state.name,
-                    PROC_NAME_LEN);
-            interesting_count++;
-        }
-    }
-
-    MUST_SUCCEED(sigar_proc_list_destroy(sigar, &proc_list));
-
-    return interesting_count;
-}
 
 static int populate_interesting_procs(sigar_t* sigar,
                                       struct proc* procs,

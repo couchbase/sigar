@@ -18,19 +18,13 @@
 
 /* Utility functions to provide string formatting of SIGAR data */
 
-// Undefine _GNU_SOURCE to ensure we get the strerror_r as defined by the
-// Standard
-#ifdef __linux__
-#undef _GNU_SOURCE
-#ifndef _POSIX_C_SOURCE
-#define _POSIX_C_SOURCE 200112L
-#endif
-#endif
-#include <cerrno>
-#include <cstring>
-
+// If it wasn't for the stupid CentOS7 we could undefine _GNU_SOURCE
+// and get the portable version of strerror_r
 #include "sigar.h"
 #include "sigar_private.h"
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 
 #ifdef WIN32
 #include <windows.h>
@@ -63,6 +57,10 @@ static const char* sigar_strerror_get(int err, char* errbuf, int buflen) {
                   (LPTSTR)errbuf,
                   (DWORD)buflen,
                   nullptr);
+#elif defined(_GNU_SOURCE)
+    if (!strerror_r(err, errbuf, buflen)) {
+        SIGAR_STRNCPY(errbuf, "Unknown error", buflen);
+    }
 #else
     int ret = strerror_r(err, errbuf, buflen);
     if (ret != EINVAL) {

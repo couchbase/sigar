@@ -46,7 +46,7 @@ int find_interesting_procs(
     interesting_count++;
 
     try {
-        sigar::iterate_child_pocesses(
+        sigar::iterate_child_processes(
                 sigar,
                 babysitter_pid,
                 [&interesting_count, &interesting_procs](

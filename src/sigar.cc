@@ -236,8 +236,8 @@ sigar_proc_state_get(sigar_t* sigar,
 }
 
 SIGAR_PUBLIC_API
-void sigar::iterate_child_pocesses(sigar_t* sigar,
-                                   sigar_pid_t pid,
-                                   IterateChildProcessCallback callback) {
-    sigar->iterate_child_pocesses(pid, callback);
+void sigar::iterate_child_processes(sigar_t* sigar,
+                                    sigar_pid_t pid,
+                                    IterateChildProcessCallback callback) {
+    sigar->iterate_child_processes(pid, callback);
 }

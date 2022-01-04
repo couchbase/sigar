@@ -83,7 +83,7 @@ public:
     int get_cpu(sigar_cpu_t& cpu) override;
     int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
     int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
-    void iterate_child_pocesses(
+    void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
 
@@ -419,7 +419,7 @@ bool Win32Sigar::check_parents(
     return false;
 }
 
-void Win32Sigar::iterate_child_pocesses(
+void Win32Sigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     const auto [ret, allpids] = get_all_pids();
     if (ret == SIGAR_OK) {

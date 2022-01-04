@@ -71,7 +71,7 @@ public:
     virtual int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) = 0;
     virtual int get_proc_state(sigar_pid_t pid,
                                sigar_proc_state_t& procstate) = 0;
-    virtual void iterate_child_pocesses(
+    virtual void iterate_child_processes(
             sigar_pid_t pid, sigar::IterateChildProcessCallback callback) = 0;
 
     int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);

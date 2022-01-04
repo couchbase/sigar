@@ -123,7 +123,7 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
     // We've got all of the processes running.. now lets check if sigar gives me
     // 6 processes
     std::vector<sigar_pid_t> pids;
-    sigar::iterate_child_pocesses(
+    sigar::iterate_child_processes(
             instance,
             getpid(),
             [&pids](auto pid, auto ppid, auto starttime, auto name) {
@@ -180,7 +180,7 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
     std::this_thread::sleep_for(std::chrono::milliseconds{10});
 
     pids.clear();
-    sigar::iterate_child_pocesses(
+    sigar::iterate_child_processes(
             instance,
             getpid(),
             [&pids](auto pid, auto ppid, auto starttime, auto name) {

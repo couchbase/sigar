@@ -150,9 +150,9 @@ using IterateChildProcessCallback = std::function<void(
  * @param callback The callback to call for each child
  */
 SIGAR_PUBLIC_API
-void iterate_child_pocesses(sigar_t* sigar,
-                            sigar_pid_t pid,
-                            IterateChildProcessCallback callback);
+void iterate_child_processes(sigar_t* sigar,
+                             sigar_pid_t pid,
+                             IterateChildProcessCallback callback);
 } // namespace sigar
 }
 #endif

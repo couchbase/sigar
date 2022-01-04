@@ -67,7 +67,7 @@ public:
     int get_cpu(sigar_cpu_t& cpu) override;
     int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
     int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
-    void iterate_child_pocesses(
+    void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
 
@@ -225,7 +225,7 @@ static int sigar_os_check_parents(const struct kinfo_proc* proc,
 #define tv2msec(tv) \
     (((uint64_t)tv.tv_sec * SIGAR_MSEC) + (((uint64_t)tv.tv_usec) / 1000))
 
-void AppleSigar::iterate_child_pocesses(
+void AppleSigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
     int i, num;
@@ -236,7 +236,7 @@ void AppleSigar::iterate_child_pocesses(
         throw std::system_error(
                 errno,
                 std::system_category(),
-                "iterate_child_pocesses(): sysctl to determine size failed");
+                "iterate_child_processes(): sysctl to determine size failed");
     }
 
     proc = (kinfo_proc*)malloc(len);
@@ -245,7 +245,7 @@ void AppleSigar::iterate_child_pocesses(
         free(proc);
         throw std::system_error(errno,
                                 std::system_category(),
-                                "iterate_child_pocesses(): sysctl failed");
+                                "iterate_child_processes(): sysctl failed");
     }
 
     num = len / sizeof(*proc);

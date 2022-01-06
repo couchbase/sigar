@@ -139,7 +139,7 @@ int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {
     sigar_proc_cpu_t prev = {};
     auto iter = process_cache.find(pid);
     const bool found = iter != process_cache.end();
-    if (!found) {
+    if (found) {
         prev = iter->second;
     }
 

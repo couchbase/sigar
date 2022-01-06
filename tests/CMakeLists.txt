@@ -2,7 +2,10 @@ cb_add_test_executable(sigar_tests_child sigar_tests_child.cc)
 target_link_libraries(sigar_tests_child platform)
 add_sanitizers(sigar_tests_child)
 
-cb_add_test_executable(sigar_tests sigar_tests.cc)
+cb_add_test_executable(sigar_tests
+                       sigar_tests.cc
+                       sigar_port_tests.cc
+                       $<TARGET_OBJECTS:sigar_port_impl>)
 target_link_libraries(sigar_tests
                       sigar
                       platform

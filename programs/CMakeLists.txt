@@ -1,6 +1,7 @@
-INCLUDE_DIRECTORIES(BEFORE ${PROJECT_SOURCE_DIR}/include/)
+add_library(sigar_port_impl OBJECT sigar_port.c sigar_port_util.cc)
+target_link_libraries(sigar_port_impl PRIVATE sigar)
 
-ADD_EXECUTABLE(sigar_port sigar_port.c sigar_port_util.cc)
-TARGET_LINK_LIBRARIES(sigar_port sigar)
+add_executable(sigar_port $<TARGET_OBJECTS:sigar_port_impl> sigar_port_main.cc)
+target_link_libraries(sigar_port sigar)
 
-INSTALL(TARGETS sigar_port RUNTIME DESTINATION bin)
+install(TARGETS sigar_port RUNTIME DESTINATION bin)

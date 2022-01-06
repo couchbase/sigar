@@ -25,53 +25,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#ifdef _WIN32
-#include <fcntl.h>
-#include <io.h>
-#endif
-
 #define DEFAULT(value, def) ((value) == SIGAR_FIELD_NOTIMPL ? (def) : (value))
 
 #define PROCS_REFRESH_INTERVAL 20
-
-struct proc_stats {
-    char name[PROC_NAME_LEN];
-    uint32_t cpu_utilization;
-
-    uint64_t pid;
-    uint64_t ppid;
-
-    uint64_t mem_size;
-    uint64_t mem_resident;
-    uint64_t mem_share;
-    uint64_t minor_faults;
-    uint64_t major_faults;
-    uint64_t page_faults;
-};
-
-struct system_stats {
-    uint32_t version;
-    uint32_t struct_size;
-
-    uint64_t cpu_total_ms;
-    uint64_t cpu_idle_ms;
-    uint64_t cpu_user_ms;
-    uint64_t cpu_sys_ms;
-    uint64_t cpu_irq_ms;
-    uint64_t cpu_stolen_ms;
-
-    uint64_t swap_total;
-    uint64_t swap_used;
-
-    uint64_t mem_total;
-    uint64_t mem_used;
-    uint64_t mem_actual_used;
-    uint64_t mem_actual_free;
-
-    uint64_t allocstall;
-
-    struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
-};
 
 static int populate_interesting_procs(sigar_t* sigar,
                                       struct proc* procs,
@@ -110,35 +66,12 @@ static int populate_interesting_procs(sigar_t* sigar,
     return stale;
 }
 
-static int parse_pid(char* pidstr, sigar_pid_t* result) {
-    // The size and signed-ness of sigar_pid_t is different depending on the
-    // system, but it is an integral type. So we use a maximum size integer
-    // type to handle all systems uniformly.
-    uintmax_t pid;
-    char* pidend;
-
-    errno = 0;
-    pid = strtoumax(pidstr, &pidend, 10);
-    if (errno != 0 || *pidend != '\0') {
-        return 0;
-    }
-
-    // In general, this is incorrect, since we don't know if the value will
-    // fit into the type. And there's no easy way to check that it will given
-    // that we don't even know what sigar_pid_t is a typedef for. But since in
-    // our case it's ns_server that passes the value, we should be fine.
-    *result = (sigar_pid_t)pid;
-    return 1;
-}
-
-int main(int argc, char* argv[]) {
+int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
     sigar_t* sigar;
     sigar_mem_t mem;
     sigar_swap_t swap;
     sigar_cpu_t cpu;
     struct system_stats reply;
-
-    sigar_pid_t babysitter_pid;
 
     int procs_stale = 1;
     int procs_count;
@@ -146,20 +79,11 @@ int main(int argc, char* argv[]) {
 
     int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
 
-    if (argc != 2 || !parse_pid(argv[1], &babysitter_pid)) {
-        exit(1);
-    }
-
     MUST_SUCCEED(sigar_open(&sigar));
 
-#ifdef _WIN32
-    _setmode(1, _O_BINARY);
-    _setmode(0, _O_BINARY);
-#endif
-
-    while (!feof(stdin)) {
+    while (!feof(in)) {
         int req;
-        int rv = fread(&req, sizeof(req), 1, stdin);
+        int rv = fread(&req, sizeof(req), 1, in);
         if (rv < 1) {
             continue;
         }
@@ -208,8 +132,8 @@ int main(int argc, char* argv[]) {
         procs_stale =
                 populate_interesting_procs(sigar, procs, procs_count, &reply);
 
-        fwrite(&reply, sizeof(reply), 1, stdout);
-        fflush(stdout);
+        fwrite(&reply, sizeof(reply), 1, out);
+        fflush(out);
     }
 
     sigar_close(sigar);

@@ -10,6 +10,7 @@
 #pragma once
 
 #include <sigar.h>
+#include <stdio.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -44,6 +45,47 @@ int find_interesting_procs(
         sigar_t* sigar,
         sigar_pid_t babysitter_pid,
         struct proc interesting_procs[NUM_INTERESTING_PROCS]);
+
+int sigar_port_main(sigar_pid_t babysitter, FILE* in, FILE* out);
+
+struct proc_stats {
+    char name[PROC_NAME_LEN];
+    uint32_t cpu_utilization;
+
+    uint64_t pid;
+    uint64_t ppid;
+
+    uint64_t mem_size;
+    uint64_t mem_resident;
+    uint64_t mem_share;
+    uint64_t minor_faults;
+    uint64_t major_faults;
+    uint64_t page_faults;
+};
+
+struct system_stats {
+    uint32_t version;
+    uint32_t struct_size;
+
+    uint64_t cpu_total_ms;
+    uint64_t cpu_idle_ms;
+    uint64_t cpu_user_ms;
+    uint64_t cpu_sys_ms;
+    uint64_t cpu_irq_ms;
+    uint64_t cpu_stolen_ms;
+
+    uint64_t swap_total;
+    uint64_t swap_used;
+
+    uint64_t mem_total;
+    uint64_t mem_used;
+    uint64_t mem_actual_used;
+    uint64_t mem_actual_free;
+
+    uint64_t allocstall;
+
+    struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
+};
 
 #ifdef __cplusplus
 }

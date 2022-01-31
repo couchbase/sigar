@@ -71,6 +71,13 @@ public:
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
 
+    int iterate_threads(sigar_pid_t pid,
+                        sigar::IterateThreadCallback callback) override {
+        // It doesn't look like there is possible to read out the thread
+        // id from the thread_basic_info_t. For now return not implemented
+        return SIGAR_ENOTIMPL;
+    }
+
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
 

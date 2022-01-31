@@ -28,6 +28,7 @@
 #include <sys/types.h>
 
 #ifdef __cplusplus
+#include <chrono>
 #include <functional>
 #include <string_view>
 extern "C" {
@@ -153,6 +154,34 @@ SIGAR_PUBLIC_API
 void iterate_child_processes(sigar_t* sigar,
                              sigar_pid_t pid,
                              IterateChildProcessCallback callback);
+
+/**
+ * The IterateThreadCallback is called with the following
+ * parameters:
+ *   1. The thread name (if available, otherwise it'll be std::to_string(tid))
+ *   2. The thread id
+ *   3. The thread start time (ms since epoch)
+ *   4. The thread kernel time
+ *   5. The thread user time
+ */
+using IterateThreadCallback = std::function<void(std::string_view,
+                                                 uint64_t,
+                                                 const std::chrono::time_point<std::chrono::system_clock>&,
+                                                 std::chrono::milliseconds,
+                                                 std::chrono::milliseconds)>;
+
+/**
+ * Iterate over the threads in the provided process
+ *
+ * @param sigar The sigar instance to use
+ * @param pid The process to inspect
+ * @param callback The callback to call for each thread
+ */
+SIGAR_PUBLIC_API
+int iterate_threads(sigar_t& sigar,
+                    sigar_pid_t pid,
+                    IterateThreadCallback callback);
+
 } // namespace sigar
 }
 #endif

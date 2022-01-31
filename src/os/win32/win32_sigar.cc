@@ -40,6 +40,8 @@
 #include <system_error>
 #include <vector>
 
+#include <platform/platform_thread.h>
+
 #define EPOCH_DELTA 11644473600000000L
 
 /* XXX: support CP_UTF8 ? */
@@ -86,6 +88,8 @@ public:
     void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
+    int iterate_threads(sigar_pid_t pid,
+                        sigar::IterateThreadCallback callback) override;
 
 protected:
     static constexpr size_t PERFBUF_SIZE = 8192;
@@ -594,4 +598,66 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
     }
 
     return {SIGAR_NO_SUCH_PROCESS, {}};
+}
+
+int Win32Sigar::iterate_threads(sigar_pid_t pid,
+                                sigar::IterateThreadCallback callback) {
+    auto th = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+    if (th == INVALID_HANDLE_VALUE) {
+        throw std::system_error(
+                GetLastError(),
+                std::system_category(),
+                "Win32Sigar::iterate_threads: "
+                "CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0) failed");
+    }
+    THREADENTRY32 entry;
+    entry.dwSize = sizeof(THREADENTRY32);
+
+    if (!Thread32First(th, &entry)) {
+        const auto error = GetLastError();
+        CloseHandle(th);
+        throw std::system_error(
+                GetLastError(),
+                std::system_category(),
+                "Win32Sigar::iterate_threads: Thread32First() failed");
+    }
+
+    do {
+        if (entry.th32OwnerProcessID == pid) {
+            auto tt = OpenThread(READ_CONTROL, false, entry.th32ThreadID);
+            FILETIME creationTime;
+            FILETIME exitTime;
+            FILETIME kernelTime;
+            FILETIME userTime;
+
+            if (tt != INVALID_HANDLE_VALUE) {
+                if (!GetThreadTimes(tt,
+                                    &creationTime,
+                                    &exitTime,
+                                    &kernelTime,
+                                    &userTime)) {
+                    uint64_t ct = 0;
+                    if (creationTime.dwHighDateTime) {
+                        ct = sigar_FileTimeToTime(&creationTime) / 1000;
+                    }
+                    std::chrono::system_clock::duration offset =
+                            std::chrono::milliseconds(ct);
+                    std::chrono::time_point<std::chrono::system_clock>
+                            start_time{offset};
+
+                    callback(cb_get_thread_name(entry.th32ThreadID),
+                             entry.th32ThreadID,
+                             start_time,
+                             std::chrono::milliseconds{
+                                     NS100_2MSEC(filetime2uint(kernelTime))},
+                             std::chrono::milliseconds{
+                                     NS100_2MSEC(filetime2uint(userTime))});
+                }
+                CloseHandle(th);
+            }
+        }
+    } while (Thread32Next(th, &entry));
+
+    CloseHandle(th);
+    return SIGAR_OK;
 }

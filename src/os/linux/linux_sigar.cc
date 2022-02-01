@@ -19,13 +19,11 @@
 // The linux implementation consumes the files in the /proc filesystem per
 // the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
 
-#include <boost/filesystem/path.hpp>
-#include <dirent.h>
+#include <boost/filesystem.hpp>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
 #include <cerrno>
 #include <charconv>
-#include <cstdlib>
 #include <functional>
 
 #include "sigar.h"
@@ -421,26 +419,21 @@ void LinuxSigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
 
-    DIR* dirp = opendir(get_proc_root().generic_string().c_str());
-    struct dirent* ent;
-    if (!dirp) {
-        throw std::system_error(
-                errno, std::system_category(), "Failed to open /proc");
-    }
-
-    while ((ent = readdir(dirp)) != nullptr) {
-        if (!sigar_isdigit(*ent->d_name)) {
+    for (const auto& p :
+         boost::filesystem::directory_iterator(get_proc_root())) {
+        if (p.path().filename_is_dot() || p.path().filename_is_dot_dot()) {
             continue;
         }
-
-        /* XXX: more sanity checking */
-        sigar_pid_t pid = strtoul(ent->d_name, nullptr, 10);
-        auto [status, pinfo] = proc_stat_read(pid);
-        if (status == SIGAR_OK) {
-            allprocs[pid] = std::move(pinfo);
+        auto child = p.path() / "stat";
+        try {
+            if (is_regular_file(child)) {
+                auto pinfo = parse_stat_file(child);
+                allprocs[pinfo.pid] = std::move(pinfo);
+            }
+        } catch (const std::exception& e) {
+            // ignore
         }
     }
-    closedir(dirp);
 
     for (const auto& [pid, pinfo] : allprocs) {
         if (check_parents(pid, ppid, allprocs)) {

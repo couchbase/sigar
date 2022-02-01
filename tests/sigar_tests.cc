@@ -296,4 +296,18 @@ TEST_F(MockSigar, test_sigar_mem_get) {
     EXPECT_EQ(70, int(mem.free_percent));
 }
 
+TEST_F(MockSigar, sigar_proc_state_get) {
+    sigar_proc_state_t ps;
+
+    ASSERT_EQ(SIGAR_OK, sigar_proc_state_get(instance, 66666666, &ps));
+    EXPECT_STREQ("java  vm", ps.name);
+    EXPECT_EQ('S', ps.state);
+    EXPECT_EQ(10563, ps.ppid);
+    EXPECT_EQ(1026, ps.tty);
+    EXPECT_EQ(20, ps.priority);
+    EXPECT_EQ(0, ps.nice);
+    EXPECT_EQ(4, ps.processor);
+    EXPECT_EQ(91, ps.threads);
+}
+
 #endif

@@ -21,14 +21,11 @@
 
 #include <boost/filesystem/path.hpp>
 #include <dirent.h>
-#include <fcntl.h>
 #include <platform/dirutils.h>
-#include <cassert>
+#include <platform/split_string.h>
 #include <cerrno>
 #include <charconv>
-#include <cstdio>
 #include <cstdlib>
-#include <ctime>
 #include <functional>
 
 #include "sigar.h"
@@ -38,22 +35,8 @@
 #define SIGAR_TICK2MSEC(s) \
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_MSEC / (double)SystemConstants::instance().ticks))
-#define SSTRLEN(s) (sizeof(s) - 1)
-
-#define PROC_FS_ROOT "/proc/"
-#define PROC_STAT PROC_FS_ROOT "stat"
-
-#define PROC_PSTAT "/stat"
-
-#define sigar_strtoul(ptr) strtoul(ptr, &ptr, 10)
-
-#define sigar_strtoull(ptr) strtoull(ptr, &ptr, 10)
-
-#define sigar_isspace(c) (isspace(((unsigned char)(c))))
 
 #define sigar_isdigit(c) (isdigit(((unsigned char)(c))))
-
-#define UITOA_BUFFER_SIZE (sizeof(int) * 3 + 1)
 
 const char* mock_root = nullptr;
 
@@ -62,18 +45,19 @@ SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
     mock_root = root;
 }
 
+static boost::filesystem::path get_proc_root() {
+    if (mock_root) {
+        return boost::filesystem::path{mock_root} / "mock" / "linux" / "proc";
+    }
+    return boost::filesystem::path{"/proc"};
+}
+
 void sigar_tokenize_file_line_by_line(
         sigar_pid_t pid,
         const char* filename,
         std::function<bool(const std::vector<std::string_view>&)> callback,
         char delim = ' ') {
-    boost::filesystem::path name;
-    if (mock_root) {
-        name = boost::filesystem::path{mock_root} / "mock" / "linux" / "proc";
-    } else {
-        name = boost::filesystem::path{"/proc"};
-    }
-
+    auto name = get_proc_root();
     if (pid) {
         name = name / std::to_string(pid);
     }
@@ -82,9 +66,25 @@ void sigar_tokenize_file_line_by_line(
     cb::io::tokenizeFileLineByLine(name, callback, delim, false);
 }
 
+/// The content of /proc/[pid]/stat (and /proc/[pid]/task/[tid]/stat) file
+/// as described in https://man7.org/linux/man-pages/man5/proc.5.html
+constexpr size_t stat_pid_index = 1;
+constexpr size_t stat_name_index = 2;
+constexpr size_t stat_state_index = 3;
+constexpr size_t stat_ppid_index = 4;
+constexpr size_t stat_tty_index = 7;
+constexpr size_t stat_minor_faults_index = 10;
+constexpr size_t stat_major_faults_index = 12;
+constexpr size_t stat_utime_index = 14;
+constexpr size_t stat_stime_index = 15;
+constexpr size_t stat_priority_index = 18;
+constexpr size_t stat_nice_index = 19;
+constexpr size_t stat_start_time_index = 22;
+constexpr size_t stat_rss_index = 24;
+constexpr size_t stat_processor_index = 39;
+
 struct linux_proc_stat_t {
     sigar_pid_t pid;
-    uint64_t vsize;
     uint64_t rss;
     uint64_t minor_faults;
     uint64_t major_faults;
@@ -95,120 +95,10 @@ struct linux_proc_stat_t {
     uint64_t start_time;
     uint64_t utime;
     uint64_t stime;
-    char name[SIGAR_PROC_NAME_LEN];
+    std::string name;
     char state;
     int processor;
 };
-
-static char* sigar_uitoa(char* buf, unsigned int n, int* len) {
-    char* start = buf + UITOA_BUFFER_SIZE - 1;
-
-    *start = 0;
-
-    do {
-        *--start = '0' + (n % 10);
-        ++*len;
-        n /= 10;
-    } while (n);
-
-    return start;
-}
-
-static char* sigar_skip_token(char* p) {
-    while (sigar_isspace(*p))
-        p++;
-    while (*p && !sigar_isspace(*p))
-        p++;
-    return p;
-}
-
-static char* sigar_proc_filename(char* buffer,
-                                 int buflen,
-                                 sigar_pid_t bigpid,
-                                 const char* fname,
-                                 int fname_len) {
-    int len = 0;
-    char* ptr = buffer;
-    unsigned int pid = (unsigned int)bigpid; /* XXX -- This isn't correct */
-    char pid_buf[UITOA_BUFFER_SIZE];
-    char* pid_str = sigar_uitoa(pid_buf, pid, &len);
-
-    assert((unsigned int)buflen >=
-           (SSTRLEN(PROC_FS_ROOT) + UITOA_BUFFER_SIZE + fname_len + 1));
-
-    memcpy(ptr, PROC_FS_ROOT, SSTRLEN(PROC_FS_ROOT));
-    ptr += SSTRLEN(PROC_FS_ROOT);
-
-    memcpy(ptr, pid_str, len);
-    ptr += len;
-
-    memcpy(ptr, fname, fname_len);
-    ptr += fname_len;
-    *ptr = '\0';
-
-    return buffer;
-}
-
-static int sigar_file2str(const char* fname, char* buffer, int buflen) {
-    int fd;
-    if (mock_root) {
-        char mock_name[BUFSIZ];
-        const char* ptr = mock_name;
-        snprintf(mock_name,
-                 sizeof(mock_name),
-                 "%s/mock/linux%s",
-                 mock_root,
-                 fname);
-        fd = open(ptr, O_RDONLY);
-    } else {
-        fd = open(fname, O_RDONLY);
-    }
-
-    if (fd < 0) {
-        return ENOENT;
-    }
-
-    int len, status;
-    if ((len = read(fd, buffer, buflen - 1)) < 0) {
-        status = errno;
-    } else {
-        status = SIGAR_OK;
-        buffer[len] = '\0';
-    }
-    close(fd);
-
-    return status;
-}
-
-static int sigar_proc_file2str(char* buffer,
-                               int buflen,
-                               sigar_pid_t pid,
-                               const char* fname,
-                               int fname_len) {
-    int retval;
-
-    buffer = sigar_proc_filename(buffer, buflen, pid, fname, fname_len);
-
-    retval = sigar_file2str(buffer, buffer, buflen);
-
-    if (retval != SIGAR_OK) {
-        switch (retval) {
-        case ENOENT:
-            retval = ESRCH; /* no such process */
-        default:
-            break;
-        }
-    }
-
-    return retval;
-}
-
-#define SIGAR_PROC_FILE2STR(buffer, pid, fname) \
-    sigar_proc_file2str(buffer, sizeof(buffer), pid, fname, SSTRLEN(fname))
-
-#define SIGAR_SKIP_SPACE(ptr)   \
-    while (sigar_isspace(*ptr)) \
-    ++ptr
 
 struct SystemConstants {
     static SystemConstants instance() {
@@ -261,6 +151,8 @@ protected:
             pid_t ppid,
             const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs);
     static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
+    static linux_proc_stat_t parse_stat_file(
+            const boost::filesystem::path& name);
 };
 
 sigar_t::sigar_t() = default;
@@ -392,7 +284,7 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
     sigar_tokenize_file_line_by_line(
             0,
             "stat",
-            [&cpu, &status, sigar = this](const auto& vec) {
+            [&cpu, &status](const auto& vec) {
                 // The first line in /proc/stat looks like:
                 // cpu user nice system idle iowait irq softirq steal guest
                 // guest_nice (The amount of time, measured in units of
@@ -428,89 +320,83 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
     return status;
 }
 
+linux_proc_stat_t LinuxSigar::parse_stat_file(
+        const boost::filesystem::path& name) {
+    auto content = cb::io::loadFile(name.generic_string(),
+                                    std::chrono::microseconds{});
+    auto lines = cb::string::split(content, '\n');
+    if (lines.size() > 1) {
+        throw std::runtime_error("parse_stat_file(): file " +
+                                 name.generic_string() +
+                                 " contained multiple lines!");
+    }
+
+    auto line = std::move(content);
+    auto fields = cb::string::split(line, ' ');
+    if (fields.size() < stat_processor_index) {
+        throw std::runtime_error("parse_stat_file(): file " +
+                                 name.generic_string() +
+                                 " does not contain enough fields");
+    }
+
+    // For some stupid reason the /proc files on linux consists of "formatted
+    // ASCII" files so that we need to perform text parsing to pick out the
+    // correct values (instead of the "binary" mode used on other systems
+    // where you could do an ioctl / read and get the struct populated with
+    // the correct values.
+    // For "stat" this is extra annoying as space is used as the field
+    // separator, but the command line can contain a space it is enclosed
+    // in () (so using '\n' instead of ' ' would have made it easier to parse
+    // :P ).
+    while (fields[1].find(')') == std::string_view::npos) {
+        fields[1] = {fields[1].data(), fields[1].size() + fields[2].size() + 1};
+        auto iter = fields.begin();
+        iter++;
+        iter++;
+        fields.erase(iter);
+        if (fields.size() < stat_processor_index) {
+            throw std::runtime_error("parse_stat_file(): file " +
+                                     name.generic_string() +
+                                     " does not contain enough fields");
+        }
+    }
+    // now remove '(' and ')'
+    fields[1].remove_prefix(1);
+    fields[1].remove_suffix(1);
+
+    // Insert a dummy 0 element so that the index we use map directly
+    // to the number specified in
+    // https://man7.org/linux/man-pages/man5/proc.5.html
+    fields.insert(fields.begin(), "dummy element");
+    linux_proc_stat_t ret;
+    ret.pid = stoull(fields[stat_pid_index]);
+    ret.name = std::string{fields[stat_name_index].data(),
+                           fields[stat_name_index].size()};
+    ret.state = fields[stat_state_index].front();
+    ret.ppid = stoull(fields[stat_ppid_index]);
+    ret.tty = stoull(fields[stat_tty_index]);
+    ret.minor_faults = stoull(fields[stat_minor_faults_index]);
+    ret.major_faults = stoull(fields[stat_major_faults_index]);
+    ret.utime = SIGAR_TICK2MSEC(stoull(fields[stat_utime_index]));
+    ret.stime = SIGAR_TICK2MSEC(stoull(fields[stat_stime_index]));
+    ret.priority = stoull(fields[stat_priority_index]);
+    ret.nice = stoull(fields[stat_nice_index]);
+    ret.start_time = stoull(fields[stat_start_time_index]);
+    ret.start_time /= SystemConstants::instance().ticks;
+    ret.start_time += SystemConstants::instance().boot_time; /* seconds */
+    ret.start_time *= 1000; /* milliseconds */
+    ret.rss = stoull(fields[stat_rss_index]);
+    ret.processor = stoull(fields[stat_processor_index]);
+    return ret;
+}
+
 std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
-    char buffer[BUFSIZ], *ptr = buffer, *tmp;
-    unsigned int len;
-    linux_proc_stat_t pstat = {};
-    pstat.pid = pid;
-
-    int status = SIGAR_PROC_FILE2STR(buffer, pid, PROC_PSTAT);
-
-    if (status != SIGAR_OK) {
-        return {status, {}};
-    }
-
-    if (!(ptr = strchr(ptr, '('))) {
+    try {
+        const auto nm = get_proc_root() / std::to_string(pid) / "stat";
+        return {SIGAR_OK, parse_stat_file(nm)};
+    } catch (const std::exception& e) {
         return {EINVAL, {}};
     }
-    if (!(tmp = strrchr(++ptr, ')'))) {
-        return {EINVAL, {}};
-    }
-    len = tmp - ptr;
-
-    if (len >= sizeof(pstat.name)) {
-        len = sizeof(pstat.name) - 1;
-    }
-
-    /* (1,2) */
-    memcpy(pstat.name, ptr, len);
-    pstat.name[len] = '\0';
-    ptr = tmp + 1;
-
-    SIGAR_SKIP_SPACE(ptr);
-    pstat.state = *ptr++; /* (3) */
-    SIGAR_SKIP_SPACE(ptr);
-
-    pstat.ppid = sigar_strtoul(ptr); /* (4) */
-    ptr = sigar_skip_token(ptr); /* (5) pgrp */
-    ptr = sigar_skip_token(ptr); /* (6) session */
-    pstat.tty = sigar_strtoul(ptr); /* (7) */
-    ptr = sigar_skip_token(ptr); /* (8) tty pgrp */
-
-    ptr = sigar_skip_token(ptr); /* (9) flags */
-    pstat.minor_faults = sigar_strtoull(ptr); /* (10) */
-    ptr = sigar_skip_token(ptr); /* (11) cmin flt */
-    pstat.major_faults = sigar_strtoull(ptr); /* (12) */
-    ptr = sigar_skip_token(ptr); /* (13) cmaj flt */
-
-    pstat.utime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (14) */
-    pstat.stime = SIGAR_TICK2MSEC(sigar_strtoull(ptr)); /* (15) */
-
-    ptr = sigar_skip_token(ptr); /* (16) cutime */
-    ptr = sigar_skip_token(ptr); /* (17) cstime */
-
-    pstat.priority = sigar_strtoul(ptr); /* (18) */
-    pstat.nice = sigar_strtoul(ptr); /* (19) */
-
-    ptr = sigar_skip_token(ptr); /* (20) timeout */
-    ptr = sigar_skip_token(ptr); /* (21) it_real_value */
-
-    pstat.start_time = sigar_strtoul(ptr); /* (22) */
-    pstat.start_time /= SystemConstants::instance().ticks;
-    pstat.start_time += SystemConstants::instance().boot_time; /* seconds */
-    pstat.start_time *= 1000; /* milliseconds */
-
-    pstat.vsize = sigar_strtoull(ptr); /* (23) */
-    pstat.rss = pageshift(sigar_strtoull(ptr)); /* (24) */
-
-    ptr = sigar_skip_token(ptr); /* (25) rlim */
-    ptr = sigar_skip_token(ptr); /* (26) startcode */
-    ptr = sigar_skip_token(ptr); /* (27) endcode */
-    ptr = sigar_skip_token(ptr); /* (28) startstack */
-    ptr = sigar_skip_token(ptr); /* (29) kstkesp */
-    ptr = sigar_skip_token(ptr); /* (30) kstkeip */
-    ptr = sigar_skip_token(ptr); /* (31) signal */
-    ptr = sigar_skip_token(ptr); /* (32) blocked */
-    ptr = sigar_skip_token(ptr); /* (33) sigignore */
-    ptr = sigar_skip_token(ptr); /* (34) sigcache */
-    ptr = sigar_skip_token(ptr); /* (35) wchan */
-    ptr = sigar_skip_token(ptr); /* (36) nswap */
-    ptr = sigar_skip_token(ptr); /* (37) cnswap */
-    ptr = sigar_skip_token(ptr); /* (38) exit_signal */
-
-    pstat.processor = sigar_strtoul(ptr); /* (39) */
-
-    return {SIGAR_OK, pstat};
 }
 
 bool LinuxSigar::check_parents(
@@ -535,7 +421,7 @@ void LinuxSigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
 
-    DIR* dirp = opendir(PROC_FS_ROOT);
+    DIR* dirp = opendir(get_proc_root().generic_string().c_str());
     struct dirent* ent;
     if (!dirp) {
         throw std::system_error(
@@ -558,7 +444,7 @@ void LinuxSigar::iterate_child_processes(
 
     for (const auto& [pid, pinfo] : allprocs) {
         if (check_parents(pid, ppid, allprocs)) {
-            callback(pid, pinfo.ppid, pinfo.start_time, pinfo.name);
+            callback(pid, pinfo.ppid, pinfo.start_time, pinfo.name.c_str());
         }
     }
 }
@@ -576,7 +462,7 @@ int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     sigar_tokenize_file_line_by_line(
             pid,
             "statm",
-            [&procmem, sigar = this](const auto& vec) {
+            [&procmem](const auto& vec) {
                 // The format of statm is a single line with the following
                 // numbers (in pages)
                 // size resident shared text lib data dirty
@@ -609,12 +495,17 @@ int LinuxSigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
 }
 
 int LinuxSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
-    const auto [status, pstat] = proc_stat_read(pid);
+    auto [status, pstat] = proc_stat_read(pid);
     if (status != SIGAR_OK) {
         return status;
     }
 
-    memcpy(procstate.name, pstat.name, sizeof(procstate.name));
+    // according to the proc manpage pstat.name contains up to 16 characters,
+    // and procstate.name is 128 bytes large, but to be on the safe side ;)
+    if (pstat.name.length() > sizeof(procstate.name) - 1) {
+        pstat.name.resize(sizeof(procstate.name) - 1);
+    }
+    strcpy(procstate.name, pstat.name.c_str());
     procstate.state = pstat.state;
     procstate.ppid = pstat.ppid;
     procstate.tty = pstat.tty;

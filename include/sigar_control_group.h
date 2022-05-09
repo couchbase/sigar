@@ -14,6 +14,7 @@
 
 #ifdef __cplusplus
 #include <cstdint>
+#include <cstddef>
 extern "C" {
 #else
 #include <stdint.h>
@@ -49,9 +50,20 @@ struct sigar_control_group_info {
 
 #ifdef __cplusplus
 using sigar_control_group_info_t = sigar_control_group_info;
+// port_sigar reads a struct which contains this struct transmitted through a
+// pipe. Verify the size and padding of the bytes in the struct so that it
+// won't change by upgrading compiler / new platforms.
 static_assert(sizeof(sigar_control_group_info_t) == 88,
               "Remember to update the version number in port_sigar as the "
               "struct changed");
+static_assert(0 == offsetof(sigar_control_group_info_t, supported),
+              "Unexpected struct padding");
+static_assert(1 == offsetof(sigar_control_group_info_t, version),
+              "Unexpected struct padding");
+static_assert(2 == offsetof(sigar_control_group_info_t, num_cpu_prc),
+              "Unexpected struct padding");
+static_assert(8 == offsetof(sigar_control_group_info_t, memory_max),
+              "Unexpected struct padding");
 #else
 typedef struct sigar_control_group_info sigar_control_group_info_t;
 #endif

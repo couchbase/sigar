@@ -74,9 +74,6 @@ public:
     virtual void iterate_child_processes(
             sigar_pid_t pid, sigar::IterateChildProcessCallback callback) = 0;
 
-    virtual int iterate_threads(sigar_pid_t pid,
-                                sigar::IterateThreadCallback callback) = 0;
-
     int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);
 
     char errbuf[256] = {};

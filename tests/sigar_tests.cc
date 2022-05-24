@@ -216,49 +216,6 @@ TEST_F(Sigar, sigar_get_control_group_info) {
 #endif
 }
 
-TEST_F(Sigar, test_sigar_iterate_thread) {
-    if (is_thread_name_supported()) {
-        ASSERT_EQ(0, cb_set_thread_name("sigar_iterate_t"));
-    }
-    nlohmann::json json = nlohmann::json::array();
-    const auto rv = sigar::iterate_threads(
-            *instance,
-            getpid(),
-            [&json](auto name,
-                    auto tid,
-                    auto creationTime,
-                    auto ktime,
-                    auto utime) {
-                json.emplace_back(nlohmann::json{
-                        {"name", name},
-                        {"ctime", creationTime.time_since_epoch().count()},
-                        {"ktime", cb::time2text(ktime)},
-                        {"utime", cb::time2text(utime)},
-                        {"tid", tid}});
-            });
-#ifdef __APPLE__
-    EXPECT_EQ(SIGAR_ENOTIMPL, rv);
-#else
-    ASSERT_EQ(SIGAR_OK, rv);
-    bool found = false;
-    for (const auto& e : json) {
-        if (is_thread_name_supported()) {
-            if (e["name"].get<std::string>() == "sigar_iterate_t") {
-                found = true;
-                break;
-            }
-        } else {
-            if (e["name"].get<std::string>() ==
-                std::to_string(uint64_t(cb_thread_self()))) {
-                found = true;
-                break;
-            }
-        }
-    }
-    ASSERT_TRUE(found) << json.dump(2);
-#endif
-}
-
 #ifdef __linux__
 TEST_F(Sigar, test_sigar_proc_state_get) {
     sigar_proc_state_t proc_state;

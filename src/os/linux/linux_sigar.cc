@@ -140,8 +140,6 @@ public:
     void iterate_child_processes(
             sigar_pid_t pid,
             sigar::IterateChildProcessCallback callback) override;
-    int iterate_threads(sigar_pid_t pid,
-                        sigar::IterateThreadCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -442,31 +440,6 @@ void LinuxSigar::iterate_child_processes(
             callback(pid, pinfo.ppid, pinfo.start_time, pinfo.name.c_str());
         }
     }
-}
-
-int LinuxSigar::iterate_threads(sigar_pid_t pid,
-                                sigar::IterateThreadCallback callback) {
-    const auto name = get_proc_root() / std::to_string(pid) / "task";
-    for (const auto& p : boost::filesystem::directory_iterator(name)) {
-        if (p.path().filename_is_dot() || p.path().filename_is_dot_dot()) {
-            continue;
-        }
-        try {
-            auto proc_stat = parse_stat_file(p.path() / "stat");
-            std::chrono::system_clock::duration offset =
-                    std::chrono::milliseconds(proc_stat.start_time);
-            std::chrono::time_point<std::chrono::system_clock> start_time{
-                    offset};
-            callback(proc_stat.name,
-                     std::stoi(p.path().filename().generic_string()),
-                     start_time,
-                     std::chrono::milliseconds{proc_stat.stime},
-                     std::chrono::milliseconds{proc_stat.utime});
-        } catch (const std::exception&) {
-            // empty
-        }
-    }
-    return SIGAR_OK;
 }
 
 int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {

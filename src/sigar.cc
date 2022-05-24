@@ -241,10 +241,3 @@ void sigar::iterate_child_processes(sigar_t* sigar,
                                     IterateChildProcessCallback callback) {
     sigar->iterate_child_processes(pid, callback);
 }
-
-SIGAR_PUBLIC_API
-int sigar::iterate_threads(sigar_t& sigar,
-                           sigar_pid_t pid,
-                           IterateThreadCallback callback) {
-    return sigar.iterate_threads(pid, callback);
-}

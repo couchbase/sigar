@@ -8,23 +8,25 @@
  *   the file licenses/APL2.txt.
  */
 
-#include <boost/filesystem.hpp>
 #include <getopt.h>
 #include <platform/process_monitor.h>
 #include <condition_variable>
 #include <cstdio>
+#include <filesystem>
 #include <iostream>
 #include <thread>
 #include <vector>
 
 #ifdef WIN32
 #include <process.h>
+#else
+#include <unistd.h>
 #endif
 
 int main(int argc, char** argv) {
     int cmd;
     int num_childs = 0;
-    boost::filesystem::path directory;
+    std::filesystem::path directory;
     std::unique_ptr<ProcessMonitor> child;
 
     const std::vector<option> options = {
@@ -76,9 +78,9 @@ options:
     }
 
     const auto pidfile =
-            directory / boost::filesystem::path(std::string{"pid_"} +
+            directory / std::filesystem::path(std::string{"pid_"} +
                                                 std::to_string(getpid()));
-    if (exists(pidfile)) {
+    if (std::filesystem::exists(pidfile)) {
         std::cerr << pidfile.generic_string() << " exists!" << std::endl;
         return EXIT_FAILURE;
     }

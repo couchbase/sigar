@@ -19,11 +19,11 @@
 // The linux implementation consumes the files in the /proc filesystem per
 // the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
 
-#include <boost/filesystem.hpp>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
 #include <cerrno>
 #include <charconv>
+#include <filesystem>
 #include <functional>
 
 #include "sigar.h"
@@ -43,11 +43,11 @@ SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
     mock_root = root;
 }
 
-static boost::filesystem::path get_proc_root() {
+static std::filesystem::path get_proc_root() {
     if (mock_root) {
-        return boost::filesystem::path{mock_root} / "mock" / "linux" / "proc";
+        return std::filesystem::path{mock_root} / "mock" / "linux" / "proc";
     }
-    return boost::filesystem::path{"/proc"};
+    return std::filesystem::path{"/proc"};
 }
 
 void sigar_tokenize_file_line_by_line(
@@ -150,7 +150,7 @@ protected:
             const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs);
     static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
     static linux_proc_stat_t parse_stat_file(
-            const boost::filesystem::path& name);
+            const std::filesystem::path& name);
 };
 
 sigar_t::sigar_t() = default;
@@ -319,7 +319,7 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
 }
 
 linux_proc_stat_t LinuxSigar::parse_stat_file(
-        const boost::filesystem::path& name) {
+        const std::filesystem::path& name) {
     auto content = cb::io::loadFile(name.generic_string(),
                                     std::chrono::microseconds{});
     auto lines = cb::string::split(content, '\n');
@@ -420,8 +420,9 @@ void LinuxSigar::iterate_child_processes(
     std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
 
     for (const auto& p :
-         boost::filesystem::directory_iterator(get_proc_root())) {
-        if (p.path().filename_is_dot() || p.path().filename_is_dot_dot()) {
+         std::filesystem::directory_iterator(get_proc_root())) {
+        if (p.path().filename() == std::filesystem::path(".") ||
+            p.path().filename() == std::filesystem::path("..")) {
             continue;
         }
         auto child = p.path() / "stat";

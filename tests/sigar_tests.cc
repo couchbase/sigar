@@ -37,7 +37,6 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boost/filesystem.hpp>
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
@@ -47,6 +46,7 @@
 #include <sigar.h>
 #include <sigar_control_group.h>
 #include <chrono>
+#include <filesystem>
 #include <thread>
 
 class Sigar : public ::testing::Test {
@@ -105,9 +105,9 @@ TEST_F(Sigar, test_sigar_swap_get) {
 }
 
 TEST_F(Sigar, test_sigar_proc_list_get_children) {
-    auto binary = boost::filesystem::current_path() / "sigar_tests_child";
-    auto directory = boost::filesystem::path(
-            cb::io::mkdtemp((boost::filesystem::current_path() / "sigar_tests")
+    auto binary = std::filesystem::current_path() / "sigar_tests_child";
+    auto directory = std::filesystem::path(
+            cb::io::mkdtemp((std::filesystem::current_path() / "sigar_tests")
                                     .generic_string()));
     std::vector<std::string> cmdline = {{binary.generic_string(),
                                          "--directory",

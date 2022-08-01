@@ -173,7 +173,11 @@ TEST_F(Sigar, test_sigar_proc_list_get_children) {
 #endif
     }
 
-    remove_all(directory);
+    // https://developercommunity.visualstudio.com/t/stdfilesystemremove-doesnt-work-under-windows-10-1/398243
+    // We don't support that old windows versions, but unfortunately at least
+    // one of the CV builders is using Windows 1607 which have that error.
+    // so lets' use cb::io::rmrf instead of remove_all(directory);
+    cb::io::rmrf(directory.generic_string());
 
     while (child->isRunning()) {
         std::this_thread::sleep_for(std::chrono::milliseconds{10});

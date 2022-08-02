@@ -52,6 +52,11 @@ TEST(SigarPort, SigarPortTest) {
 
     EXPECT_EQ(CURRENT_SYSTEM_STAT_VERSION, stats.version);
 
+#ifdef __linux__
+    EXPECT_NE(-1, stats.allocstall);
+#else
+    EXPECT_EQ(-1, stats.allocstall);
+#endif
     // do it one more time
     ASSERT_EQ(1, fwrite(&cmd, sizeof(cmd), 1, myOut)) << strerror(errno);
     ASSERT_EQ(0, fflush(myOut)) << strerror(errno);

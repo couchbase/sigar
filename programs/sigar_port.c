@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <inttypes.h>
 #include <sigar.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -112,15 +113,31 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
 
-        if (swap.allocstall != -1) {
+        if (swap.allocstall != SIGAR_FIELD_NOTIMPL) {
             reply.allocstall = swap.allocstall;
-        } else if (swap.allocstall_dma != -1 && swap.allocstall_dma32 != -1 &&
-                   swap.allocstall_normal != -1 &&
-                   swap.allocstall_movable != -1) {
-            reply.allocstall = swap.allocstall_dma + swap.allocstall_dma32 +
-                               swap.allocstall_normal + swap.allocstall_movable;
         } else {
-            reply.allocstall = -1;
+            bool found = false;
+            reply.allocstall = 0;
+            if (swap.allocstall_dma != SIGAR_FIELD_NOTIMPL) {
+                found = true;
+                reply.allocstall += swap.allocstall_dma;
+            }
+            if (swap.allocstall_dma32 != SIGAR_FIELD_NOTIMPL) {
+                found = true;
+                reply.allocstall += swap.allocstall_dma32;
+            }
+            if (swap.allocstall_normal != SIGAR_FIELD_NOTIMPL) {
+                found = true;
+                reply.allocstall += swap.allocstall_normal;
+            }
+
+            if (swap.allocstall_movable != SIGAR_FIELD_NOTIMPL) {
+                found = true;
+                reply.allocstall += swap.allocstall_movable;
+            }
+            if (!found) {
+                reply.allocstall = SIGAR_FIELD_NOTIMPL;
+            }
         }
 
         if (procs_stale || ticks_to_refresh-- == 0) {

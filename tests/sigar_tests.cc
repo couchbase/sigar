@@ -274,6 +274,23 @@ TEST_F(Sigar, iterate_process_threads_self) {
     mythread.join();
 }
 
+TEST_F(Sigar, sigar_get_disk_stats) {
+#ifdef __APPLE__
+    // Lacking a MacOS implementation means that this test doesn't work
+    GTEST_SKIP();
+#endif
+
+    std::vector<sigar::disk_usage_t> usages;
+    sigar::iterate_disks(instance, [&usages](auto diskUsage) {
+        usages.push_back(diskUsage);
+        EXPECT_NE("", diskUsage.name);
+        // Not checking any individual stats here as they may not necessarily
+        // be non-zero.
+    });
+
+    EXPECT_NE(0, usages.size());
+}
+
 #ifdef __linux__
 TEST_F(Sigar, test_sigar_proc_state_get) {
     sigar_proc_state_t proc_state;
@@ -367,6 +384,38 @@ TEST_F(MockSigar, sigar_proc_state_get) {
     EXPECT_EQ(0, ps.nice);
     EXPECT_EQ(4, ps.processor);
     EXPECT_EQ(91, ps.threads);
+}
+
+TEST_F(MockSigar, sigar_get_disk_stats) {
+    std::vector<sigar::disk_usage_t> usages;
+    sigar::iterate_disks(instance, [&usages](auto diskUsage) {
+        usages.push_back(diskUsage);
+    });
+
+    static const auto sigar_sector_size = 512;
+
+    ASSERT_EQ(2, usages.size());
+    EXPECT_EQ("sdb", usages[0].name);
+    EXPECT_EQ(74827222, usages[0].reads);
+    EXPECT_EQ(2425492092 * sigar_sector_size, usages[0].rbytes);
+    EXPECT_EQ(std::chrono::milliseconds(2544780192), usages[0].rtime);
+    EXPECT_EQ(2100800967, usages[0].writes);
+    EXPECT_EQ(87795119921 * sigar_sector_size, usages[0].wbytes);
+    EXPECT_EQ(std::chrono::milliseconds(4282901220), usages[0].wtime);
+
+    EXPECT_EQ(0, usages[0].queue);
+    EXPECT_EQ(std::chrono::milliseconds(3312412208), usages[0].time);
+
+    EXPECT_EQ("sdb1", usages[1].name);
+    EXPECT_EQ(15511, usages[1].reads);
+    EXPECT_EQ(908156 * sigar_sector_size, usages[1].rbytes);
+    EXPECT_EQ(std::chrono::milliseconds(19824), usages[1].rtime);
+    EXPECT_EQ(0, usages[1].writes);
+    EXPECT_EQ(0 * sigar_sector_size, usages[1].wbytes);
+    EXPECT_EQ(std::chrono::milliseconds(0), usages[1].wtime);
+
+    EXPECT_EQ(0, usages[1].queue);
+    EXPECT_EQ(std::chrono::milliseconds(19792), usages[1].time);
 }
 
 #endif

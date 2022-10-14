@@ -203,6 +203,74 @@ static nlohmann::json populate_interesting_procs(
     return json;
 }
 
+static nlohmann::json populate_disk_usages(
+        sigar_t* sigar, std::vector<sigar::disk_usage_t>& disks) {
+    auto ret = nlohmann::json::array();
+
+    for (auto& disk : disks) {
+        nlohmann::json json;
+        json["name"] = disk.name;
+
+        // json specs are inconsistent when it comes to numbers so just use a
+        // string everywhere
+        if (is_implemented(disk.reads)) {
+            json["reads"] = std::to_string(disk.reads);
+        }
+
+        if (is_implemented(disk.rbytes)) {
+            json["read_bytes"] = size2string(disk.rbytes);
+        }
+
+        if (is_implemented(disk.rtime)) {
+            json["read_time_ms"] = ms2string(disk.rtime.count());
+        }
+
+        if (is_implemented(disk.writes)) {
+            json["writes"] = std::to_string(disk.writes);
+        }
+
+        if (is_implemented(disk.wbytes)) {
+            json["write_bytes"] = size2string(disk.wbytes);
+        }
+
+        if (is_implemented(disk.wtime)) {
+            json["write_time_ms"] = ms2string(disk.wtime.count());
+        }
+
+        if (is_implemented(disk.time)) {
+            json["time_ms"] = ms2string(disk.time.count());
+        }
+
+        if (is_implemented(disk.queue)) {
+            json["queue"] = std::to_string(disk.queue);
+        }
+
+        ret.emplace_back(std::move(json));
+    }
+
+    return ret;
+}
+
+/**
+ * Find all of the disks attached to the machine
+ *
+ * @param sigar the library handle
+ * @return A vector containing all of the disks
+ */
+static std::vector<sigar::disk_usage_t> find_disk_usages(sigar_t* sigar) {
+    std::vector<sigar::disk_usage_t> ret;
+
+    try {
+        sigar::iterate_disks(sigar, [&ret](const sigar::disk_usage_t& disk) {
+            ret.push_back(disk);
+        });
+    } catch (const std::exception& e) {
+        // ignore
+    }
+
+    return ret;
+}
+
 uint64_t sum_implemented(uint64_t a, uint64_t b) {
     if (!is_implemented(a) && !is_implemented(b)) {
         return -1ULL;
@@ -280,6 +348,11 @@ static nlohmann::json next_sample(sigar_t* instance,
         if (!interesting.empty()) {
             ret["interesting_procs"] = std::move(interesting);
         }
+    }
+
+    auto disks = find_disk_usages(instance);
+    if (!disks.empty()) {
+        ret["disks"] = populate_disk_usages(instance, disks);
     }
 
 #ifdef __linux__

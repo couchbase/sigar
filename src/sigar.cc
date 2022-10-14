@@ -241,3 +241,7 @@ void sigar::iterate_threads(IterateThreadCallback callback) {
     auto instance = sigar_t::New();
     instance->iterate_threads(callback);
 }
+
+void sigar::iterate_disks(sigar_t* sigar, sigar::IterateDiskCallback callback) {
+    sigar->iterate_disks(callback);
+}

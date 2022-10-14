@@ -31,7 +31,9 @@
 #ifdef __cplusplus
 #include <chrono>
 #include <functional>
+#include <string>
 #include <string_view>
+
 extern "C" {
 #endif
 
@@ -177,6 +179,47 @@ using IterateThreadCallback =
 SIGAR_PUBLIC_API
 void iterate_threads(IterateThreadCallback callback);
 
+// Stats that we track are analagous to those in linux /proc/diskstats, given
+// that we primarily run on linux systems.
+struct disk_usage_t {
+    // Name of the disk
+    std::string name;
+
+    // reads completed successfully
+    uint64_t reads = std::numeric_limits<uint64_t>::max();
+
+    // bytes read
+    uint64_t rbytes = std::numeric_limits<uint64_t>::max();
+
+    // time spent reading (ms)
+    std::chrono::milliseconds rtime = std::chrono::milliseconds(0);
+
+    // writes completed
+    uint64_t writes = std::numeric_limits<uint64_t>::max();
+
+    // bytes written
+    uint64_t wbytes = std::numeric_limits<uint64_t>::max();
+
+    // time spent writing (ms)
+    std::chrono::milliseconds wtime = std::chrono::milliseconds::max();
+
+    // time spent doing I/Os (ms)
+    std::chrono::milliseconds time = std::chrono::milliseconds::max();
+
+    // I/Os currently in progress
+    uint64_t queue = std::numeric_limits<uint64_t>::max();
+};
+
+using IterateDiskCallback = std::function<void(const disk_usage_t&)>;
+
+/**
+ * Iterate over the attached disks
+ *
+ * @param sigar The sigar instance to use
+ * @param callback The callback to call for each disk
+ */
+SIGAR_PUBLIC_API
+void iterate_disks(sigar_t* sigar, IterateDiskCallback callback);
 } // namespace sigar
 }
 #endif

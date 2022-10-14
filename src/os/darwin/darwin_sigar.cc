@@ -132,6 +132,7 @@ public:
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
     void iterate_threads(sigar::IterateThreadCallback callback) override;
+    void iterate_disks(sigar::IterateDiskCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -560,5 +561,20 @@ void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
     }
 
     vm_deallocate(self, (vm_address_t)threads, sizeof(thread_t) * count);
+}
+
+void AppleSigar::iterate_disks(sigar::IterateDiskCallback callback) {
+    // Upstream sigar has Darwin and FreeBSD implementations but no
+    // implementation that works on MacOS proper. Older versions of sigar
+    // implemented something like this using statvfs for things like disk
+    // space but we don't really care about the stats available there. It's
+    // possible to get some stats via IOKit, the iostat source code has an
+    // example, but it requires a large amount of code that doesn't "just work"
+    // and further modification to get out some of the stats that we do care
+    // about. Extended iostat implementations using IOKit are available on code
+    // hosting websites, but that code also requires further modification to
+    // make it work. Given that MacOS is a development platform and not a
+    // supported production platform, it doesn't feel particularly worthwhile
+    // to spend any significant amount of time on this.
 }
 #endif

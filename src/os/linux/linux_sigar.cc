@@ -20,15 +20,15 @@
 // the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
 #ifdef __linux__
 
+#include "sigar.h"
+#include "sigar_private.h"
+
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
 #include <cerrno>
 #include <charconv>
 #include <filesystem>
 #include <functional>
-
-#include "sigar.h"
-#include "sigar_private.h"
 
 #define pageshift(x) ((x)*SystemConstants::instance().pagesize)
 #define SIGAR_TICK2MSEC(s) \
@@ -37,8 +37,6 @@
 #define SIGAR_TICK2USEC(s) \
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_USEC / (double)SystemConstants::instance().ticks))
-
-#define sigar_isdigit(c) (isdigit(((unsigned char)(c))))
 
 const char* mock_root = nullptr;
 
@@ -145,6 +143,7 @@ public:
             sigar_pid_t pid,
             sigar::IterateChildProcessCallback callback) override;
     void iterate_threads(sigar::IterateThreadCallback callback) override;
+    void iterate_disks(sigar::IterateDiskCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -548,5 +547,75 @@ void LinuxSigar::iterate_threads(sigar::IterateThreadCallback callback) {
             }
         }
     }
+}
+
+void LinuxSigar::iterate_disks(sigar::IterateDiskCallback callback) {
+    sigar_tokenize_file_line_by_line(
+            0,
+            "diskstats",
+            [&callback](const auto& vec) {
+                /**
+                 * https://www.kernel.org/doc/Documentation/ABI/testing/procfs-diskstats
+                 * =  ====================================
+                 * 1  major number
+                 * 2  minor mumber
+                 * 3  device name
+                 * 4  reads completed successfully
+                 * 5  reads merged
+                 * 6  sectors read
+                 * 7  time spent reading (ms)
+                 * 8  writes completed
+                 * 9  writes merged
+                 * 10  sectors written
+                 * 11  time spent writing (ms)
+                 * 12  I/Os currently in progress
+                 * 13  time spent doing I/Os (ms)
+                 * 14  weighted time spent doing I/Os (ms)
+                 * ==  ===================================
+                 *
+                 * Kernel 4.18+ appends four more fields for discard
+                 * tracking putting the total at 18:
+                 *
+                 * ==  ===================================
+                 * 15  discards completed successfully
+                 * 16  discards merged
+                 * 17  sectors discarded
+                 * 18  time spent discarding
+                 * ==  ===================================
+                 *
+                 * Kernel 5.5+ appends two more fields for flush requests:
+                 *
+                 * ==  =====================================
+                 * 19  flush requests completed successfully
+                 * 20  time spent flushing
+                 * ==  =====================================
+                 */
+                if (vec.size() < 14) {
+                    return false;
+                }
+
+                static const auto sigar_sector_size = 512;
+
+                sigar::disk_usage_t disk;
+
+                // First column is whitespace for some reason.
+                // Next two columns are not interesting to us...
+                disk.name = vec[3];
+
+                disk.reads = stoull(vec[4]);
+                disk.rbytes = stoull(vec[6]) * sigar_sector_size;
+                disk.rtime = std::chrono::milliseconds(stoull(vec[7]));
+
+                disk.writes = stoull(vec[8]);
+                disk.wbytes = stoull(vec[10]) * sigar_sector_size;
+                disk.wtime = std::chrono::milliseconds(stoull(vec[11]));
+
+                disk.queue = stoull(vec[12]);
+                disk.time = std::chrono::milliseconds(stoull(vec[13]));
+
+                callback(disk);
+                return true;
+            },
+            ' ');
 }
 #endif

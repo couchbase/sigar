@@ -21,9 +21,10 @@
 
 /* System Information Gatherer And Reporter */
 
+#include "sigar_visibility.h"
+
 #include <inttypes.h>
 #include <limits.h>
-#include <sigar_visibility.h>
 #include <stdint.h>
 #include <sys/types.h>
 
@@ -154,6 +155,23 @@ SIGAR_PUBLIC_API
 void iterate_child_processes(sigar_t* sigar,
                              sigar_pid_t pid,
                              IterateChildProcessCallback callback);
+
+using sigar_tid_t = sigar_pid_t;
+
+/// callback with thread id, name (if known; otherwise blank), user time
+/// and system time in microseconds
+///
+/// Note that we don't support thread naming on all platforms and on those
+/// platforms the name will be blank.
+///
+/// It is also worth noting that on some platforms that unless the thread name
+/// is explicitly set it may be empty, may be the name of the process etc.
+using IterateThreadCallback =
+        std::function<void(sigar_tid_t, std::string_view, uint64_t, uint64_t)>;
+
+SIGAR_PUBLIC_API
+void iterate_threads(IterateThreadCallback callback);
+
 } // namespace sigar
 }
 #endif

@@ -16,8 +16,8 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
 #include <chrono>
+#include <memory>
 #include <system_error>
 #ifdef WIN32
 #include <process.h>
@@ -240,4 +240,10 @@ void sigar::iterate_child_processes(sigar_t* sigar,
                                     sigar_pid_t pid,
                                     IterateChildProcessCallback callback) {
     sigar->iterate_child_processes(pid, callback);
+}
+
+SIGAR_PUBLIC_API
+void sigar::iterate_threads(IterateThreadCallback callback) {
+    std::unique_ptr<sigar_t> instance(sigar_t::New());
+    instance->iterate_threads(callback);
 }

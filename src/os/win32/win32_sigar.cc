@@ -22,6 +22,7 @@
 
 #include <windows.h>
 
+#include <process.h>
 #include <processthreadsapi.h>
 #include <psapi.h>
 #include <shellapi.h>
@@ -88,6 +89,7 @@ public:
     void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
+    void iterate_threads(sigar::IterateThreadCallback callback) override;
 
 protected:
     static constexpr size_t PERFBUF_SIZE = 8192;
@@ -162,6 +164,8 @@ typedef enum {
 
 /* 1/100ns units to milliseconds */
 #define NS100_2MSEC(t) ((t) / 10000)
+/* 1/100ns units to microseconds */
+#define NS100_2USEC(t) ((t) / 10)
 
 #define PERF_VAL_CPU(ix) NS100_2MSEC(PERF_VAL(ix))
 
@@ -596,4 +600,53 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
     }
 
     return {SIGAR_NO_SUCH_PROCESS, {}};
+}
+
+void Win32Sigar::iterate_threads(sigar::IterateThreadCallback callback) {
+    const auto pid = getpid();
+    auto snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, pid);
+    if (snapshotHandle == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("CreateToolhelp32Snapshot: failed " +
+                                 std::to_string(GetLastError()));
+    }
+
+    THREADENTRY32 entry;
+    entry.dwSize = sizeof(entry);
+
+    if (!Thread32First(snapshotHandle, &entry)) {
+        CloseHandle(snapshotHandle);
+        throw std::runtime_error("Thread32First: failed " +
+                                 std::to_string(GetLastError()));
+    }
+
+    do {
+        // Do we really need to look at the PID given that we asked for
+        // a given pid?
+        if (entry.th32OwnerProcessID == pid) {
+            auto th = OpenThread(
+                    THREAD_QUERY_INFORMATION, FALSE, entry.th32ThreadID);
+            if (th != INVALID_HANDLE_VALUE) {
+                FILETIME start_time, exit_time, system_time, user_time;
+                int status = ERROR_SUCCESS;
+
+                if (GetThreadTimes(th,
+                                   &start_time,
+                                   &exit_time,
+                                   &system_time,
+                                   &user_time)) {
+                    uint64_t user = NS100_2USEC(filetime2uint(user_time));
+                    uint64_t sys = NS100_2USEC(filetime2uint(system_time));
+                    callback(entry.th32ThreadID, {}, user, sys);
+                } else {
+                    callback(entry.th32ThreadID,
+                             {},
+                             std::numeric_limits<uint64_t>::max(),
+                             std::numeric_limits<uint64_t>::max());
+                }
+                CloseHandle(th);
+            }
+        }
+    } while (Thread32Next(snapshotHandle, &entry));
+
+    CloseHandle(snapshotHandle);
 }

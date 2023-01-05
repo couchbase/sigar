@@ -73,6 +73,7 @@ public:
                                sigar_proc_state_t& procstate) = 0;
     virtual void iterate_child_processes(
             sigar_pid_t pid, sigar::IterateChildProcessCallback callback) = 0;
+    virtual void iterate_threads(sigar::IterateThreadCallback callback) = 0;
 
     int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);
 
@@ -89,3 +90,4 @@ public:
 #define SIGAR_SSTRCPY(dest, src) SIGAR_STRNCPY(dest, src, sizeof(dest))
 
 #define SIGAR_MSEC 1000L
+#define SIGAR_USEC SIGAR_MSEC * 1000L

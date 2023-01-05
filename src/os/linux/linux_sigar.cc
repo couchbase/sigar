@@ -33,6 +33,9 @@
 #define SIGAR_TICK2MSEC(s) \
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_MSEC / (double)SystemConstants::instance().ticks))
+#define SIGAR_TICK2USEC(s) \
+    ((uint64_t)(s) *       \
+     ((uint64_t)SIGAR_USEC / (double)SystemConstants::instance().ticks))
 
 #define sigar_isdigit(c) (isdigit(((unsigned char)(c))))
 
@@ -140,6 +143,7 @@ public:
     void iterate_child_processes(
             sigar_pid_t pid,
             sigar::IterateChildProcessCallback callback) override;
+    void iterate_threads(sigar::IterateThreadCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -149,8 +153,8 @@ protected:
             pid_t ppid,
             const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs);
     static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
-    static linux_proc_stat_t parse_stat_file(
-            const std::filesystem::path& name);
+    static linux_proc_stat_t parse_stat_file(const std::filesystem::path& name,
+                                             bool use_usec = false);
 };
 
 sigar_t::sigar_t() = default;
@@ -318,8 +322,8 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
     return status;
 }
 
-linux_proc_stat_t LinuxSigar::parse_stat_file(
-        const std::filesystem::path& name) {
+linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
+                                              bool use_usec) {
     auto content = cb::io::loadFile(name.generic_string(),
                                     std::chrono::microseconds{});
     auto lines = cb::string::split(content, '\n');
@@ -375,8 +379,13 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(
     ret.tty = stoull(fields[stat_tty_index]);
     ret.minor_faults = stoull(fields[stat_minor_faults_index]);
     ret.major_faults = stoull(fields[stat_major_faults_index]);
-    ret.utime = SIGAR_TICK2MSEC(stoull(fields[stat_utime_index]));
-    ret.stime = SIGAR_TICK2MSEC(stoull(fields[stat_stime_index]));
+    if (use_usec) {
+        ret.utime = SIGAR_TICK2USEC(stoull(fields[stat_utime_index]));
+        ret.stime = SIGAR_TICK2USEC(stoull(fields[stat_stime_index]));
+    } else {
+        ret.utime = SIGAR_TICK2MSEC(stoull(fields[stat_utime_index]));
+        ret.stime = SIGAR_TICK2MSEC(stoull(fields[stat_stime_index]));
+    }
     ret.priority = stoull(fields[stat_priority_index]);
     ret.nice = stoull(fields[stat_nice_index]);
     ret.start_time = stoull(fields[stat_start_time_index]);
@@ -520,4 +529,25 @@ int LinuxSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
             ':');
 
     return SIGAR_OK;
+}
+
+void LinuxSigar::iterate_threads(sigar::IterateThreadCallback callback) {
+    auto dir =
+            std::filesystem::path("/proc") / std::to_string(getpid()) / "task";
+
+    for (const auto& p : std::filesystem::directory_iterator(dir)) {
+        if (std::filesystem::is_directory(p) &&
+            p.path().filename().string().find('.') != 0) {
+            auto statfile = p.path() / "stat";
+            if (exists(statfile)) {
+                try {
+                    const auto tid = std::stoull(p.path().filename().string());
+                    auto info = parse_stat_file(statfile, true);
+                    callback(tid, info.name, info.utime, info.stime);
+                } catch (const std::exception&) {
+                    // ignore
+                }
+            }
+        }
+    }
 }

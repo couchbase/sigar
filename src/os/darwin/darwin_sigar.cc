@@ -45,6 +45,7 @@
     ((uint64_t)(s) * ((uint64_t)SIGAR_MSEC / (double)sigar->ticks))
 
 #define SIGAR_NSEC2MSEC(s) ((uint64_t)(s) / ((uint64_t)1000000L))
+#define SIGAR_NSEC2USEC(s) ((uint64_t)(s) / ((uint64_t)1000L))
 
 #define NMIB(mib) (sizeof(mib) / sizeof(mib[0]))
 
@@ -70,6 +71,7 @@ public:
     void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
+    void iterate_threads(sigar::IterateThreadCallback callback) override;
 
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
@@ -563,4 +565,50 @@ int AppleSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
     }
 
     return SIGAR_OK;
+}
+
+void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
+    auto self = mach_task_self();
+
+    mach_port_t task;
+    auto status = task_for_pid(self, getpid(), &task);
+    if (status != KERN_SUCCESS) {
+        throw std::runtime_error(
+                "iterate_process_threads: task_for_pid() failed with "
+                "error: " +
+                std::to_string(status));
+    }
+
+    thread_array_t threads;
+    mach_msg_type_number_t count;
+
+    status = task_threads(task, &threads, &count);
+    if (status != KERN_SUCCESS) {
+        throw std::system_error(errno,
+                                std::system_category(),
+                                "iterate_process_threads: task_threads()");
+    }
+
+    for (mach_msg_type_number_t ii = 0; ii < count; ii++) {
+        mach_msg_type_number_t info_count = THREAD_EXTENDED_INFO_COUNT;
+        thread_extended_info info;
+
+        status = thread_info(threads[ii],
+                             THREAD_EXTENDED_INFO,
+                             (thread_info_t)&info,
+                             &info_count);
+        if (status == KERN_SUCCESS) {
+            std::string_view nm{info.pth_name, sizeof(info.pth_name)};
+            const auto idx = nm.find('\0');
+            if (idx != std::string_view::npos) {
+                nm = {nm.data(), idx};
+            }
+            callback(threads[ii],
+                     info.pth_name,
+                     SIGAR_NSEC2USEC(info.pth_user_time),
+                     SIGAR_NSEC2USEC(info.pth_system_time));
+        }
+    }
+
+    vm_deallocate(self, (vm_address_t)threads, sizeof(thread_t) * count);
 }

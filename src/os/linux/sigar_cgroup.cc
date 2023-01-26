@@ -21,6 +21,7 @@ void sigar_get_control_group_info(sigar_control_group_info_t* info) {
         info->num_cpu_prc = uint16_t(instance.get_available_cpu());
         info->memory_max = instance.get_max_memory();
         info->memory_current = instance.get_current_memory();
+        info->memory_cache = instance.get_current_cache_memory();
         const auto stats = instance.get_cpu_stats();
         info->usage_usec = stats.usage.count();
         info->user_usec = stats.user.count();

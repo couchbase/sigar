@@ -65,8 +65,8 @@ struct proc_stats {
     uint64_t page_faults;
 };
 
-// Version 6 added the control group information
-#define CURRENT_SYSTEM_STAT_VERSION 6
+// Version 7 extended the control group information
+#define CURRENT_SYSTEM_STAT_VERSION 7
 
 struct system_stats {
     uint32_t version;

@@ -37,6 +37,7 @@ struct sigar_control_group_info {
     /// Their value will be set to 0 if the controller isn't enabled
     uint64_t memory_max;
     uint64_t memory_current;
+    uint64_t memory_cache;
     uint64_t usage_usec;
     uint64_t user_usec;
     uint64_t system_usec;
@@ -49,7 +50,7 @@ struct sigar_control_group_info {
 
 #ifdef __cplusplus
 using sigar_control_group_info_t = sigar_control_group_info;
-static_assert(sizeof(sigar_control_group_info_t) == 88,
+static_assert(sizeof(sigar_control_group_info_t) == 96,
               "Remember to update the version number in port_sigar as the "
               "struct changed");
 #else

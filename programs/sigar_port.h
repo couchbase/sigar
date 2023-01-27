@@ -12,46 +12,17 @@
 #include <sigar_control_group.h>
 
 #include <sigar.h>
-#include <stdio.h>
+#include <array>
+#include <cstdio>
+#include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define MUST_SUCCEED(body)      \
-    do {                        \
-        int _ret = (body);      \
-        if (_ret != SIGAR_OK) { \
-            exit(1);            \
-        }                       \
-    } while (0)
-
-#define NUM_INTERESTING_PROCS 40
-#define PROC_NAME_LEN 60
-
-struct proc {
-    sigar_pid_t pid;
-    sigar_pid_t ppid;
-    uint64_t start_time;
-    char name[PROC_NAME_LEN];
-};
-
-/// Find all of the descendants of the babysitter process and populate the
-/// interesting_proc array with the more information about each process
-///
-/// \param sigar the library handle
-/// \param babysitter_pid the pid of the babysitter
-/// \param interesting_procs the array to populate
-/// \return The number of processes found
-int find_interesting_procs(
-        sigar_t* sigar,
-        sigar_pid_t babysitter_pid,
-        struct proc interesting_procs[NUM_INTERESTING_PROCS]);
+constexpr std::size_t NUM_INTERESTING_PROCS = 40;
+constexpr std::size_t PROC_NAME_LEN = 60;
 
 int sigar_port_main(sigar_pid_t babysitter, FILE* in, FILE* out);
 
 struct proc_stats {
-    char name[PROC_NAME_LEN];
+    std::array<char, PROC_NAME_LEN> name;
     uint32_t cpu_utilization;
 
     uint64_t pid;
@@ -66,7 +37,7 @@ struct proc_stats {
 };
 
 // Version 6 added the control group information
-#define CURRENT_SYSTEM_STAT_VERSION 6
+constexpr uint32_t CURRENT_SYSTEM_STAT_VERSION = 6;
 
 struct system_stats {
     uint32_t version;
@@ -89,10 +60,8 @@ struct system_stats {
 
     uint64_t allocstall;
 
-    struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
+    std::array<proc_stats, NUM_INTERESTING_PROCS> interesting_procs;
     sigar_control_group_info_t control_group_info;
 };
 
-#ifdef __cplusplus
-}
-#endif
+static_assert(sizeof(system_stats) == 5320, "Unexpected struct size");

@@ -159,8 +159,8 @@ protected:
 
 sigar_t::sigar_t() = default;
 
-sigar_t* sigar_t::New() {
-    return new LinuxSigar;
+std::unique_ptr<sigar_t> sigar_t::New() {
+    return std::make_unique<LinuxSigar>();
 }
 
 static uint64_t stoull(std::string_view value) {

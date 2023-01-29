@@ -22,14 +22,14 @@
 #include <cctype>
 #include <cstdlib>
 #include <cstring>
+#include <memory>
+#include <unordered_map>
 
 #ifndef WIN32
 #include <strings.h>
 #include <unistd.h>
 #include <cstddef>
 #endif
-
-#include <unordered_map>
 
 struct sigar_proc_time_t {
     uint64_t start_time, user, sys, total;
@@ -61,7 +61,7 @@ protected:
     virtual int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) = 0;
 
 public:
-    static sigar_t* New();
+    static std::unique_ptr<sigar_t> New();
 
     virtual ~sigar_t() = default;
 

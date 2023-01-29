@@ -28,7 +28,8 @@
 
 SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     try {
-        *sigar = sigar_t::New();
+        auto instance = sigar_t::New();
+        *sigar = instance.release();
         return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
@@ -244,6 +245,6 @@ void sigar::iterate_child_processes(sigar_t* sigar,
 
 SIGAR_PUBLIC_API
 void sigar::iterate_threads(IterateThreadCallback callback) {
-    std::unique_ptr<sigar_t> instance(sigar_t::New());
+    auto instance = sigar_t::New();
     instance->iterate_threads(callback);
 }

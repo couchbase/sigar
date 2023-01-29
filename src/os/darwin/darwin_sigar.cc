@@ -88,8 +88,8 @@ protected:
 
 sigar_t::sigar_t() = default;
 
-sigar_t* sigar_t::New() {
-    return new AppleSigar;
+std::unique_ptr<sigar_t> sigar_t::New() {
+    return std::make_unique<AppleSigar>();
 }
 
 int AppleSigar::get_vmstat(vm_statistics_data_t* vmstat) {

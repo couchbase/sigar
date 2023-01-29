@@ -305,8 +305,8 @@ void Win32Sigar::enable_debug_privilege() {
 
 sigar_t::sigar_t() = default;
 
-sigar_t* sigar_t::New() {
-    return new Win32Sigar;
+std::unique_ptr<sigar_t> sigar_t::New() {
+    return std::make_unique<Win32Sigar>();
 }
 
 int Win32Sigar::get_memory(sigar_mem_t& mem) {

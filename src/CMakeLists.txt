@@ -1,7 +1,5 @@
 ## sigar has some base files + a set of platform specific files
 
-INCLUDE_DIRECTORIES(../include/)
-
 SET(SIGAR_COMMON_SRC
     sigar.cc
     sigar_format.cc
@@ -16,7 +14,7 @@ IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
     target_include_directories(sigar SYSTEM PRIVATE AFTER
                                ${BOOST_INCLUDE_DIR}
                                ${Platform_SOURCE_DIR}/include)
-    target_link_libraries(sigar PRIVATE cgroup ${Boost_FILESYSTEM_LIBRARY})
+    target_link_libraries(sigar PRIVATE cgroup)
 ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
 ## macosx
@@ -36,7 +34,7 @@ IF (WIN32)
 ENDIF (WIN32)
 
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)
-target_include_directories(sigar INTERFACE ${sigar_SOURCE_DIR}/include)
+target_include_directories(sigar PUBLIC ${sigar_SOURCE_DIR}/include)
 target_include_directories(sigar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
 INSTALL(TARGETS sigar

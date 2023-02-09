@@ -9,17 +9,22 @@
  */
 #pragma once
 
-#include <sigar_control_group.h>
-
+#include <nlohmann/json_fwd.hpp>
 #include <sigar.h>
+#include <sigar_control_group.h>
 #include <array>
 #include <cstdio>
 #include <string>
 
+enum class OutputFormat { Raw, Json, JsonPretty };
+
 constexpr std::size_t NUM_INTERESTING_PROCS = 40;
 constexpr std::size_t PROC_NAME_LEN = 60;
 
-int sigar_port_main(sigar_pid_t babysitter, FILE* in, FILE* out);
+int sigar_port_main(sigar_pid_t babysitter,
+                    OutputFormat format,
+                    FILE* in,
+                    FILE* out);
 
 struct proc_stats {
     std::array<char, PROC_NAME_LEN> name;
@@ -65,3 +70,7 @@ struct system_stats {
 };
 
 static_assert(sizeof(system_stats) == 5328, "Unexpected struct size");
+
+void to_json(nlohmann::json& json, const proc_stats& proc);
+void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg);
+void to_json(nlohmann::json& json, const system_stats& stats);

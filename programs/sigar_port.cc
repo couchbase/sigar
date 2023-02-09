@@ -16,6 +16,7 @@
 
 #include "sigar_port.h"
 
+#include <nlohmann/json.hpp>
 #include <sigar.h>
 #include <cstdio>
 #include <cstdlib>
@@ -26,6 +27,68 @@
 template <typename Value>
 bool is_implemented(Value value) {
     return value != std::numeric_limits<Value>::max();
+}
+
+template <typename Value>
+std::string to_string(Value value) {
+    if (is_implemented(value)) {
+        return std::to_string(value);
+    }
+    return "-1";
+}
+
+void to_json(nlohmann::json& json, const proc_stats& proc) {
+    json = {{"name", proc.name.data()},
+            {"cpu_utilization", to_string(proc.cpu_utilization)},
+            {"pid", to_string(proc.pid)},
+            {"ppid", to_string(proc.ppid)},
+            {"mem_size", to_string(proc.mem_size)},
+            {"mem_resident", to_string(proc.mem_resident)},
+            {"mem_share", to_string(proc.mem_share)},
+            {"minor_faults", to_string(proc.minor_faults)},
+            {"major_faults", to_string(proc.major_faults)},
+            {"page_faults", to_string(proc.page_faults)}};
+}
+
+void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg) {
+    json = {{"supported", cg.supported ? true : false},
+            {"version", int(cg.version)},
+            {"num_cpu_prc", cg.num_cpu_prc},
+            {"memory_max", to_string(cg.memory_max)},
+            {"memory_current", to_string(cg.memory_current)},
+            {"memory_cache", to_string(cg.memory_cache)},
+            {"usage_usec", to_string(cg.usage_usec)},
+            {"user_usec", to_string(cg.user_usec)},
+            {"system_usec", to_string(cg.system_usec)},
+            {"nr_periods", to_string(cg.nr_periods)},
+            {"nr_throttled", to_string(cg.nr_throttled)},
+            {"throttled_usec", to_string(cg.throttled_usec)},
+            {"nr_bursts", to_string(cg.nr_bursts)},
+            {"burst_usec", to_string(cg.burst_usec)}};
+}
+
+void to_json(nlohmann::json& json, const system_stats& stats) {
+    json = {{"version", stats.version},
+            {"cpu_total_ms", to_string(stats.cpu_total_ms)},
+            {"cpu_idle_ms", to_string(stats.cpu_idle_ms)},
+            {"cpu_user_ms", to_string(stats.cpu_user_ms)},
+            {"cpu_sys_ms", to_string(stats.cpu_sys_ms)},
+            {"cpu_irq_ms", to_string(stats.cpu_irq_ms)},
+            {"cpu_stolen_ms", to_string(stats.cpu_stolen_ms)},
+            {"swap_total", to_string(stats.swap_total)},
+            {"swap_used", to_string(stats.swap_used)},
+            {"mem_total", to_string(stats.mem_total)},
+            {"mem_used", to_string(stats.mem_used)},
+            {"mem_actual_used", to_string(stats.mem_actual_used)},
+            {"mem_actual_free", to_string(stats.mem_actual_free)},
+            {"allocstall", to_string(stats.allocstall)},
+            {"control_group_info", stats.control_group_info}};
+
+    for (const auto& proc : stats.interesting_procs) {
+        if (proc.name[0] != '\0') {
+            json["interesting_procs"].emplace_back(proc);
+        }
+    }
 }
 
 static bool is_interesting_process(std::string_view name) {
@@ -146,7 +209,10 @@ static bool populate_interesting_procs(sigar_t* sigar,
     return stale;
 }
 
-int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
+int sigar_port_main(sigar_pid_t babysitter_pid,
+                    OutputFormat format,
+                    FILE* in,
+                    FILE* out) {
     sigar_t* sigar;
     sigar_mem_t mem;
     sigar_swap_t swap;
@@ -164,14 +230,23 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
     }
 
     while (!feof(in)) {
-        int req;
-        int rv = fread(&req, sizeof(req), 1, in);
-        if (rv < 1) {
-            continue;
+        if (format == OutputFormat::Raw) {
+            int req;
+            int rv = fread(&req, sizeof(req), 1, in);
+            if (rv < 1) {
+                continue;
+            }
+            if (req != 0) {
+                break;
+            }
+        } else {
+            std::array<char, 80> line;
+            if (fgets(line.data(), line.size(), in) == nullptr || ferror(in) ||
+                strstr(line.data(), "quit") != nullptr) {
+                break;
+            }
         }
-        if (req != 0) {
-            break;
-        }
+
         memset(&reply, 0, sizeof(reply));
         reply.version = CURRENT_SYSTEM_STAT_VERSION;
         reply.struct_size = sizeof(reply);
@@ -230,7 +305,16 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
         procs_stale = populate_interesting_procs(sigar, procs, reply);
 
         sigar_get_control_group_info(&reply.control_group_info);
-        fwrite(&reply, sizeof(reply), 1, out);
+
+        if (format == OutputFormat::Raw) {
+            fwrite(&reply, sizeof(reply), 1, out);
+        } else {
+            nlohmann::json data = reply;
+            const auto message =
+                    data.dump(format == OutputFormat::JsonPretty ? 2 : 0);
+            fprintf(out, "%u\n", int(message.size()));
+            fwrite(message.data(), message.size(), 1, out);
+        }
         fflush(out);
     }
 

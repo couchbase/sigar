@@ -15,28 +15,19 @@
 #include <io.h>
 #endif
 
-#include <cerrno>
-#include <cinttypes>
+#include <getopt.h>
+#include <iostream>
+#include <optional>
+#include <string>
 
-static int parse_pid(char* pidstr, sigar_pid_t* result) {
-    // The size and signed-ness of sigar_pid_t is different depending on the
-    // system, but it is an integral type. So we use a maximum size integer
-    // type to handle all systems uniformly.
-    uintmax_t pid;
-    char* pidend;
-
-    errno = 0;
-    pid = strtoumax(pidstr, &pidend, 10);
-    if (errno != 0 || *pidend != '\0') {
-        return 0;
+static sigar_pid_t parse_pid(const std::string& pidstr) {
+    try {
+        const auto result = std::stoul(pidstr);
+        return sigar_pid_t(result);
+    } catch (const std::exception&) {
+        std::cerr << "Failed to parse pid" << std::endl;
+        std::exit(EXIT_FAILURE);
     }
-
-    // In general, this is incorrect, since we don't know if the value will
-    // fit into the type. And there's no easy way to check that it will given
-    // that we don't even know what sigar_pid_t is a typedef for. But since in
-    // our case it's ns_server that passes the value, we should be fine.
-    *result = (sigar_pid_t)pid;
-    return 1;
 }
 
 int main(int argc, char** argv) {
@@ -45,10 +36,63 @@ int main(int argc, char** argv) {
     _setmode(0, _O_BINARY);
 #endif
 
-    sigar_pid_t babysitter_pid;
-    if (argc != 2 || !parse_pid(argv[1], &babysitter_pid)) {
-        exit(1);
+    std::optional<sigar_pid_t> babysitter_pid;
+    OutputFormat format = OutputFormat::Raw;
+
+    enum Option { Json, BabysitterPid, Help };
+
+    const std::vector<option> options{
+            {{"json", optional_argument, nullptr, Option::Json},
+             {"babysitter_pid",
+              required_argument,
+              nullptr,
+              Option::BabysitterPid},
+             {"help", no_argument, nullptr, Option::Help},
+             {nullptr, 0, nullptr, 0}}};
+
+    int cmd;
+    while ((cmd = getopt_long(argc, argv, "", options.data(), nullptr)) !=
+           EOF) {
+        switch (cmd) {
+        case Option::Json:
+            if (optarg) {
+                if (std::string{optarg} == "pretty") {
+                    format = OutputFormat::JsonPretty;
+                } else {
+                    std::cerr << "Invalid value passed to --json" << std::endl;
+                    return EXIT_FAILURE;
+                }
+            } else {
+                format = OutputFormat::Json;
+            }
+            break;
+        case Option::BabysitterPid:
+            babysitter_pid = parse_pid(optarg);
+            break;
+        case Option::Help:
+        default:
+            std::cerr << "Usage: " << argv[0] << R"( [options]
+
+Options:
+   --json[=pretty]          Report data as JSON (otherwise as raw C struct)
+                            In JSON mode '\n' triggers next sample
+   --babysitter_pid=<pid>   The parent pid of all processes to report
+
+)";
+            exit(EXIT_FAILURE);
+        }
     }
 
-    return sigar_port_main(babysitter_pid, stdin, stdout);
+    if (!babysitter_pid) {
+        // no pid provided through getopt... we should have 1 argument,
+        // and that should be the pid
+        if (optind == argc) {
+            std::cerr << "No pid provided" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        babysitter_pid = parse_pid(argv[optind]);
+    }
+
+    return sigar_port_main(babysitter_pid.value(), format, stdin, stdout);
 }

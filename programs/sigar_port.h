@@ -36,8 +36,8 @@ struct proc_stats {
     uint64_t page_faults;
 };
 
-// Version 6 added the control group information
-constexpr uint32_t CURRENT_SYSTEM_STAT_VERSION = 6;
+// Version 7 extended the control group information
+constexpr uint32_t CURRENT_SYSTEM_STAT_VERSION = 7;
 
 struct system_stats {
     uint32_t version;
@@ -64,4 +64,4 @@ struct system_stats {
     sigar_control_group_info_t control_group_info;
 };
 
-static_assert(sizeof(system_stats) == 5320, "Unexpected struct size");
+static_assert(sizeof(system_stats) == 5328, "Unexpected struct size");

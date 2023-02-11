@@ -38,6 +38,7 @@ struct sigar_control_group_info {
     /// Their value will be set to 0 if the controller isn't enabled
     uint64_t memory_max;
     uint64_t memory_current;
+    uint64_t memory_cache;
     uint64_t usage_usec;
     uint64_t user_usec;
     uint64_t system_usec;
@@ -53,7 +54,7 @@ using sigar_control_group_info_t = sigar_control_group_info;
 // port_sigar reads a struct which contains this struct transmitted through a
 // pipe. Verify the size and padding of the bytes in the struct so that it
 // won't change by upgrading compiler / new platforms.
-static_assert(sizeof(sigar_control_group_info_t) == 88,
+static_assert(sizeof(sigar_control_group_info_t) == 96,
               "Remember to update the version number in port_sigar as the "
               "struct changed");
 static_assert(0 == offsetof(sigar_control_group_info_t, supported),

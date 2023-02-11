@@ -16,6 +16,9 @@
 
 #include "sigar_port.h"
 
+#ifdef __linux__
+#include <cgroup/cgroup.h>
+#endif
 #include <nlohmann/json.hpp>
 #include <sigar.h>
 #include <cstdio>
@@ -310,6 +313,27 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
             fwrite(&reply, sizeof(reply), 1, out);
         } else {
             nlohmann::json data = reply;
+
+#ifdef __linux__
+            using namespace cb::cgroup;
+            auto& instance = ControlGroup::instance();
+            for (const auto& type :
+                 std::vector<cb::cgroup::PressureType>{{PressureType::Io,
+                                                        PressureType::Memory,
+                                                        PressureType::Cpu}}) {
+                auto pd = instance.get_system_pressure_data(type);
+                if (pd) {
+                    data["pressure"][to_string(type)] = *pd;
+                }
+
+                pd = instance.get_pressure_data(type);
+                if (pd) {
+                    data["control_group_info"]["pressure"][to_string(type)] =
+                            *pd;
+                }
+            }
+#endif
+
             const auto message =
                     data.dump(format == OutputFormat::JsonPretty ? 2 : 0);
             fprintf(out, "%u\n", int(message.size()));

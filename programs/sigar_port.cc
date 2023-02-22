@@ -54,8 +54,7 @@ void to_json(nlohmann::json& json, const proc_stats& proc) {
 }
 
 void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg) {
-    json = {{"supported", cg.supported ? true : false},
-            {"version", int(cg.version)},
+    json = {{"version", int(cg.version)},
             {"num_cpu_prc", cg.num_cpu_prc},
             {"memory_max", to_string(cg.memory_max)},
             {"memory_current", to_string(cg.memory_current)},
@@ -84,8 +83,11 @@ void to_json(nlohmann::json& json, const system_stats& stats) {
             {"mem_used", to_string(stats.mem_used)},
             {"mem_actual_used", to_string(stats.mem_actual_used)},
             {"mem_actual_free", to_string(stats.mem_actual_free)},
-            {"allocstall", to_string(stats.allocstall)},
-            {"control_group_info", stats.control_group_info}};
+            {"allocstall", to_string(stats.allocstall)}};
+
+    if (stats.control_group_info.supported) {
+        json["control_group_info"] = stats.control_group_info;
+    }
 
     for (const auto& proc : stats.interesting_procs) {
         if (proc.name[0] != '\0') {

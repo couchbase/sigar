@@ -19,7 +19,7 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
-#include <errno.h>
+#include <cerrno>
 #include <libproc.h>
 #include <mach-o/dyld.h>
 #include <mach/host_info.h>
@@ -60,7 +60,6 @@ public:
     AppleSigar()
         : sigar_t(),
           ticks(sysconf(_SC_CLK_TCK)),
-          pagesize(getpagesize()),
           mach_port(mach_host_self()) {
     }
     int get_memory(sigar_mem_t& mem) override;
@@ -82,7 +81,6 @@ protected:
     static std::pair<int, kinfo_proc> get_pinfo(sigar_pid_t pid);
 
     const int ticks;
-    int pagesize;
     mach_port_t mach_port;
 };
 
@@ -107,25 +105,22 @@ vm_statistics64 AppleSigar::get_vmstat() {
 }
 
 int AppleSigar::get_memory(sigar_mem_t& mem) {
-    uint64_t mem_total;
-    int mib[2];
     size_t len;
-
-    mib[0] = CTL_HW;
-
-    mib[1] = HW_PAGESIZE;
-    len = sizeof(pagesize);
-    if (sysctl(mib, NMIB(mib), &pagesize, &len, nullptr, 0) < 0) {
-        return errno;
-    }
-
-    mib[1] = HW_MEMSIZE;
+    uint64_t mem_total;
     len = sizeof(mem_total);
-    if (sysctl(mib, NMIB(mib), &mem_total, &len, nullptr, 0) < 0) {
-        return errno;
+    if (sysctlbyname("hw.memsize", &mem_total, &len, nullptr, 0) < 0) {
+        throw std::system_error(
+                errno, std::system_category(), R"(sysctlbyname("hw.memsize"))");
     }
 
     const auto vmstat = get_vmstat();
+    uint64_t pagesize;
+    len = sizeof(pagesize);
+    if (sysctlbyname("vm.pagesize", &pagesize, &len, nullptr, 0) < 0) {
+        throw std::system_error(errno,
+                                std::system_category(),
+                                R"(sysctlbyname("vm.pagesize"))");
+    }
 
     mem.total = mem_total;
     mem.free = vmstat.free_count * pagesize;

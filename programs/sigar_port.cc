@@ -82,8 +82,11 @@ void to_json(nlohmann::json& json, const system_stats& stats) {
             {"mem_total", to_string(stats.mem_total)},
             {"mem_used", to_string(stats.mem_used)},
             {"mem_actual_used", to_string(stats.mem_actual_used)},
-            {"mem_actual_free", to_string(stats.mem_actual_free)},
-            {"allocstall", to_string(stats.allocstall)}};
+            {"mem_actual_free", to_string(stats.mem_actual_free)}};
+
+    if (is_implemented(stats.allocstall)) {
+        json["allocstall"] = to_string(stats.allocstall);
+    }
 
     if (stats.control_group_info.supported) {
         json["control_group_info"] = stats.control_group_info;

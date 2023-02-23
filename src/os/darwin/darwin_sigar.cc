@@ -76,7 +76,7 @@ public:
 protected:
     int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
 
-    int get_vmstat(vm_statistics_data_t* vmstat);
+    vm_statistics64 get_vmstat();
 
     static int get_proc_threads(sigar_pid_t pid, sigar_proc_state_t& procstate);
     static std::pair<int, kinfo_proc> get_pinfo(sigar_pid_t pid);
@@ -92,53 +92,46 @@ std::unique_ptr<sigar_t> sigar_t::New() {
     return std::make_unique<AppleSigar>();
 }
 
-int AppleSigar::get_vmstat(vm_statistics_data_t* vmstat) {
-    mach_msg_type_number_t count = sizeof(*vmstat) / sizeof(integer_t);
-    const auto status = host_statistics(
-            mach_port, HOST_VM_INFO, (host_info_t)vmstat, &count);
+vm_statistics64 AppleSigar::get_vmstat() {
+    vm_statistics64 vmstat;
+    mach_msg_type_number_t count = HOST_VM_INFO64_COUNT;
+    const auto status = host_statistics64(
+            mach_port, HOST_VM_INFO64, (host_info_t)&vmstat, &count);
 
     if (status == KERN_SUCCESS) {
-        return SIGAR_OK;
-    } else {
-        return errno;
+        return vmstat;
     }
+
+    throw std::system_error(
+            errno, std::system_category(), "AppleSigar::get_vmstat()");
 }
 
 int AppleSigar::get_memory(sigar_mem_t& mem) {
-    uint64_t kern = 0;
-    vm_statistics_data_t vmstat;
     uint64_t mem_total;
     int mib[2];
     size_t len;
-    int status;
 
     mib[0] = CTL_HW;
 
     mib[1] = HW_PAGESIZE;
     len = sizeof(pagesize);
-    if (sysctl(mib, NMIB(mib), &pagesize, &len, NULL, 0) < 0) {
+    if (sysctl(mib, NMIB(mib), &pagesize, &len, nullptr, 0) < 0) {
         return errno;
     }
 
     mib[1] = HW_MEMSIZE;
     len = sizeof(mem_total);
-    if (sysctl(mib, NMIB(mib), &mem_total, &len, NULL, 0) < 0) {
+    if (sysctl(mib, NMIB(mib), &mem_total, &len, nullptr, 0) < 0) {
         return errno;
     }
 
+    const auto vmstat = get_vmstat();
+
     mem.total = mem_total;
-
-    if ((status = get_vmstat(&vmstat)) != SIGAR_OK) {
-        return status;
-    }
-
-    mem.free = vmstat.free_count;
-    mem.free *= pagesize;
-    kern = vmstat.inactive_count;
-    kern *= pagesize;
-
+    mem.free = vmstat.free_count * pagesize;
     mem.used = mem.total - mem.free;
 
+    uint64_t kern = vmstat.inactive_count * pagesize;
     mem.actual_free = mem.free + kern;
     mem.actual_used = mem.used - kern;
     mem_calc_ram(mem);
@@ -151,7 +144,7 @@ int AppleSigar::get_swap(sigar_swap_t& swap) {
     size_t size = sizeof(sw_usage);
     int mib[] = {CTL_VM, VM_SWAPUSAGE};
 
-    if (sysctl(mib, NMIB(mib), &sw_usage, &size, NULL, 0) != 0) {
+    if (sysctl(mib, NMIB(mib), &sw_usage, &size, nullptr, 0) != 0) {
         return errno;
     }
 
@@ -159,11 +152,7 @@ int AppleSigar::get_swap(sigar_swap_t& swap) {
     swap.used = sw_usage.xsu_used;
     swap.free = sw_usage.xsu_avail;
 
-    vm_statistics_data_t vmstat;
-    const auto status = get_vmstat(&vmstat);
-    if (status != SIGAR_OK) {
-        return status;
-    }
+    const auto vmstat = get_vmstat();
     swap.page_in = vmstat.pageins;
     swap.page_out = vmstat.pageouts;
 

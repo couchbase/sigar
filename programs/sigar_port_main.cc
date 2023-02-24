@@ -75,15 +75,11 @@ Options:
     }
 
     if (!babysitter_pid) {
-        // no pid provided through getopt... we should have 1 argument,
-        // and that should be the pid
-        if (optind == argc) {
-            std::cerr << "No pid provided" << std::endl;
-            exit(EXIT_FAILURE);
+        // no pid provided through getopt...
+        if (optind < argc) {
+            babysitter_pid = parse_pid(argv[optind]);
         }
-
-        babysitter_pid = parse_pid(argv[optind]);
     }
 
-    return sigar_port_main(babysitter_pid.value(), format, stdin, stdout);
+    return sigar_port_main(babysitter_pid, format, stdin, stdout);
 }

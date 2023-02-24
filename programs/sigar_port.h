@@ -14,6 +14,7 @@
 #include <sigar_control_group.h>
 #include <array>
 #include <cstdio>
+#include <optional>
 #include <string>
 
 enum class OutputFormat { Raw, Json };
@@ -21,7 +22,7 @@ enum class OutputFormat { Raw, Json };
 constexpr std::size_t NUM_INTERESTING_PROCS = 40;
 constexpr std::size_t PROC_NAME_LEN = 60;
 
-int sigar_port_main(sigar_pid_t babysitter,
+int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
                     OutputFormat format,
                     FILE* in,
                     FILE* out);

@@ -214,7 +214,7 @@ static void populate_interesting_procs(sigar_t* sigar,
     }
 }
 
-int sigar_port_main(sigar_pid_t babysitter_pid,
+int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
                     OutputFormat format,
                     FILE* in,
                     FILE* out) {
@@ -278,8 +278,10 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
 
-        auto procs = find_interesting_procs(sigar, babysitter_pid);
-        populate_interesting_procs(sigar, procs, reply);
+        if (babysitter_pid) {
+            auto procs = find_interesting_procs(sigar, babysitter_pid.value());
+            populate_interesting_procs(sigar, procs, reply);
+        }
 
         sigar_get_control_group_info(&reply.control_group_info);
 

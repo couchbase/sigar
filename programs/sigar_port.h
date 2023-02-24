@@ -16,7 +16,7 @@
 #include <cstdio>
 #include <string>
 
-enum class OutputFormat { Raw, Json, JsonPretty };
+enum class OutputFormat { Raw, Json };
 
 constexpr std::size_t NUM_INTERESTING_PROCS = 40;
 constexpr std::size_t PROC_NAME_LEN = 60;

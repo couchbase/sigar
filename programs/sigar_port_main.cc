@@ -42,7 +42,7 @@ int main(int argc, char** argv) {
     enum Option { Json, BabysitterPid, Help };
 
     const std::vector<option> options{
-            {{"json", optional_argument, nullptr, Option::Json},
+            {{"json", no_argument, nullptr, Option::Json},
              {"babysitter_pid",
               required_argument,
               nullptr,
@@ -55,16 +55,7 @@ int main(int argc, char** argv) {
            EOF) {
         switch (cmd) {
         case Option::Json:
-            if (optarg) {
-                if (std::string{optarg} == "pretty") {
-                    format = OutputFormat::JsonPretty;
-                } else {
-                    std::cerr << "Invalid value passed to --json" << std::endl;
-                    return EXIT_FAILURE;
-                }
-            } else {
-                format = OutputFormat::Json;
-            }
+            format = OutputFormat::Json;
             break;
         case Option::BabysitterPid:
             babysitter_pid = parse_pid(optarg);
@@ -74,7 +65,7 @@ int main(int argc, char** argv) {
             std::cerr << "Usage: " << argv[0] << R"( [options]
 
 Options:
-   --json[=pretty]          Report data as JSON (otherwise as raw C struct)
+   --json                   Report data as JSON (otherwise as raw C struct)
                             In JSON mode '\n' triggers next sample
    --babysitter_pid=<pid>   The parent pid of all processes to report
 

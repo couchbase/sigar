@@ -26,6 +26,10 @@
 #include <cstring>
 #include <vector>
 
+#ifndef WIN32
+#include <unistd.h>
+#endif
+
 /// Test to see if a field is implemented (its value is != not implemented)
 template <typename Value>
 bool is_implemented(Value value) {
@@ -220,6 +224,13 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
     sigar_cpu_t cpu;
     struct system_stats reply;
 
+#ifdef WIN32
+    const int indentation = -1;
+#else
+    const int indentation =
+            (isatty(fileno(in)) || isatty(fileno(out))) ? 2 : -1;
+#endif
+
     if (sigar_open(&sigar) != SIGAR_OK) {
         fprintf(stderr, "Failed to open sigar\n");
         std::exit(1);
@@ -297,8 +308,7 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
             }
 #endif
 
-            const auto message =
-                    data.dump(format == OutputFormat::JsonPretty ? 2 : 0);
+            const auto message = data.dump(indentation);
             fprintf(out, "%u\n", int(message.size()));
             fwrite(message.data(), message.size(), 1, out);
         }

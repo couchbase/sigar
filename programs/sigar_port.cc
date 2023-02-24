@@ -164,19 +164,15 @@ static std::vector<proc> find_interesting_procs(sigar_t* sigar,
     return ret;
 }
 
-constexpr int PROCS_REFRESH_INTERVAL = 20;
-
 /// Iterate over all the processes we've considered as interesting and
 /// push the details for the process into the reply.
 ///
 /// @param sigar The handle to sigar
 /// @param procs The processes to get information for
 /// @param reply Where to store the data
-static bool populate_interesting_procs(sigar_t* sigar,
+static void populate_interesting_procs(sigar_t* sigar,
                                        const std::vector<proc>& procs,
                                        system_stats& reply) {
-    bool stale = false;
-
     sigar_proc_mem_t proc_mem;
     sigar_proc_cpu_t proc_cpu;
 
@@ -188,7 +184,6 @@ static bool populate_interesting_procs(sigar_t* sigar,
             // The process represented by pid is no longer there, or
             // was replaced by a different process than the last time
             // we checked.
-            stale = true;
             continue;
         }
         proc_stats& child = *iter;
@@ -213,8 +208,6 @@ static bool populate_interesting_procs(sigar_t* sigar,
             break;
         }
     }
-
-    return stale;
 }
 
 int sigar_port_main(sigar_pid_t babysitter_pid,
@@ -226,11 +219,6 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
     sigar_swap_t swap;
     sigar_cpu_t cpu;
     struct system_stats reply;
-
-    bool procs_stale = true;
-    std::vector<proc> procs;
-
-    int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
 
     if (sigar_open(&sigar) != SIGAR_OK) {
         fprintf(stderr, "Failed to open sigar\n");
@@ -279,12 +267,8 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
 
-        if (procs_stale || ticks_to_refresh-- == 0) {
-            ticks_to_refresh = PROCS_REFRESH_INTERVAL;
-            procs = find_interesting_procs(sigar, babysitter_pid);
-        }
-
-        procs_stale = populate_interesting_procs(sigar, procs, reply);
+        auto procs = find_interesting_procs(sigar, babysitter_pid);
+        populate_interesting_procs(sigar, procs, reply);
 
         sigar_get_control_group_info(&reply.control_group_info);
 

@@ -147,3 +147,12 @@ TEST(SigarPort, SigarPortTestJSON) {
     ASSERT_EQ(0, exitcode);
 #endif
 }
+
+/// Due to the problems with folly's pipes on windows lets just verify
+/// that the code used to get the data "works" (don't crash).
+TEST(SigarPort, NextSample) {
+    sigar_t* sigar;
+    ASSERT_EQ(SIGAR_OK, sigar_open(&sigar));
+    next_sample(sigar, sigar_pid_get(sigar));
+    sigar_close(sigar);
+}

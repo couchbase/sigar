@@ -214,15 +214,50 @@ static void populate_interesting_procs(sigar_t* sigar,
     }
 }
 
+system_stats next_sample(sigar_t* instance,
+                         std::optional<sigar_pid_t> babysitter_pid) {
+    sigar_mem_t mem;
+    sigar_swap_t swap;
+    sigar_cpu_t cpu;
+    struct system_stats reply;
+
+    memset(&reply, 0, sizeof(reply));
+    reply.version = CURRENT_SYSTEM_STAT_VERSION;
+    reply.struct_size = sizeof(reply);
+
+    sigar_cpu_get(instance, &cpu);
+    reply.cpu_total_ms = cpu.total;
+    reply.cpu_idle_ms = cpu.idle + cpu.wait;
+    reply.cpu_user_ms = cpu.user + cpu.nice;
+    reply.cpu_sys_ms = cpu.sys;
+    reply.cpu_irq_ms = cpu.irq + cpu.soft_irq;
+    reply.cpu_stolen_ms = cpu.stolen;
+
+    sigar_swap_get(instance, &swap);
+    reply.swap_total = swap.total;
+    reply.swap_used = swap.used;
+    reply.allocstall = swap.allocstall;
+
+    sigar_mem_get(instance, &mem);
+    reply.mem_total = mem.total;
+    reply.mem_used = mem.used;
+    reply.mem_actual_used = mem.actual_used;
+    reply.mem_actual_free = mem.actual_free;
+
+    if (babysitter_pid) {
+        auto procs = find_interesting_procs(instance, babysitter_pid.value());
+        populate_interesting_procs(instance, procs, reply);
+    }
+
+    sigar_get_control_group_info(&reply.control_group_info);
+    return reply;
+}
+
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
                     OutputFormat format,
                     FILE* in,
                     FILE* out) {
     sigar_t* sigar;
-    sigar_mem_t mem;
-    sigar_swap_t swap;
-    sigar_cpu_t cpu;
-    struct system_stats reply;
 
 #ifdef WIN32
     const int indentation = -1;
@@ -254,36 +289,7 @@ int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
             }
         }
 
-        memset(&reply, 0, sizeof(reply));
-        reply.version = CURRENT_SYSTEM_STAT_VERSION;
-        reply.struct_size = sizeof(reply);
-
-        sigar_mem_get(sigar, &mem);
-        sigar_swap_get(sigar, &swap);
-        sigar_cpu_get(sigar, &cpu);
-
-        reply.cpu_total_ms = cpu.total;
-        reply.cpu_idle_ms = cpu.idle + cpu.wait;
-        reply.cpu_user_ms = cpu.user + cpu.nice;
-        reply.cpu_sys_ms = cpu.sys;
-        reply.cpu_irq_ms = cpu.irq + cpu.soft_irq;
-        reply.cpu_stolen_ms = cpu.stolen;
-
-        reply.swap_total = swap.total;
-        reply.swap_used = swap.used;
-        reply.allocstall = swap.allocstall;
-
-        reply.mem_total = mem.total;
-        reply.mem_used = mem.used;
-        reply.mem_actual_used = mem.actual_used;
-        reply.mem_actual_free = mem.actual_free;
-
-        if (babysitter_pid) {
-            auto procs = find_interesting_procs(sigar, babysitter_pid.value());
-            populate_interesting_procs(sigar, procs, reply);
-        }
-
-        sigar_get_control_group_info(&reply.control_group_info);
+        auto reply = next_sample(sigar, babysitter_pid);
 
         if (format == OutputFormat::Raw) {
             fwrite(&reply, sizeof(reply), 1, out);

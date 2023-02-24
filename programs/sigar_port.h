@@ -75,3 +75,13 @@ static_assert(sizeof(system_stats) == 5328, "Unexpected struct size");
 void to_json(nlohmann::json& json, const proc_stats& proc);
 void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg);
 void to_json(nlohmann::json& json, const system_stats& stats);
+
+/**
+ * Get the next sample to report
+ *
+ * @param instance The sigar instance to use
+ * @param babysitter_pid The pid of the babysitter process (to find children)
+ * @return The system_stats to report
+ */
+system_stats next_sample(sigar_t* instance,
+                         std::optional<sigar_pid_t> babysitter_pid);

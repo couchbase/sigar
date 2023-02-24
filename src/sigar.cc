@@ -97,7 +97,6 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
         return EINVAL;
     }
 
-#if 0
     // The correct thing to do would be to initialize to not impl, as
     // linux is the only platform adding some of these fields, but
     // it looks like people don't check if they're implemented or not
@@ -110,8 +109,6 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
     cpu->soft_irq = SIGAR_FIELD_NOTIMPL;
     cpu->stolen = SIGAR_FIELD_NOTIMPL;
     cpu->total = SIGAR_FIELD_NOTIMPL;
-#endif
-    *cpu = {};
 
     try {
         return sigar->get_cpu(*cpu);

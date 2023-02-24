@@ -72,7 +72,23 @@ TEST_F(Sigar, test_sigar_cpu_get) {
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.user);
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.sys);
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.idle);
+#ifdef WIN32
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.nice);
+#else
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.nice);
+#endif
+
+#if defined(WIN32) || defined(__APPLE__)
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.wait);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.stolen);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.irq);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.soft_irq);
+#else
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.wait);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.stolen);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.irq);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.soft_irq);
+#endif
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.total);
 }
 

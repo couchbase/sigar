@@ -48,13 +48,25 @@ void to_json(nlohmann::json& json, const proc_stats& proc) {
     json = {{"name", proc.name.data()},
             {"cpu_utilization", to_string(proc.cpu_utilization)},
             {"pid", to_string(proc.pid)},
-            {"ppid", to_string(proc.ppid)},
-            {"mem_size", to_string(proc.mem_size)},
-            {"mem_resident", to_string(proc.mem_resident)},
-            {"mem_share", to_string(proc.mem_share)},
-            {"minor_faults", to_string(proc.minor_faults)},
-            {"major_faults", to_string(proc.major_faults)},
-            {"page_faults", to_string(proc.page_faults)}};
+            {"ppid", to_string(proc.ppid)}};
+    if (is_implemented(proc.mem_size)) {
+        json["mem_size"] = std::to_string(proc.mem_size);
+    }
+    if (is_implemented(proc.mem_resident)) {
+        json["mem_resident"] = std::to_string(proc.mem_resident);
+    }
+    if (is_implemented(proc.mem_share)) {
+        json["mem_share"] = std::to_string(proc.mem_share);
+    }
+    if (is_implemented(proc.minor_faults)) {
+        json["minor_faults"] = std::to_string(proc.minor_faults);
+    }
+    if (is_implemented(proc.major_faults)) {
+        json["major_faults"] = std::to_string(proc.major_faults);
+    }
+    if (is_implemented(proc.page_faults)) {
+        json["page_faults"] = std::to_string(proc.page_faults);
+    }
 }
 
 void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg) {
@@ -74,22 +86,58 @@ void to_json(nlohmann::json& json, const sigar_control_group_info_t& cg) {
 }
 
 void to_json(nlohmann::json& json, const system_stats& stats) {
-    json = {{"version", stats.version},
-            {"cpu_total_ms", to_string(stats.cpu_total_ms)},
-            {"cpu_idle_ms", to_string(stats.cpu_idle_ms)},
-            {"cpu_user_ms", to_string(stats.cpu_user_ms)},
-            {"cpu_sys_ms", to_string(stats.cpu_sys_ms)},
-            {"cpu_irq_ms", to_string(stats.cpu_irq_ms)},
-            {"cpu_stolen_ms", to_string(stats.cpu_stolen_ms)},
-            {"swap_total", to_string(stats.swap_total)},
-            {"swap_used", to_string(stats.swap_used)},
-            {"mem_total", to_string(stats.mem_total)},
-            {"mem_used", to_string(stats.mem_used)},
-            {"mem_actual_used", to_string(stats.mem_actual_used)},
-            {"mem_actual_free", to_string(stats.mem_actual_free)}};
+    json = {{"version", stats.version}};
+
+    if (is_implemented(stats.cpu_total_ms)) {
+        json["cpu_total_ms"] = std::to_string(stats.cpu_total_ms);
+    }
+
+    if (is_implemented(stats.cpu_idle_ms)) {
+        json["cpu_idle_ms"] = std::to_string(stats.cpu_idle_ms);
+    }
+
+    if (is_implemented(stats.cpu_user_ms)) {
+        json["cpu_user_ms"] = std::to_string(stats.cpu_user_ms);
+    }
+
+    if (is_implemented(stats.cpu_sys_ms)) {
+        json["cpu_sys_ms"] = std::to_string(stats.cpu_sys_ms);
+    }
+
+    if (is_implemented(stats.cpu_irq_ms)) {
+        json["cpu_irq_ms"] = std::to_string(stats.cpu_irq_ms);
+    }
+
+    if (is_implemented(stats.cpu_stolen_ms)) {
+        json["cpu_stolen_ms"] = std::to_string(stats.cpu_stolen_ms);
+    }
+
+    if (is_implemented(stats.swap_total)) {
+        json["swap_total"] = std::to_string(stats.swap_total);
+    }
+
+    if (is_implemented(stats.swap_used)) {
+        json["swap_used"] = std::to_string(stats.swap_used);
+    }
+
+    if (is_implemented(stats.mem_total)) {
+        json["mem_total"] = std::to_string(stats.mem_total);
+    }
+
+    if (is_implemented(stats.mem_used)) {
+        json["mem_used"] = std::to_string(stats.mem_used);
+    }
+
+    if (is_implemented(stats.mem_actual_used)) {
+        json["mem_actual_used"] = std::to_string(stats.mem_actual_used);
+    }
+
+    if (is_implemented(stats.mem_actual_free)) {
+        json["mem_actual_free"] = std::to_string(stats.mem_actual_free);
+    }
 
     if (is_implemented(stats.allocstall)) {
-        json["allocstall"] = to_string(stats.allocstall);
+        json["allocstall"] = std::to_string(stats.allocstall);
     }
 
     if (stats.control_group_info.supported) {
@@ -195,23 +243,31 @@ static void populate_interesting_procs(sigar_t* sigar,
         child.ppid = proc.ppid;
         strncpy(child.name.data(), proc.name.c_str(), child.name.size());
         child.cpu_utilization = (uint32_t)(100 * proc_cpu.percent);
-        child.mem_size = is_implemented(proc_mem.size) ? proc_mem.size : 0;
-        child.mem_resident =
-                is_implemented(proc_mem.resident) ? proc_mem.resident : 0;
-        child.mem_share = is_implemented(proc_mem.share) ? proc_mem.share : 0;
-        child.minor_faults = is_implemented(proc_mem.minor_faults)
-                                     ? proc_mem.minor_faults
-                                     : 0;
-        child.major_faults = is_implemented(proc_mem.major_faults)
-                                     ? proc_mem.major_faults
-                                     : 0;
-        child.page_faults =
-                is_implemented(proc_mem.page_faults) ? proc_mem.page_faults : 0;
+        child.mem_size = proc_mem.size;
+        child.mem_resident = proc_mem.resident;
+        child.mem_share = proc_mem.share;
+        child.minor_faults = proc_mem.minor_faults;
+        child.major_faults = proc_mem.major_faults;
+        child.page_faults = proc_mem.page_faults;
         if (++iter == reply.interesting_procs.end()) {
             // We can't store more processes
             break;
         }
     }
+}
+
+uint64_t sum_implemented(uint64_t a, uint64_t b) {
+    if (!is_implemented(a) && !is_implemented(b)) {
+        return -1ULL;
+    }
+    uint64_t ret = 0;
+    if (is_implemented(a)) {
+        ret = a;
+    }
+    if (is_implemented(b)) {
+        ret += b;
+    }
+    return ret;
 }
 
 system_stats next_sample(sigar_t* instance,
@@ -227,10 +283,10 @@ system_stats next_sample(sigar_t* instance,
 
     sigar_cpu_get(instance, &cpu);
     reply.cpu_total_ms = cpu.total;
-    reply.cpu_idle_ms = cpu.idle + cpu.wait;
-    reply.cpu_user_ms = cpu.user + cpu.nice;
+    reply.cpu_idle_ms = sum_implemented(cpu.idle, cpu.wait);
+    reply.cpu_user_ms = sum_implemented(cpu.user, cpu.nice);
     reply.cpu_sys_ms = cpu.sys;
-    reply.cpu_irq_ms = cpu.irq + cpu.soft_irq;
+    reply.cpu_irq_ms = sum_implemented(cpu.irq, cpu.soft_irq);
     reply.cpu_stolen_ms = cpu.stolen;
 
     sigar_swap_get(instance, &swap);

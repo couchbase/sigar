@@ -272,38 +272,12 @@ int sigar_port_main(sigar_pid_t babysitter_pid,
 
         reply.swap_total = swap.total;
         reply.swap_used = swap.used;
+        reply.allocstall = swap.allocstall;
 
         reply.mem_total = mem.total;
         reply.mem_used = mem.used;
         reply.mem_actual_used = mem.actual_used;
         reply.mem_actual_free = mem.actual_free;
-
-        if (is_implemented(swap.allocstall)) {
-            reply.allocstall = swap.allocstall;
-        } else {
-            bool found = false;
-            reply.allocstall = 0;
-            if (is_implemented(swap.allocstall_dma)) {
-                found = true;
-                reply.allocstall += swap.allocstall_dma;
-            }
-            if (is_implemented(swap.allocstall_dma32)) {
-                found = true;
-                reply.allocstall += swap.allocstall_dma32;
-            }
-            if (is_implemented(swap.allocstall_normal)) {
-                found = true;
-                reply.allocstall += swap.allocstall_normal;
-            }
-
-            if (is_implemented(swap.allocstall_movable)) {
-                found = true;
-                reply.allocstall += swap.allocstall_movable;
-            }
-            if (!found) {
-                reply.allocstall = std::numeric_limits<uint64_t>::max();
-            }
-        }
 
         if (procs_stale || ticks_to_refresh-- == 0) {
             ticks_to_refresh = PROCS_REFRESH_INTERVAL;

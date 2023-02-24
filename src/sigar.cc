@@ -80,10 +80,6 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap) {
     swap->page_in = SIGAR_FIELD_NOTIMPL;
     swap->page_out = SIGAR_FIELD_NOTIMPL;
     swap->allocstall = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_dma = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_dma32 = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_normal = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall_movable = SIGAR_FIELD_NOTIMPL;
 
     try {
         return sigar->get_swap(*swap);

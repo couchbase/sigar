@@ -74,12 +74,12 @@ typedef struct {
 SIGAR_DECLARE(int) sigar_mem_get(sigar_t* sigar, sigar_mem_t* mem);
 
 typedef struct {
-    uint64_t total, used, free, page_in, page_out,
-            allocstall, /* up until 4.10 */
-            allocstall_dma, /* 4.10 onwards */
-            allocstall_dma32, /* 4.10 onwards */
-            allocstall_normal, /* 4.10 onwards */
-            allocstall_movable; /* 4.10 onwards */
+    uint64_t total;
+    uint64_t used;
+    uint64_t free;
+    uint64_t page_in;
+    uint64_t page_out;
+    uint64_t allocstall;
 } sigar_swap_t;
 
 SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap);

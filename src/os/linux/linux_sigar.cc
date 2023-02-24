@@ -250,6 +250,7 @@ int LinuxSigar::get_swap(sigar_swap_t& swap) {
             ':');
 
     swap.used = swap.total - swap.free;
+    swap.allocstall = 0;
     sigar_tokenize_file_line_by_line(
             0,
             "vmstat",
@@ -262,16 +263,12 @@ int LinuxSigar::get_swap(sigar_swap_t& swap) {
                     swap.page_in = stoull(vec[1]);
                 } else if (vec.front() == "pswpout") {
                     swap.page_out = stoull(vec[1]);
-                } else if (vec.front() == "allocstall") {
-                    swap.allocstall = stoull(vec[1]);
-                } else if (vec.front() == "allocstall_dma") {
-                    swap.allocstall_dma = stoull(vec[1]);
-                } else if (vec.front() == "allocstall_dma32") {
-                    swap.allocstall_dma32 = stoull(vec[1]);
-                } else if (vec.front() == "allocstall_normal") {
-                    swap.allocstall_normal = stoull(vec[1]);
-                } else if (vec.front() == "allocstall_movable") {
-                    swap.allocstall_movable = stoull(vec[1]);
+                } else if (vec.front() == "allocstall" ||
+                           vec.front() == "allocstall_dma" ||
+                           vec.front() == "allocstall_dma32" ||
+                           vec.front() == "allocstall_normal" ||
+                           vec.front() == "allocstall_movable") {
+                    swap.allocstall += stoull(vec[1]);
                 }
 
                 return true;

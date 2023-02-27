@@ -298,65 +298,38 @@ static mach_vm_size_t sigar_shared_region_size(cpu_type_t type) {
 }
 
 int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
-    mach_port_t task, self = mach_task_self();
-    kern_return_t status;
-    task_basic_info_data_t info;
-    task_events_info_data_t events;
-    mach_msg_type_number_t count;
-    struct proc_taskinfo pti;
-    struct proc_regioninfo pri;
+    proc_taskinfo pti;
 
     int sz = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
-    if (sz == sizeof(pti)) {
-        procmem.size = pti.pti_virtual_size;
-        procmem.resident = pti.pti_resident_size;
-        procmem.page_faults = pti.pti_faults;
+    if (sz != int(sizeof(pti))) {
+        throw std::system_error(
+                errno,
+                std::system_category(),
+                "get_proc_memory(): proc_pidinfo(PROC_PIDTASKINFO)");
+    }
 
-        sz = proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
-        if (sz == sizeof(pri)) {
-            if (pri.pri_share_mode == SM_EMPTY) {
-                mach_vm_size_t shared_size;
-                cpu_type_t cpu_type;
+    procmem.size = pti.pti_virtual_size;
+    procmem.resident = pti.pti_resident_size;
+    procmem.page_faults = pti.pti_faults;
 
-                if (sigar_proc_cpu_type(pid, &cpu_type) == SIGAR_OK) {
-                    shared_size = sigar_shared_region_size(cpu_type);
-                } else {
-                    shared_size =
-                            SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
-                }
-                if (procmem.size > shared_size) {
-                    procmem.size -= shared_size; /* SIGAR-123 */
-                }
+    proc_regioninfo pri;
+    sz = proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
+    if (sz == sizeof(pri)) {
+        if (pri.pri_share_mode == SM_EMPTY) {
+            mach_vm_size_t shared_size;
+            cpu_type_t cpu_type;
+
+            if (sigar_proc_cpu_type(pid, &cpu_type) == SIGAR_OK) {
+                shared_size = sigar_shared_region_size(cpu_type);
+            } else {
+                shared_size =
+                        SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
+            }
+            if (procmem.size > shared_size) {
+                procmem.size -= shared_size; /* SIGAR-123 */
             }
         }
-        return SIGAR_OK;
     }
-
-    status = task_for_pid(self, pid, &task);
-
-    if (status != KERN_SUCCESS) {
-        return errno;
-    }
-
-    count = TASK_BASIC_INFO_COUNT;
-    status = task_info(task, TASK_BASIC_INFO, (task_info_t)&info, &count);
-    if (status != KERN_SUCCESS) {
-        return errno;
-    }
-
-    count = TASK_EVENTS_INFO_COUNT;
-    status = task_info(task, TASK_EVENTS_INFO, (task_info_t)&events, &count);
-    if (status == KERN_SUCCESS) {
-        procmem.page_faults = events.faults;
-    }
-
-    if (task != self) {
-        mach_port_deallocate(self, task);
-    }
-
-    procmem.size = info.virtual_size;
-    procmem.resident = info.resident_size;
-
     return SIGAR_OK;
 }
 

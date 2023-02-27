@@ -66,8 +66,13 @@ SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err);
 /* system memory info */
 
 typedef struct {
-    uint64_t ram, total, used, free, actual_used, actual_free;
-    double used_percent;
+    uint64_t total; // Total amount of memory in bytes
+    uint64_t used; // Total - free
+    uint64_t free; // Total amount of memory available
+    uint64_t actual_used; // Current usage
+    uint64_t actual_free; // Current free
+    // The following should go away once plasma/mem.go stops
+    // using it (it could calculate it from the numbers above)
     double free_percent;
 } sigar_mem_t;
 

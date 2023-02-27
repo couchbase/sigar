@@ -82,7 +82,6 @@ TEST_F(Sigar, test_sigar_mem_get) {
     ASSERT_EQ(SIGAR_OK, ret)
             << "sigar_mem_get: " << sigar_strerror(instance, ret);
 
-    EXPECT_LT(0, mem.ram);
     EXPECT_LT(0, mem.total);
     EXPECT_LT(0, mem.used);
     EXPECT_LT(0, mem.free);
@@ -327,13 +326,11 @@ TEST_F(MockSigar, test_sigar_swap_get) {
 TEST_F(MockSigar, test_sigar_mem_get) {
     sigar_mem_t mem;
     ASSERT_EQ(SIGAR_OK, sigar_mem_get(instance, &mem));
-    EXPECT_EQ(31744, mem.ram);
     EXPECT_EQ(33283383296, mem.total);
     EXPECT_EQ(19910578176, mem.used);
     EXPECT_EQ(13372805120, mem.free);
     EXPECT_EQ(9683591168, mem.actual_used);
     EXPECT_EQ(23599792128, mem.actual_free);
-    EXPECT_EQ(29, int(mem.used_percent));
     EXPECT_EQ(70, int(mem.free_percent));
 }
 

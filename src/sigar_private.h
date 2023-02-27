@@ -40,21 +40,8 @@ protected:
     sigar_t();
 
     void mem_calc_ram(sigar_mem_t& mem) {
-        int64_t total = mem.total / 1024, diff;
-        uint64_t lram = (mem.total / (1024 * 1024));
-        int ram = (int)lram; /* must cast after division */
-        int remainder = ram % 8;
-
-        if (remainder > 0) {
-            ram += (8 - remainder);
-        }
-
-        mem.ram = ram;
-
-        diff = total - (mem.actual_free / 1024);
-        mem.used_percent = (double)(diff * 100) / total;
-
-        diff = total - (mem.actual_used / 1024);
+        const auto total = mem.total / 1024;
+        const auto diff = total - (mem.actual_used / 1024);
         mem.free_percent = (double)(diff * 100) / total;
     }
 

@@ -309,6 +309,48 @@ system_stats next_sample(sigar_t* instance,
     return reply;
 }
 
+int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
+#ifdef WIN32
+    const int indentation = -1;
+#else
+    const int indentation = isatty(fileno(stdout)) ? 2 : -1;
+#endif
+
+    sigar_t* sigar;
+    if (sigar_open(&sigar)) {
+        fprintf(stderr, "Failed to initialize sigar\n");
+        return EXIT_FAILURE;
+    }
+    nlohmann::json json = next_sample(sigar, babysitter_pid);
+#ifdef __linux__
+    using namespace cb::cgroup;
+    auto& instance = ControlGroup::instance();
+    for (const auto& type : std::vector<cb::cgroup::PressureType>{
+                 {PressureType::Io, PressureType::Memory, PressureType::Cpu}}) {
+        auto pd = instance.get_system_pressure_data(type);
+        if (pd) {
+            json["pressure"][to_string(type)] = *pd;
+        }
+
+        pd = instance.get_pressure_data(type);
+        if (pd) {
+            json["control_group_info"]["pressure"][to_string(type)] = *pd;
+        }
+    }
+#endif
+
+    const auto message = json.dump(indentation);
+    if (indentation == -1) {
+        fprintf(stdout, "%u\n", int(message.size()));
+    }
+    fwrite(message.data(), message.size(), 1, stdout);
+    if (indentation != -1) {
+        fprintf(stdout, "\n");
+    }
+    sigar_close(sigar);
+    return EXIT_SUCCESS;
+}
+
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
                     OutputFormat format,
                     FILE* in,

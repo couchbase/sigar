@@ -27,6 +27,8 @@ int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
                     FILE* in,
                     FILE* out);
 
+int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid);
+
 struct proc_stats {
     std::array<char, PROC_NAME_LEN> name;
     uint32_t cpu_utilization;

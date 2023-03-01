@@ -19,9 +19,7 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
-#include <cerrno>
 #include <libproc.h>
-#include <mach-o/dyld.h>
 #include <mach/host_info.h>
 #include <mach/kern_return.h>
 #include <mach/mach_host.h>
@@ -33,21 +31,18 @@
 #include <mach/thread_act.h>
 #include <mach/thread_info.h>
 #include <mach/vm_map.h>
-#include <sys/resource.h>
 #include <sys/sysctl.h>
 #include <unistd.h>
+#include <cerrno>
 #include <system_error>
 #include <utility>
-
-#define SIGAR_SEC2NANO(s) ((uint64_t)(s) * (uint64_t)SIGAR_NSEC)
+#include <vector>
 
 #define SIGAR_TICK2MSEC(s) \
     ((uint64_t)(s) * ((uint64_t)SIGAR_MSEC / (double)sigar->ticks))
 
 #define SIGAR_NSEC2MSEC(s) ((uint64_t)(s) / ((uint64_t)1000000L))
 #define SIGAR_NSEC2USEC(s) ((uint64_t)(s) / ((uint64_t)1000L))
-
-#define NMIB(mib) (sizeof(mib) / sizeof(mib[0]))
 
 #define SIGAR_PROC_STATE_SLEEP 'S'
 #define SIGAR_PROC_STATE_RUN 'R'
@@ -187,10 +182,19 @@ int AppleSigar::get_memory(sigar_mem_t& mem) {
 int AppleSigar::get_swap(sigar_swap_t& swap) {
     struct xsw_usage sw_usage;
     size_t size = sizeof(sw_usage);
-    int mib[] = {CTL_VM, VM_SWAPUSAGE};
+    std::vector<int> mib{{CTL_VM, VM_SWAPUSAGE}};
 
-    if (sysctl(mib, NMIB(mib), &sw_usage, &size, nullptr, 0) != 0) {
-        return errno;
+    if (sysctl(mib.data(), mib.size(), &sw_usage, &size, nullptr, 0) != 0) {
+        throw std::system_error(
+                errno,
+                std::system_category(),
+                "AppleSigar::get_swap(): sysctl(CTL_VM,CTL_SWAPUSAGE) failed");
+    }
+
+    if (size != sizeof(sw_usage)) {
+        throw std::runtime_error(
+                "AppleSigar::get_swap(): sysctl(CTL_VM,CTL_SWAPUSAGE) returned "
+                "unexpected struct size");
     }
 
     swap.total = sw_usage.xsu_total;
@@ -203,8 +207,6 @@ int AppleSigar::get_swap(sigar_swap_t& swap) {
 
     return SIGAR_OK;
 }
-
-typedef unsigned long cp_time_t;
 
 int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
     kern_return_t status;
@@ -228,34 +230,39 @@ int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
     return SIGAR_OK;
 }
 
-static const struct kinfo_proc* lookup_proc(const struct kinfo_proc* proc,
-                                            int nproc,
+static const struct kinfo_proc* lookup_proc(const std::vector<kinfo_proc>& proc,
                                             pid_t pid) {
-    for (int i = 0; i < nproc; i++) {
-        if (proc[i].kp_proc.p_pid == pid) {
-            return proc + i;
+    for (const auto& p : proc) {
+        if (p.kp_proc.p_pid == pid) {
+            return &p;
         }
     }
-    return NULL;
+    return nullptr;
 }
 
-static int sigar_os_check_parents(const struct kinfo_proc* proc,
-                                  int nproc,
-                                  pid_t pid,
-                                  pid_t ppid) {
-    const struct kinfo_proc* p;
+/**
+ * Given the list of processes, try to check if pid descents from ppid
+ *
+ * @param proc all of the processes in the system
+ * @param pid the pid to check
+ * @param ppid the pid we want to check if we descents from
+ * @return true if pid have ppid in its process tree
+ */
+static bool sigar_os_check_parents(const std::vector<kinfo_proc>& proc,
+                                   pid_t pid,
+                                   pid_t ppid) {
     do {
-        p = lookup_proc(proc, nproc, pid);
-        if (p == NULL) {
-            return -1;
+        const struct kinfo_proc* p = lookup_proc(proc, pid);
+        if (!p) {
+            return false;
         }
 
         if (p->kp_eproc.e_ppid == ppid) {
-            return SIGAR_OK;
+            return true;
         }
         pid = p->kp_eproc.e_ppid;
-    } while (p->kp_eproc.e_ppid != 0);
-    return -1;
+    } while (pid != 0);
+    return false;
 }
 
 #define tv2msec(tv) \
@@ -263,50 +270,40 @@ static int sigar_os_check_parents(const struct kinfo_proc* proc,
 
 void AppleSigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
-    int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0};
-    int i, num;
-    size_t len;
-    struct kinfo_proc* proc;
+    std::vector<int> mib{{CTL_KERN, KERN_PROC, KERN_PROC_ALL, 0}};
+    size_t len = 0;
 
-    if (sysctl(mib, NMIB(mib), NULL, &len, NULL, 0) < 0) {
+    if (sysctl(mib.data(), mib.size(), nullptr, &len, nullptr, 0) < 0) {
         throw std::system_error(
                 errno,
                 std::system_category(),
                 "iterate_child_processes(): sysctl to determine size failed");
     }
 
-    proc = (kinfo_proc*)malloc(len);
+    std::vector<kinfo_proc> proc(len / sizeof(kinfo_proc));
 
-    if (sysctl(mib, NMIB(mib), proc, &len, NULL, 0) < 0) {
-        free(proc);
+    if (sysctl(mib.data(), mib.size(), proc.data(), &len, nullptr, 0) < 0) {
         throw std::system_error(errno,
                                 std::system_category(),
                                 "iterate_child_processes(): sysctl failed");
     }
 
-    num = len / sizeof(*proc);
-
-    for (i = 0; i < num; i++) {
-        if (sigar_os_check_parents(proc, num, proc[i].kp_proc.p_pid, ppid) ==
-            SIGAR_OK) {
-            callback(proc[i].kp_proc.p_pid,
-                     proc[i].kp_eproc.e_ppid,
-                     tv2msec(proc[i].kp_proc.p_starttime),
-                     proc[i].kp_proc.p_comm);
+    for (const auto& p : proc) {
+        if (sigar_os_check_parents(proc, p.kp_proc.p_pid, ppid)) {
+            callback(p.kp_proc.p_pid,
+                     p.kp_eproc.e_ppid,
+                     tv2msec(p.kp_proc.p_starttime),
+                     p.kp_proc.p_comm);
         }
     }
-
-    free(proc);
 }
 
 std::pair<int, kinfo_proc> AppleSigar::get_pinfo(sigar_pid_t pid) {
-    int mib[] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, 0};
-    mib[3] = pid;
-
+    std::vector<int> mib = {{CTL_KERN, KERN_PROC, KERN_PROC_PID, pid}};
     kinfo_proc pinfo = {};
     size_t len = sizeof(pinfo);
 
-    if (sysctl(mib, NMIB(mib), &pinfo, &len, NULL, 0) < 0) {
+    if (sysctl(mib.data(), mib.size(), &pinfo, &len, nullptr, 0) < 0) {
         return {errno, {}};
     }
 
@@ -334,12 +331,7 @@ int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
 #define tval2msec(tval) \
     ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))
 
-#define tval2nsec(tval) \
-    (SIGAR_SEC2NANO((tval).seconds) + SIGAR_MICROSEC2NANO((tval).microseconds))
-
-static int get_proc_times(sigar_t* sigar,
-                          sigar_pid_t pid,
-                          sigar_proc_time_t* time) {
+static int get_proc_times(sigar_t*, sigar_pid_t pid, sigar_proc_time_t* time) {
     unsigned int count;
     time_value_t utime = {0, 0}, stime = {0, 0};
     task_basic_info_data_t ti;
@@ -559,7 +551,7 @@ void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
                 nm = {nm.data(), idx};
             }
             callback(threads[ii],
-                     info.pth_name,
+                     nm,
                      SIGAR_NSEC2USEC(info.pth_user_time),
                      SIGAR_NSEC2USEC(info.pth_system_time));
         }

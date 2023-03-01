@@ -9,21 +9,23 @@
  */
 
 #include <folly/portability/GTest.h>
-#include <folly/portability/Unistd.h>
 #include <nlohmann/json.hpp>
 #include <array>
 #include <cerrno>
+#include <cstdio>
 #include <thread>
 
 #include "../programs/sigar_port.h"
 
-TEST(SigarPort, SigarPortTest) {
 #ifdef WIN32
-    // For some reason it doesn't look like the pipe impl
-    // from Folly works as expected.. I'm getting invalid argument
-    // for fflush, fread etc
-    GTEST_SKIP();
-#else
+#include <fcntl.h>
+#include <io.h>
+
+#define pipe(a) _pipe(a, 8192, _O_BINARY)
+#define fdopen(a, b) _fdopen(a, b)
+#endif
+
+TEST(SigarPort, SigarPortTest) {
     std::array<int, 2> fds;
     ASSERT_EQ(0, pipe(fds.data())) << strerror(errno);
 
@@ -75,16 +77,9 @@ TEST(SigarPort, SigarPortTest) {
     ASSERT_EQ(0, fclose(portIn)) << strerror(errno);
     ASSERT_EQ(0, fclose(portOut)) << strerror(errno);
     ASSERT_EQ(0, exitcode);
-#endif
 }
 
 TEST(SigarPort, SigarPortTestJSON) {
-#ifdef WIN32
-    // For some reason it doesn't look like the pipe impl
-    // from Folly works as expected.. I'm getting invalid argument
-    // for fflush, fread etc
-    GTEST_SKIP();
-#else
     std::array<int, 2> fds;
     ASSERT_EQ(0, pipe(fds.data())) << strerror(errno);
 
@@ -145,7 +140,6 @@ TEST(SigarPort, SigarPortTestJSON) {
     ASSERT_EQ(0, fclose(portIn)) << strerror(errno);
     ASSERT_EQ(0, fclose(portOut)) << strerror(errno);
     ASSERT_EQ(0, exitcode);
-#endif
 }
 
 /// Due to the problems with folly's pipes on windows lets just verify

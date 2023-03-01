@@ -313,40 +313,6 @@ std::pair<int, kinfo_proc> AppleSigar::get_pinfo(sigar_pid_t pid) {
     return {SIGAR_OK, pinfo};
 }
 
-/* get the CPU type of the process for the given pid */
-static int sigar_proc_cpu_type(sigar_pid_t pid, cpu_type_t* type) {
-    int status;
-    int mib[CTL_MAXNAME];
-    size_t len, miblen = NMIB(mib);
-
-    status = sysctlnametomib("sysctl.proc_cputype", mib, &miblen);
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    mib[miblen] = pid;
-    len = sizeof(*type);
-    return sysctl(mib, miblen + 1, type, &len, NULL, 0);
-}
-
-/* shared memory region size for the given cpu_type_t */
-static mach_vm_size_t sigar_shared_region_size(cpu_type_t type) {
-    switch (type) {
-    case CPU_TYPE_ARM:
-        return SHARED_REGION_SIZE_ARM;
-    case CPU_TYPE_POWERPC:
-        return SHARED_REGION_SIZE_PPC;
-    case CPU_TYPE_POWERPC64:
-        return SHARED_REGION_SIZE_PPC64;
-    case CPU_TYPE_I386:
-        return SHARED_REGION_SIZE_I386;
-    case CPU_TYPE_X86_64:
-        return SHARED_REGION_SIZE_X86_64;
-    default:
-        return SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
-    }
-}
-
 int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     proc_taskinfo pti;
 
@@ -362,24 +328,6 @@ int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     procmem.resident = pti.pti_resident_size;
     procmem.page_faults = pti.pti_faults;
 
-    proc_regioninfo pri;
-    sz = proc_pidinfo(pid, PROC_PIDREGIONINFO, 0, &pri, sizeof(pri));
-    if (sz == sizeof(pri)) {
-        if (pri.pri_share_mode == SM_EMPTY) {
-            mach_vm_size_t shared_size;
-            cpu_type_t cpu_type;
-
-            if (sigar_proc_cpu_type(pid, &cpu_type) == SIGAR_OK) {
-                shared_size = sigar_shared_region_size(cpu_type);
-            } else {
-                shared_size =
-                        SHARED_REGION_SIZE_I386; /* assume 32-bit x86|ppc */
-            }
-            if (procmem.size > shared_size) {
-                procmem.size -= shared_size; /* SIGAR-123 */
-            }
-        }
-    }
     return SIGAR_OK;
 }
 

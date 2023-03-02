@@ -17,13 +17,10 @@
 #include <optional>
 #include <string>
 
-enum class OutputFormat { Raw, Json };
-
 constexpr std::size_t NUM_INTERESTING_PROCS = 40;
 constexpr std::size_t PROC_NAME_LEN = 60;
 
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
-                    OutputFormat format,
                     FILE* in,
                     FILE* out);
 
@@ -85,5 +82,5 @@ void to_json(nlohmann::json& json, const system_stats& stats);
  * @param babysitter_pid The pid of the babysitter process (to find children)
  * @return The system_stats to report
  */
-system_stats next_sample(sigar_t* instance,
-                         std::optional<sigar_pid_t> babysitter_pid);
+nlohmann::json next_sample(sigar_t* instance,
+                           std::optional<sigar_pid_t> babysitter_pid);

@@ -270,8 +270,8 @@ uint64_t sum_implemented(uint64_t a, uint64_t b) {
     return ret;
 }
 
-system_stats next_sample(sigar_t* instance,
-                         std::optional<sigar_pid_t> babysitter_pid) {
+nlohmann::json next_sample(sigar_t* instance,
+                           std::optional<sigar_pid_t> babysitter_pid) {
     sigar_mem_t mem;
     sigar_swap_t swap;
     sigar_cpu_t cpu;
@@ -306,7 +306,27 @@ system_stats next_sample(sigar_t* instance,
     }
 
     sigar_get_control_group_info(&reply.control_group_info);
-    return reply;
+
+    nlohmann::json json = reply;
+
+#ifdef __linux__
+    using namespace cb::cgroup;
+    auto& cgroup_instance = ControlGroup::instance();
+    for (const auto& type : std::vector<cb::cgroup::PressureType>{
+                 {PressureType::Io, PressureType::Memory, PressureType::Cpu}}) {
+        auto pd = cgroup_instance.get_system_pressure_data(type);
+        if (pd) {
+            json["pressure"][to_string(type)] = *pd;
+        }
+
+        pd = cgroup_instance.get_pressure_data(type);
+        if (pd) {
+            json["control_group_info"]["pressure"][to_string(type)] = *pd;
+        }
+    }
+#endif
+
+    return json;
 }
 
 int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
@@ -321,25 +341,8 @@ int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
         fprintf(stderr, "Failed to initialize sigar\n");
         return EXIT_FAILURE;
     }
-    nlohmann::json json = next_sample(sigar, babysitter_pid);
-#ifdef __linux__
-    using namespace cb::cgroup;
-    auto& instance = ControlGroup::instance();
-    for (const auto& type : std::vector<cb::cgroup::PressureType>{
-                 {PressureType::Io, PressureType::Memory, PressureType::Cpu}}) {
-        auto pd = instance.get_system_pressure_data(type);
-        if (pd) {
-            json["pressure"][to_string(type)] = *pd;
-        }
 
-        pd = instance.get_pressure_data(type);
-        if (pd) {
-            json["control_group_info"]["pressure"][to_string(type)] = *pd;
-        }
-    }
-#endif
-
-    const auto message = json.dump(indentation);
+    const auto message = next_sample(sigar, babysitter_pid).dump(indentation);
     if (indentation == -1) {
         fprintf(stdout, "%u\n", int(message.size()));
     }
@@ -352,7 +355,6 @@ int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
 }
 
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
-                    OutputFormat format,
                     FILE* in,
                     FILE* out) {
     sigar_t* sigar;
@@ -366,61 +368,23 @@ int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
 
     if (sigar_open(&sigar) != SIGAR_OK) {
         fprintf(stderr, "Failed to open sigar\n");
-        std::exit(1);
+        return EXIT_FAILURE;
     }
 
     while (!feof(in)) {
-        if (format == OutputFormat::Raw) {
-            int req;
-            int rv = fread(&req, sizeof(req), 1, in);
-            if (rv < 1) {
-                continue;
-            }
-            if (req != 0) {
-                break;
-            }
-        } else {
-            std::array<char, 80> line;
-            if (fgets(line.data(), line.size(), in) == nullptr || ferror(in) ||
-                strstr(line.data(), "quit") != nullptr) {
-                break;
-            }
+        std::array<char, 80> line;
+        if (fgets(line.data(), line.size(), in) == nullptr || ferror(in) ||
+            strstr(line.data(), "quit") != nullptr) {
+            break;
         }
 
-        auto reply = next_sample(sigar, babysitter_pid);
-
-        if (format == OutputFormat::Raw) {
-            fwrite(&reply, sizeof(reply), 1, out);
-        } else {
-            nlohmann::json data = reply;
-
-#ifdef __linux__
-            using namespace cb::cgroup;
-            auto& instance = ControlGroup::instance();
-            for (const auto& type :
-                 std::vector<cb::cgroup::PressureType>{{PressureType::Io,
-                                                        PressureType::Memory,
-                                                        PressureType::Cpu}}) {
-                auto pd = instance.get_system_pressure_data(type);
-                if (pd) {
-                    data["pressure"][to_string(type)] = *pd;
-                }
-
-                pd = instance.get_pressure_data(type);
-                if (pd) {
-                    data["control_group_info"]["pressure"][to_string(type)] =
-                            *pd;
-                }
-            }
-#endif
-
-            const auto message = data.dump(indentation);
-            fprintf(out, "%u\n", int(message.size()));
-            fwrite(message.data(), message.size(), 1, out);
-        }
+        const auto message =
+                next_sample(sigar, babysitter_pid).dump(indentation);
+        fprintf(out, "%u\n", int(message.size()));
+        fwrite(message.data(), message.size(), 1, out);
         fflush(out);
     }
 
     sigar_close(sigar);
-    return 0;
+    return EXIT_SUCCESS;
 }

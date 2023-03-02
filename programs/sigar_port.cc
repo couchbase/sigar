@@ -21,9 +21,12 @@
 #endif
 #include <nlohmann/json.hpp>
 #include <sigar.h>
+#include <sigar_control_group.h>
+#include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <string>
 #include <vector>
 
 #ifndef WIN32
@@ -43,6 +46,54 @@ std::string to_string(Value value) {
     }
     return "-1";
 }
+
+constexpr std::size_t NUM_INTERESTING_PROCS = 40;
+constexpr std::size_t PROC_NAME_LEN = 60;
+
+struct proc_stats {
+    std::array<char, PROC_NAME_LEN> name;
+    uint32_t cpu_utilization;
+
+    uint64_t pid;
+    uint64_t ppid;
+
+    uint64_t mem_size;
+    uint64_t mem_resident;
+    uint64_t mem_share;
+    uint64_t minor_faults;
+    uint64_t major_faults;
+    uint64_t page_faults;
+};
+
+// Version 7 extended the control group information
+constexpr uint32_t CURRENT_SYSTEM_STAT_VERSION = 7;
+
+struct system_stats {
+    uint32_t version;
+    uint32_t struct_size;
+
+    uint64_t cpu_total_ms;
+    uint64_t cpu_idle_ms;
+    uint64_t cpu_user_ms;
+    uint64_t cpu_sys_ms;
+    uint64_t cpu_irq_ms;
+    uint64_t cpu_stolen_ms;
+
+    uint64_t swap_total;
+    uint64_t swap_used;
+
+    uint64_t mem_total;
+    uint64_t mem_used;
+    uint64_t mem_actual_used;
+    uint64_t mem_actual_free;
+
+    uint64_t allocstall;
+
+    std::array<proc_stats, NUM_INTERESTING_PROCS> interesting_procs;
+    sigar_control_group_info_t control_group_info;
+};
+
+static_assert(sizeof(system_stats) == 5328, "Unexpected struct size");
 
 void to_json(nlohmann::json& json, const proc_stats& proc) {
     json = {{"name", proc.name.data()},
@@ -270,8 +321,8 @@ uint64_t sum_implemented(uint64_t a, uint64_t b) {
     return ret;
 }
 
-nlohmann::json next_sample(sigar_t* instance,
-                           std::optional<sigar_pid_t> babysitter_pid) {
+static nlohmann::json next_sample(sigar_t* instance,
+                                  std::optional<sigar_pid_t> babysitter_pid) {
     sigar_mem_t mem;
     sigar_swap_t swap;
     sigar_cpu_t cpu;

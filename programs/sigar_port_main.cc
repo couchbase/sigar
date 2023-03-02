@@ -19,6 +19,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <vector>
 
 static sigar_pid_t parse_pid(const std::string& pidstr) {
     try {

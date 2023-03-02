@@ -54,12 +54,75 @@
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
 #define SIGAR_PROC_STATE_IDLE 'D'
 
+/**
+ * Class to hold the system sized (constants which never change for the
+ * lifetime of the process)
+ */
+class SystemSizes {
+public:
+    static SystemSizes& instance() {
+        static SystemSizes instance;
+        return instance;
+    }
+
+    /// The total memory for the machine
+    const uint64_t totalMemory;
+    /// The page size used on the machine
+    const uint64_t pageSize;
+
+protected:
+    SystemSizes()
+        : totalMemory(getSysctlValue("hw.memsize")),
+          pageSize(getSysctlValue("vm.pagesize")) {
+    }
+
+    /**
+     * Get the system configured value
+     *
+     * @param name the name to look for
+     * @return the uint64_t value for the name
+     */
+    uint64_t getSysctlValue(const char* name) {
+        size_t len = 0;
+        // Determine the size of the variable (uint32 or uint64)
+        if (sysctlbyname(name, nullptr, &len, nullptr, 0) != 0) {
+            throw std::system_error(errno,
+                                    std::system_category(),
+                                    std::string("getSysctlValue(") + name +
+                                            "): failed to determine size");
+        }
+        // Read the value
+        if (len == sizeof(uint64_t)) {
+            uint64_t ret = 0;
+            if (sysctlbyname(name, &ret, &len, nullptr, 0) != 0) {
+                throw std::system_error(errno,
+                                        std::system_category(),
+                                        std::string("getSysctlValue(") + name +
+                                                "): failed to fetch value");
+            }
+            return ret;
+        }
+
+        if (len == sizeof(uint32_t)) {
+            uint32_t ret;
+            if (sysctlbyname("vm.pagesize", &ret, &len, nullptr, 0) != 0) {
+                throw std::system_error(errno,
+                                        std::system_category(),
+                                        std::string("getSysctlValue(") + name +
+                                                "): failed to fetch value");
+            }
+            return ret;
+        }
+        throw std::runtime_error(std::string("getSysctlValue(") + name +
+                                 "): Unexpected variable size");
+    }
+};
+
 class AppleSigar : public sigar_t {
 public:
     AppleSigar()
         : sigar_t(),
           ticks(sysconf(_SC_CLK_TCK)),
-          pagesize(getpagesize()),
           mach_port(mach_host_self()) {
     }
     int get_memory(sigar_mem_t& mem) override;
@@ -80,7 +143,6 @@ protected:
     static std::pair<int, kinfo_proc> get_pinfo(sigar_pid_t pid);
 
     const int ticks;
-    int pagesize;
     mach_port_t mach_port;
 };
 
@@ -103,40 +165,19 @@ int AppleSigar::get_vmstat(vm_statistics_data_t* vmstat) {
 }
 
 int AppleSigar::get_memory(sigar_mem_t& mem) {
-    uint64_t kern = 0;
-    vm_statistics_data_t vmstat;
-    uint64_t mem_total;
-    int mib[2];
-    size_t len;
     int status;
-
-    mib[0] = CTL_HW;
-
-    mib[1] = HW_PAGESIZE;
-    len = sizeof(pagesize);
-    if (sysctl(mib, NMIB(mib), &pagesize, &len, NULL, 0) < 0) {
-        return errno;
-    }
-
-    mib[1] = HW_MEMSIZE;
-    len = sizeof(mem_total);
-    if (sysctl(mib, NMIB(mib), &mem_total, &len, NULL, 0) < 0) {
-        return errno;
-    }
-
-    mem.total = mem_total;
+    vm_statistics_data_t vmstat;
 
     if ((status = get_vmstat(&vmstat)) != SIGAR_OK) {
         return status;
     }
 
-    mem.free = vmstat.free_count;
-    mem.free *= pagesize;
-    kern = vmstat.inactive_count;
-    kern *= pagesize;
-
+    auto& sizes = SystemSizes::instance();
+    mem.total = sizes.totalMemory;
+    mem.free = vmstat.free_count * sizes.pageSize;
     mem.used = mem.total - mem.free;
 
+    uint64_t kern = vmstat.inactive_count * sizes.pageSize;
     mem.actual_free = mem.free + kern;
     mem.actual_used = mem.used - kern;
     mem_calc_ram(mem);

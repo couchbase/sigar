@@ -49,7 +49,7 @@ TEST(SigarPort, SigarPortTestJSON) {
     fprintf(myOut, "next\n");
     fflush(myOut);
 
-    auto getline = [](auto input) -> std::string {
+    auto getline = [](auto input) -> nlohmann::json {
         // Should receive one line with content size,
         // then content size data with JSON
         std::array<char, 80> line;
@@ -60,16 +60,18 @@ TEST(SigarPort, SigarPortTestJSON) {
         data.resize(size);
 
         fread(data.data(), size, 1, input);
-        return data;
+        return nlohmann::json::parse(data);
     };
 
     const auto content1 = getline(myIn);
+    EXPECT_FALSE(content1.empty());
 
     // do it one more time
     fprintf(myOut, "next\n");
     fflush(myOut);
 
     const auto content2 = getline(myIn);
+    EXPECT_FALSE(content2.empty());
 
     // something should differ
     EXPECT_NE(content1, content2);

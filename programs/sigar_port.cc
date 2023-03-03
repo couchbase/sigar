@@ -15,6 +15,7 @@
  */
 
 #include "sigar_port.h"
+#include "platform/timeutils.h"
 
 #ifdef __linux__
 #include <cgroup/cgroup.h>
@@ -29,9 +30,49 @@
 #include <string>
 #include <vector>
 
-#ifndef WIN32
-#include <unistd.h>
-#endif
+namespace sigar_port {
+bool human_readable_output = false;
+int indentation = -1;
+FILE* input = nullptr;
+FILE* output = nullptr;
+FILE* error = nullptr;
+} // namespace sigar_port
+
+using namespace sigar_port;
+
+static inline std::string size2human(std::size_t value) {
+    const std::array<const char*, 6> suffix{{"", "K", "M", "G", "T", "P"}};
+    std::size_t index = 0;
+    while (value > 10240 && index < (suffix.size() - 1)) {
+        value /= 1024;
+        ++index;
+    }
+    return std::to_string(value) + suffix[index];
+}
+
+std::string size2string(uint64_t value) {
+    if (human_readable_output) {
+        return size2human(value);
+    }
+
+    return std::to_string(value);
+}
+
+template <typename T>
+std::string time2string(uint64_t value) {
+    if (human_readable_output && value) {
+        return cb::time2text(T{value});
+    }
+    return std::to_string(value);
+}
+
+std::string ms2string(uint64_t value) {
+    return time2string<std::chrono::milliseconds>(value);
+}
+
+std::string us2string(uint64_t value) {
+    return time2string<std::chrono::microseconds>(value);
+}
 
 /// Test to see if a field is implemented (its value is != not implemented)
 template <typename Value>
@@ -132,14 +173,20 @@ static nlohmann::json populate_interesting_procs(
         if (is_implemented(proc_cpu.percent)) {
             child["cpu_utilization"] = (uint32_t)(100 * proc_cpu.percent);
         }
+        if (is_implemented(proc_cpu.user)) {
+            child["cpu_user"] = ms2string(proc_cpu.user);
+        }
+        if (is_implemented(proc_cpu.sys)) {
+            child["cpu_sys"] = ms2string(proc_cpu.sys);
+        }
         if (is_implemented(proc_mem.size)) {
-            child["mem_size"] = std::to_string(proc_mem.size);
+            child["mem_size"] = size2string(proc_mem.size);
         }
         if (is_implemented(proc_mem.resident)) {
-            child["mem_resident"] = std::to_string(proc_mem.resident);
+            child["mem_resident"] = size2string(proc_mem.resident);
         }
         if (is_implemented(proc_mem.share)) {
-            child["mem_share"] = std::to_string(proc_mem.share);
+            child["mem_share"] = size2string(proc_mem.share);
         }
         if (is_implemented(proc_mem.minor_faults)) {
             child["minor_faults"] = std::to_string(proc_mem.minor_faults);
@@ -176,35 +223,35 @@ static nlohmann::json next_sample(sigar_t* instance,
     sigar_cpu_t cpu;
     if (sigar_cpu_get(instance, &cpu) == SIGAR_OK) {
         if (is_implemented(cpu.total)) {
-            ret["cpu_total_ms"] = std::to_string(cpu.total);
+            ret["cpu_total_ms"] = ms2string(cpu.total);
         }
         uint64_t value = sum_implemented(cpu.idle, cpu.wait);
         if (is_implemented(value)) {
-            ret["cpu_idle_ms"] = std::to_string(value);
+            ret["cpu_idle_ms"] = ms2string(value);
         }
         value = sum_implemented(cpu.user, cpu.nice);
         if (is_implemented(value)) {
-            ret["cpu_user_ms"] = std::to_string(value);
+            ret["cpu_user_ms"] = ms2string(value);
         }
         if (is_implemented(cpu.sys)) {
-            ret["cpu_sys_ms"] = std::to_string(cpu.sys);
+            ret["cpu_sys_ms"] = ms2string(cpu.sys);
         }
         value = sum_implemented(cpu.irq, cpu.soft_irq);
         if (is_implemented(value)) {
-            ret["cpu_irq_ms"] = std::to_string(value);
+            ret["cpu_irq_ms"] = ms2string(value);
         }
         if (is_implemented(cpu.stolen)) {
-            ret["cpu_stolen_ms"] = std::to_string(cpu.stolen);
+            ret["cpu_stolen_ms"] = ms2string(cpu.stolen);
         }
     }
 
     sigar_swap_t swap;
     if (sigar_swap_get(instance, &swap) == SIGAR_OK) {
         if (is_implemented(swap.total)) {
-            ret["swap_total"] = std::to_string(swap.total);
+            ret["swap_total"] = size2string(swap.total);
         }
         if (is_implemented(swap.used)) {
-            ret["swap_used"] = std::to_string(swap.used);
+            ret["swap_used"] = size2string(swap.used);
         }
         if (is_implemented(swap.allocstall)) {
             ret["allocstall"] = std::to_string(swap.allocstall);
@@ -214,16 +261,16 @@ static nlohmann::json next_sample(sigar_t* instance,
     sigar_mem_t mem;
     if (sigar_mem_get(instance, &mem) == SIGAR_OK) {
         if (is_implemented(mem.total)) {
-            ret["mem_total"] = std::to_string(mem.total);
+            ret["mem_total"] = size2string(mem.total);
         }
         if (is_implemented(mem.used)) {
-            ret["mem_used"] = std::to_string(mem.used);
+            ret["mem_used"] = size2string(mem.used);
         }
         if (is_implemented(mem.actual_used)) {
-            ret["mem_actual_used"] = std::to_string(mem.actual_used);
+            ret["mem_actual_used"] = size2string(mem.actual_used);
         }
         if (is_implemented(mem.actual_free)) {
-            ret["mem_actual_free"] = std::to_string(mem.actual_free);
+            ret["mem_actual_free"] = size2string(mem.actual_free);
         }
     }
 
@@ -241,17 +288,17 @@ static nlohmann::json next_sample(sigar_t* instance,
     ret["control_group_info"] = {
             {"version", int(cgi.version)},
             {"num_cpu_prc", cgi.num_cpu_prc},
-            {"memory_max", std::to_string(cgi.memory_max)},
-            {"memory_current", std::to_string(cgi.memory_current)},
-            {"memory_cache", std::to_string(cgi.memory_cache)},
-            {"usage_usec", std::to_string(cgi.usage_usec)},
-            {"user_usec", std::to_string(cgi.user_usec)},
-            {"system_usec", std::to_string(cgi.system_usec)},
+            {"memory_max", size2string(cgi.memory_max)},
+            {"memory_current", size2string(cgi.memory_current)},
+            {"memory_cache", size2string(cgi.memory_cache)},
+            {"usage_usec", us2string(cgi.usage_usec)},
+            {"user_usec", us2string(cgi.user_usec)},
+            {"system_usec", us2string(cgi.system_usec)},
             {"nr_periods", std::to_string(cgi.nr_periods)},
             {"nr_throttled", std::to_string(cgi.nr_throttled)},
-            {"throttled_usec", std::to_string(cgi.throttled_usec)},
+            {"throttled_usec", us2string(cgi.throttled_usec)},
             {"nr_bursts", std::to_string(cgi.nr_bursts)},
-            {"burst_usec", std::to_string(cgi.burst_usec)}};
+            {"burst_usec", us2string(cgi.burst_usec)}};
 
     using namespace cb::cgroup;
     auto& cgroup_instance = ControlGroup::instance();
@@ -273,12 +320,6 @@ static nlohmann::json next_sample(sigar_t* instance,
 }
 
 int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
-#ifdef WIN32
-    const int indentation = -1;
-#else
-    const int indentation = isatty(fileno(stdout)) ? 2 : -1;
-#endif
-
     sigar_t* sigar;
     if (sigar_open(&sigar)) {
         fprintf(stderr, "Failed to initialize sigar\n");
@@ -287,45 +328,36 @@ int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
 
     const auto message = next_sample(sigar, babysitter_pid).dump(indentation);
     if (indentation == -1) {
-        fprintf(stdout, "%u\n", int(message.size()));
+        fprintf(output, "%u\n", int(message.size()));
     }
-    fwrite(message.data(), message.size(), 1, stdout);
+    fwrite(message.data(), message.size(), 1, output);
     if (indentation != -1) {
-        fprintf(stdout, "\n");
+        fprintf(output, "\n");
     }
     sigar_close(sigar);
     return EXIT_SUCCESS;
 }
 
-int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid,
-                    FILE* in,
-                    FILE* out) {
+int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid) {
     sigar_t* sigar;
 
-#ifdef WIN32
-    const int indentation = -1;
-#else
-    const int indentation =
-            (isatty(fileno(in)) || isatty(fileno(out))) ? 2 : -1;
-#endif
-
     if (sigar_open(&sigar) != SIGAR_OK) {
-        fprintf(stderr, "Failed to open sigar\n");
+        fprintf(error, "Failed to open sigar\n");
         return EXIT_FAILURE;
     }
 
-    while (!feof(in)) {
+    while (!feof(input)) {
         std::array<char, 80> line;
-        if (fgets(line.data(), line.size(), in) == nullptr || ferror(in) ||
-            strstr(line.data(), "quit") != nullptr) {
+        if (fgets(line.data(), line.size(), input) == nullptr ||
+            ferror(input) || strstr(line.data(), "quit") != nullptr) {
             break;
         }
 
         const auto message =
                 next_sample(sigar, babysitter_pid).dump(indentation);
-        fprintf(out, "%u\n", int(message.size()));
-        fwrite(message.data(), message.size(), 1, out);
-        fflush(out);
+        fprintf(output, "%u\n", int(message.size()));
+        fwrite(message.data(), message.size(), 1, output);
+        fflush(output);
     }
 
     sigar_close(sigar);

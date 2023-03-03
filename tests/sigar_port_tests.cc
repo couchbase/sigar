@@ -41,10 +41,12 @@ TEST(SigarPort, SigarPortTestJSON) {
     ASSERT_NE(nullptr, portOut);
     ASSERT_NE(nullptr, myOut);
 
+    sigar_port::input = portIn;
+    sigar_port::output = portOut;
+    sigar_port::error = stderr;
+
     int exitcode;
-    std::thread second{[&exitcode, portIn, portOut]() {
-        exitcode = sigar_port_main(getpid(), portIn, portOut);
-    }};
+    std::thread second{[&exitcode]() { exitcode = sigar_port_main(getpid()); }};
 
     fprintf(myOut, "next\n");
     fflush(myOut);

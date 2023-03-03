@@ -13,6 +13,8 @@
 #ifdef WIN32
 #include <fcntl.h>
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
 
 #include <getopt.h>
@@ -39,7 +41,7 @@ int main(int argc, char** argv) {
 
     bool snapshot = false;
     std::optional<sigar_pid_t> babysitter_pid;
-    enum Option { Json, BabysitterPid, Snapshot, Help };
+    enum Option { Json, BabysitterPid, Snapshot, HumanReadable, Help };
 
     const std::vector<option> options{
             {{"json", no_argument, nullptr, Option::Json},
@@ -48,6 +50,7 @@ int main(int argc, char** argv) {
               nullptr,
               Option::BabysitterPid},
              {"snapshot", no_argument, nullptr, Option::Snapshot},
+             {"human-readable", no_argument, nullptr, Option::HumanReadable},
              {"help", no_argument, nullptr, Option::Help},
              {nullptr, 0, nullptr, 0}}};
 
@@ -64,11 +67,17 @@ int main(int argc, char** argv) {
         case Option::Snapshot:
             snapshot = true;
             break;
+        case Option::HumanReadable:
+            sigar_port::human_readable_output = true;
+            break;
         case Option::Help:
         default:
             std::cerr << "Usage: " << argv[0] << R"( [options]
 
 Options:
+   --human-readable         Print sizes in "human readable" form by
+                            converting to (K/M/T/P) by using power 1024
+                            Print times as 1h:1m:32s (or just "22 ms")
    --snapshot               Dump the current information and terminate
    --json                   Ignored
    --babysitter_pid=<pid>   The parent pid of all processes to report
@@ -85,9 +94,22 @@ Options:
         }
     }
 
+    sigar_port::input = stdin;
+    sigar_port::output = stdout;
+
+#ifdef WIN32
+    sigar_port::indentation = sigar_port::human_readable_output ? 2 : -1;
+#else
+    sigar_port::indentation =
+            (isatty(fileno(stdout)) || isatty(fileno(stdin)) ||
+             sigar_port::human_readable_output)
+                    ? 2
+                    : -1;
+#endif
+
     if (snapshot) {
         return sigar_port_snapshot(babysitter_pid);
     }
 
-    return sigar_port_main(babysitter_pid, stdin, stdout);
+    return sigar_port_main(babysitter_pid);
 }

@@ -7,4 +7,6 @@ if (UNIX)
     target_link_libraries(sigar_port PRIVATE cgroup)
 endif()
 
+cb_add_test_executable(sigar_interactive_test sigar_interactive_test.cc)
+
 install(TARGETS sigar_port RUNTIME DESTINATION bin)

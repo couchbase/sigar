@@ -302,8 +302,8 @@ static nlohmann::json next_sample(sigar_t* instance,
 
     using namespace cb::cgroup;
     auto& cgroup_instance = ControlGroup::instance();
-    for (const auto& type : std::vector<cb::cgroup::PressureType>{
-                 {PressureType::Io, PressureType::Memory, PressureType::Cpu}}) {
+    for (const auto& type :
+         {PressureType::Io, PressureType::Memory, PressureType::Cpu}) {
         auto pd = cgroup_instance.get_system_pressure_data(type);
         if (pd) {
             ret["pressure"][to_string(type)] = *pd;

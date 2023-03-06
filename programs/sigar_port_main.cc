@@ -38,6 +38,8 @@ int main(int argc, char** argv) {
 
     bool snapshot = false;
     std::optional<sigar_pid_t> babysitter_pid;
+    OutputFormat format = OutputFormat::Raw;
+
     enum Option { Json, BabysitterPid, Snapshot, Help };
 
     const std::vector<option> options{
@@ -55,7 +57,7 @@ int main(int argc, char** argv) {
            EOF) {
         switch (cmd) {
         case Option::Json:
-            // Ignored (no longer used as the default is JSON)
+            format = OutputFormat::Json;
             break;
         case Option::BabysitterPid:
             babysitter_pid = parse_pid(optarg);
@@ -69,7 +71,8 @@ int main(int argc, char** argv) {
 
 Options:
    --snapshot               Dump the current information and terminate
-   --json                   Ignored
+   --json                   Report data as JSON (otherwise as raw C struct)
+                            In JSON mode '\n' triggers next sample
    --babysitter_pid=<pid>   The parent pid of all processes to report
 
 )";
@@ -87,6 +90,5 @@ Options:
     if (snapshot) {
         return sigar_port_snapshot(babysitter_pid);
     }
-
-    return sigar_port_main(babysitter_pid, stdin, stdout);
+    return sigar_port_main(babysitter_pid, format, stdin, stdout);
 }

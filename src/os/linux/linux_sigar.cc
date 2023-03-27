@@ -18,6 +18,7 @@
 
 // The linux implementation consumes the files in the /proc filesystem per
 // the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
+#ifdef __linux__
 
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
@@ -548,3 +549,4 @@ void LinuxSigar::iterate_threads(sigar::IterateThreadCallback callback) {
         }
     }
 }
+#endif

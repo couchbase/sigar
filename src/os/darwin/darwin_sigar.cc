@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+#if defined(__APPLE__)
+
 #include "sigar.h"
 #include "sigar_private.h"
 
@@ -559,3 +561,4 @@ void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
 
     vm_deallocate(self, (vm_address_t)threads, sizeof(thread_t) * count);
 }
+#endif

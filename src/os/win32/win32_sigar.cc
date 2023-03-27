@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+#ifdef WIN32
+
 #include "sigar.h"
 #include "sigar_pdh.h"
 #include "sigar_private.h"
@@ -650,3 +652,4 @@ void Win32Sigar::iterate_threads(sigar::IterateThreadCallback callback) {
 
     CloseHandle(snapshotHandle);
 }
+#endif

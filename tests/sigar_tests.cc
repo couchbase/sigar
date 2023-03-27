@@ -282,12 +282,17 @@ TEST_F(Sigar, test_sigar_proc_state_get) {
             << "sigar_proc_state_get: " << sigar_strerror(instance, ret);
     ASSERT_NE(nullptr, proc_state.name);
     EXPECT_EQ(1, proc_state.threads);
-    std::thread second{[&proc_state, &ret, i = instance]() {
-        ret = sigar_proc_state_get(i, getpid(), &proc_state);
+
+    std::thread second{[]() {
+        sigar_t* instance;
+        ASSERT_EQ(SIGAR_OK, sigar_open(&instance));
+        sigar_proc_state_t proc_state;
+        EXPECT_EQ(SIGAR_OK,
+                  sigar_proc_state_get(instance, getpid(), &proc_state));
+        sigar_close(instance);
+        EXPECT_EQ(2, proc_state.threads);
     }};
     second.join();
-    ASSERT_EQ(SIGAR_OK, ret);
-    EXPECT_EQ(2, proc_state.threads);
 }
 
 class MockSigar : public Sigar {

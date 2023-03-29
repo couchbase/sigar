@@ -16,6 +16,8 @@
  * limitations under the License.
  */
 
+#include <sigar/sigar.h>
+
 #if defined(__APPLE__)
 
 #include "sigar.h"
@@ -52,6 +54,7 @@
 #define SIGAR_PROC_STATE_ZOMBIE 'Z'
 #define SIGAR_PROC_STATE_IDLE 'D'
 
+namespace sigar {
 /**
  * Class to hold the system sized (constants which never change for the
  * lifetime of the process)
@@ -116,39 +119,52 @@ protected:
     }
 };
 
-class AppleSigar : public sigar_t {
+class AppleSigar : public SigarIface {
 public:
     AppleSigar()
-        : sigar_t(),
+        : SigarIface(),
           ticks(sysconf(_SC_CLK_TCK)),
           mach_port(mach_host_self()) {
     }
-    int get_memory(sigar_mem_t& mem) override;
-    int get_swap(sigar_swap_t& swap) override;
-    int get_cpu(sigar_cpu_t& cpu) override;
-    int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
-    int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
+    sigar_mem_t get_memory() override;
+    sigar_swap_t get_swap() override;
+    sigar_cpu_t get_cpu() override;
+    sigar_proc_mem_t get_proc_memory(sigar_pid_t pid) override;
+    sigar_proc_state_t get_proc_state(sigar_pid_t pid) override;
     void iterate_child_processes(
             sigar_pid_t ppid,
             sigar::IterateChildProcessCallback callback) override;
     void iterate_threads(sigar::IterateThreadCallback callback) override;
     void iterate_disks(sigar::IterateDiskCallback callback) override;
+    sigar_control_group_info get_control_group_info() const override {
+        sigar_control_group_info ret;
+        ret.supported = false;
+        return ret;
+    }
 
 protected:
-    int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
+    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
+            sigar_pid_t pid) override;
 
     vm_statistics64 get_vmstat();
 
-    static int get_proc_threads(sigar_pid_t pid, sigar_proc_state_t& procstate);
-    static std::pair<int, kinfo_proc> get_pinfo(sigar_pid_t pid);
+    /**
+     * Get the number of threads in the provided process and the
+     * "highest state" of one of them ('R' if it has one thread which
+     * is running etc). If no one use the "state" field we should
+     * look into removing it)
+     *
+     * @param pid the pid to look up
+     * @return number of threads and the state
+     */
+    static std::pair<uint64_t, char> get_proc_threads(sigar_pid_t pid);
+    static kinfo_proc get_pinfo(sigar_pid_t pid);
 
     const int ticks;
     mach_port_t mach_port;
 };
 
-sigar_t::sigar_t() = default;
-
-std::unique_ptr<sigar_t> sigar_t::New() {
+std::unique_ptr<SigarIface> NewAppleSigar() {
     return std::make_unique<AppleSigar>();
 }
 
@@ -166,7 +182,8 @@ vm_statistics64 AppleSigar::get_vmstat() {
             errno, std::system_category(), "AppleSigar::get_vmstat()");
 }
 
-int AppleSigar::get_memory(sigar_mem_t& mem) {
+sigar_mem_t AppleSigar::get_memory() {
+    sigar_mem_t mem;
     auto& sizes = SystemSizes::instance();
     const auto vmstat = get_vmstat();
 
@@ -177,12 +194,11 @@ int AppleSigar::get_memory(sigar_mem_t& mem) {
     uint64_t kern = vmstat.inactive_count * sizes.pageSize;
     mem.actual_free = mem.free + kern;
     mem.actual_used = mem.used - kern;
-    mem_calc_ram(mem);
-
-    return SIGAR_OK;
+    return mem;
 }
 
-int AppleSigar::get_swap(sigar_swap_t& swap) {
+sigar_swap_t AppleSigar::get_swap() {
+    sigar_swap_t swap;
     struct xsw_usage sw_usage;
     size_t size = sizeof(sw_usage);
     std::vector<int> mib{{CTL_VM, VM_SWAPUSAGE}};
@@ -208,10 +224,11 @@ int AppleSigar::get_swap(sigar_swap_t& swap) {
     swap.page_in = vmstat.pageins;
     swap.page_out = vmstat.pageouts;
 
-    return SIGAR_OK;
+    return swap;
 }
 
-int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
+sigar_cpu_t AppleSigar::get_cpu() {
+    sigar_cpu_t cpu;
     kern_return_t status;
     mach_msg_type_number_t count = HOST_CPU_LOAD_INFO_COUNT;
     host_cpu_load_info_data_t cpuload;
@@ -220,7 +237,8 @@ int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
             mach_port, HOST_CPU_LOAD_INFO, (host_info_t)&cpuload, &count);
 
     if (status != KERN_SUCCESS) {
-        return errno;
+        throw std::system_error(std::error_code(errno, std::system_category()),
+                                "AppleSigar::get_cpu(): host_statistics");
     }
 
     auto* sigar = this;
@@ -229,8 +247,7 @@ int AppleSigar::get_cpu(sigar_cpu_t& cpu) {
     cpu.idle = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_IDLE]);
     cpu.nice = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_NICE]);
     cpu.total = cpu.user + cpu.nice + cpu.sys + cpu.idle;
-
-    return SIGAR_OK;
+    return cpu;
 }
 
 static const struct kinfo_proc* lookup_proc(const std::vector<kinfo_proc>& proc,
@@ -301,19 +318,21 @@ void AppleSigar::iterate_child_processes(
     }
 }
 
-std::pair<int, kinfo_proc> AppleSigar::get_pinfo(sigar_pid_t pid) {
+kinfo_proc AppleSigar::get_pinfo(sigar_pid_t pid) {
     std::vector<int> mib = {{CTL_KERN, KERN_PROC, KERN_PROC_PID, pid}};
     kinfo_proc pinfo = {};
     size_t len = sizeof(pinfo);
 
     if (sysctl(mib.data(), mib.size(), &pinfo, &len, nullptr, 0) < 0) {
-        return {errno, {}};
+        throw std::system_error(std::error_code(errno, std::system_category()),
+                                "AppleSigar::get_pinfo(): sysctl");
     }
 
-    return {SIGAR_OK, pinfo};
+    return pinfo;
 }
 
-int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
+sigar_proc_mem_t AppleSigar::get_proc_memory(sigar_pid_t pid) {
+    sigar_proc_mem_t procmem;
     proc_taskinfo pti;
 
     int sz = proc_pidinfo(pid, PROC_PIDTASKINFO, 0, &pti, sizeof(pti));
@@ -327,14 +346,17 @@ int AppleSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
     procmem.size = pti.pti_virtual_size;
     procmem.resident = pti.pti_resident_size;
     procmem.page_faults = pti.pti_faults;
-
-    return SIGAR_OK;
+    return procmem;
 }
 
 #define tval2msec(tval) \
     ((tval.seconds * SIGAR_MSEC) + (tval.microseconds / 1000))
 
-static int get_proc_times(sigar_t*, sigar_pid_t pid, sigar_proc_time_t* time) {
+struct sigar_proc_time_t {
+    uint64_t start_time, user, sys, total;
+};
+
+static int get_proc_times(sigar_pid_t pid, sigar_proc_time_t* time) {
     unsigned int count;
     time_value_t utime = {0, 0}, stime = {0, 0};
     task_basic_info_data_t ti;
@@ -388,19 +410,19 @@ static int get_proc_times(sigar_t*, sigar_pid_t pid, sigar_proc_time_t* time) {
     return SIGAR_OK;
 }
 
-int AppleSigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
-    const auto [status, pinfo] = get_pinfo(pid);
-    if (status != SIGAR_OK) {
-        return status;
-    }
+std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> AppleSigar::get_proc_time(
+        sigar_pid_t pid) {
+    sigar_proc_time_t proctime;
+    const auto pinfo = get_pinfo(pid);
 
-    int st = get_proc_times(this, pid, &proctime);
+    int st = get_proc_times(pid, &proctime);
     if (st != SIGAR_OK) {
-        return st;
+        throw std::system_error(std::error_code(st, std::system_category()),
+                                "AppleSigar::get_proc_time: get_proc_times()");
     }
 
     proctime.start_time = tv2msec(pinfo.kp_proc.p_starttime);
-    return SIGAR_OK;
+    return {proctime.start_time, proctime.user, proctime.sys, proctime.total};
 }
 
 /* thread state mapping derived from ps.tproj */
@@ -431,27 +453,30 @@ static int thread_state_get(thread_basic_info_data_t* info) {
     }
 }
 
-int AppleSigar::get_proc_threads(sigar_pid_t pid,
-                                 sigar_proc_state_t& procstate) {
-    mach_port_t task, self = mach_task_self();
-    kern_return_t status;
-    thread_array_t threads;
-    mach_msg_type_number_t count, i;
-    int state = TH_STATE_HALTED + 1;
-
-    status = task_for_pid(self, pid, &task);
-    if (status != KERN_SUCCESS) {
-        return errno;
+std::pair<uint64_t, char> AppleSigar::get_proc_threads(sigar_pid_t pid) {
+    // We don't have access privileges to look at another process, so there
+    // is no point of even trying
+    if (pid != getpid()) {
+        return {std::numeric_limits<uint64_t>::max(), 'R'};
     }
 
+    mach_port_t task, self = mach_task_self();
+    auto status = task_for_pid(self, pid, &task);
+    if (status != KERN_SUCCESS) {
+        throw std::system_error(std::error_code(errno, std::system_category()),
+                                "AppleSigar::get_proc_threads: task_for_pid()");
+    }
+
+    thread_array_t threads;
+    mach_msg_type_number_t count;
     status = task_threads(task, &threads, &count);
     if (status != KERN_SUCCESS) {
-        return errno;
+        throw std::system_error(std::error_code(errno, std::system_category()),
+                                "AppleSigar::get_proc_threads: task_threads()");
     }
 
-    procstate.threads = count;
-
-    for (i = 0; i < count; i++) {
+    int state = TH_STATE_HALTED + 1;
+    for (mach_msg_type_number_t i = 0; i < count; i++) {
         mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
         thread_basic_info_data_t info;
 
@@ -469,15 +494,12 @@ int AppleSigar::get_proc_threads(sigar_pid_t pid,
 
     vm_deallocate(self, (vm_address_t)threads, sizeof(thread_t) * count);
 
-    procstate.state = thread_states[state];
-    return SIGAR_OK;
+    return {count, thread_states[state]};
 }
 
-int AppleSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
-    const auto [status, pinfo] = get_pinfo(pid);
-    if (status != SIGAR_OK) {
-        return status;
-    }
+sigar_proc_state_t AppleSigar::get_proc_state(sigar_pid_t pid) {
+    sigar_proc_state_t procstate;
+    const auto pinfo = get_pinfo(pid);
     int state = pinfo.kp_proc.p_stat;
 
     SIGAR_SSTRCPY(procstate.name, pinfo.kp_proc.p_comm);
@@ -485,10 +507,9 @@ int AppleSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
     procstate.priority = pinfo.kp_proc.p_priority;
     procstate.nice = pinfo.kp_proc.p_nice;
 
-    auto st = get_proc_threads(pid, procstate);
-    if (st == SIGAR_OK) {
-        return st;
-    }
+    const auto [threads, thrstate] = get_proc_threads(pid);
+    procstate.threads = threads;
+    procstate.state = thrstate;
 
     switch (state) {
     case SIDL:
@@ -514,7 +535,7 @@ int AppleSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
         break;
     }
 
-    return SIGAR_OK;
+    return procstate;
 }
 
 void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
@@ -523,10 +544,9 @@ void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
     mach_port_t task;
     auto status = task_for_pid(self, getpid(), &task);
     if (status != KERN_SUCCESS) {
-        throw std::runtime_error(
-                "iterate_process_threads: task_for_pid() failed with "
-                "error: " +
-                std::to_string(status));
+        throw std::system_error(
+                std::error_code(errno, std::system_category()),
+                "AppleSigar::iterate_process_threads: task_for_pid()");
     }
 
     thread_array_t threads;
@@ -534,9 +554,9 @@ void AppleSigar::iterate_threads(sigar::IterateThreadCallback callback) {
 
     status = task_threads(task, &threads, &count);
     if (status != KERN_SUCCESS) {
-        throw std::system_error(errno,
-                                std::system_category(),
-                                "iterate_process_threads: task_threads()");
+        throw std::system_error(
+                std::error_code(errno, std::system_category()),
+                "AppleSigar::iterate_process_threads: task_threads()");
     }
 
     for (mach_msg_type_number_t ii = 0; ii < count; ii++) {
@@ -577,4 +597,11 @@ void AppleSigar::iterate_disks(sigar::IterateDiskCallback callback) {
     // supported production platform, it doesn't feel particularly worthwhile
     // to spend any significant amount of time on this.
 }
+} // namespace sigar
+#else
+namespace sigar {
+std::unique_ptr<SigarIface> NewAppleSigar() {
+    return {};
+}
+} // namespace sigar
 #endif

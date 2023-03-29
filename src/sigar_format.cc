@@ -22,6 +22,7 @@
 // and get the portable version of strerror_r
 #include "sigar.h"
 #include "sigar_private.h"
+#include <sigar/sigar.h>
 #include <cerrno>
 #include <cstdlib>
 #include <cstring>
@@ -72,12 +73,12 @@ static const char* sigar_strerror_get(int err, char* errbuf, int buflen) {
 
 SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err) {
     if (err < 0) {
-        return sigar->errbuf;
+        return sigar->errbuf.data();
     }
 
     if (err > SIGAR_START_ERROR) {
         return sigar_error_string(err);
     }
 
-    return sigar_strerror_get(err, sigar->errbuf, sizeof(sigar->errbuf));
+    return sigar_strerror_get(err, sigar->errbuf.data(), sigar->errbuf.size());
 }

@@ -22,13 +22,15 @@
 #include <sigar_control_group.h>
 #endif
 #include <nlohmann/json.hpp>
-#include <sigar.h>
+#include <sigar/sigar.h>
 #include <array>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
 #include <vector>
+
+using namespace sigar;
 
 namespace sigar_port {
 bool human_readable_output = false;
@@ -106,16 +108,19 @@ struct proc {
 /// @param sigar the library handle
 /// @param babysitter_pid the pid of the babysitter
 /// @return A vector containing all the processes we're interested in
-static std::vector<proc> find_interesting_procs(sigar_t* sigar,
+static std::vector<proc> find_interesting_procs(SigarIface& instance,
                                                 sigar_pid_t babysitter_pid) {
     sigar_proc_state_t proc_state;
     sigar_proc_cpu_t proc_cpu;
 
-    if (sigar_proc_state_get(sigar, babysitter_pid, &proc_state) != SIGAR_OK ||
-        sigar_proc_cpu_get(sigar, babysitter_pid, &proc_cpu) != SIGAR_OK) {
-        fprintf(stderr,
-                "Failed to lookup the babysitter process with pid %u",
-                babysitter_pid);
+    try {
+        proc_state = instance.get_proc_state(babysitter_pid);
+        proc_cpu = instance.get_proc_cpu(babysitter_pid);
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to lookup the babysitter process with pid %u: %s\n",
+                babysitter_pid,
+                exception.what());
         exit(1);
     }
 
@@ -126,8 +131,7 @@ static std::vector<proc> find_interesting_procs(sigar_t* sigar,
                      proc_state.name);
 
     try {
-        sigar::iterate_child_processes(
-                sigar,
+        instance.iterate_child_processes(
                 babysitter_pid,
                 [&ret](sigar_pid_t pid,
                        sigar_pid_t ppid,
@@ -138,8 +142,10 @@ static std::vector<proc> find_interesting_procs(sigar_t* sigar,
                                 pid, ppid, start_time, std::string{name});
                     }
                 });
-    } catch (const std::exception&) {
-        // ignore
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to iterate child processes: %s\n",
+                exception.what());
     }
 
     return ret;
@@ -152,15 +158,20 @@ static std::vector<proc> find_interesting_procs(sigar_t* sigar,
 /// @param procs The processes to get information for
 /// @return an array containing information of interesting processes
 static nlohmann::json populate_interesting_procs(
-        sigar_t* sigar, const std::vector<proc>& procs) {
+        SigarIface& instance, const std::vector<proc>& procs) {
     auto json = nlohmann::json::array();
 
     for (const auto& proc : procs) {
         sigar_proc_mem_t proc_mem;
         sigar_proc_cpu_t proc_cpu;
-        if (sigar_proc_mem_get(sigar, proc.pid, &proc_mem) != SIGAR_OK ||
-            sigar_proc_cpu_get(sigar, proc.pid, &proc_cpu) != SIGAR_OK ||
-            proc.start_time != proc_cpu.start_time || proc.name.empty()) {
+        try {
+            proc_mem = instance.get_proc_memory(proc.pid);
+            proc_cpu = instance.get_proc_cpu(proc.pid);
+        } catch (const std::exception&) {
+            // The process may be gone
+            continue;
+        }
+        if (proc.start_time != proc_cpu.start_time || proc.name.empty()) {
             // The process represented by pid is no longer there, or
             // was replaced by a different process than the last time
             // we checked (or we don't know the process name)
@@ -204,7 +215,7 @@ static nlohmann::json populate_interesting_procs(
 }
 
 static nlohmann::json populate_disk_usages(
-        sigar_t* sigar, std::vector<sigar::disk_usage_t>& disks) {
+        std::vector<sigar::disk_usage_t>& disks) {
     auto ret = nlohmann::json::array();
 
     for (auto& disk : disks) {
@@ -261,15 +272,17 @@ static nlohmann::json populate_disk_usages(
  * @param sigar the library handle
  * @return A vector containing all of the disks
  */
-static std::vector<sigar::disk_usage_t> find_disk_usages(sigar_t* sigar) {
+static std::vector<sigar::disk_usage_t> find_disk_usages(SigarIface& instance) {
     std::vector<sigar::disk_usage_t> ret;
 
     try {
-        sigar::iterate_disks(sigar, [&ret](const sigar::disk_usage_t& disk) {
+        instance.iterate_disks([&ret](const sigar::disk_usage_t& disk) {
             ret.push_back(disk);
         });
     } catch (const std::exception& e) {
-        // ignore
+        fprintf(error,
+                "find_disk_usages(): Received exception: %s\n",
+                e.what());
     }
 
     return ret;
@@ -289,11 +302,11 @@ uint64_t sum_implemented(uint64_t a, uint64_t b) {
     return ret;
 }
 
-static nlohmann::json next_sample(sigar_t* instance,
+static nlohmann::json next_sample(SigarIface& instance,
                                   std::optional<sigar_pid_t> babysitter_pid) {
     nlohmann::json ret;
-    sigar_cpu_t cpu;
-    if (sigar_cpu_get(instance, &cpu) == SIGAR_OK) {
+    try {
+        const auto cpu = instance.get_cpu();
         if (is_implemented(cpu.total)) {
             ret["cpu_total_ms"] = ms2string(cpu.total);
         }
@@ -315,10 +328,12 @@ static nlohmann::json next_sample(sigar_t* instance,
         if (is_implemented(cpu.stolen)) {
             ret["cpu_stolen_ms"] = ms2string(cpu.stolen);
         }
+    } catch (const std::exception& exception) {
+        fprintf(error, "Failed to get CPU information: %s\n", exception.what());
     }
 
-    sigar_swap_t swap;
-    if (sigar_swap_get(instance, &swap) == SIGAR_OK) {
+    try {
+        const auto swap = instance.get_swap();
         if (is_implemented(swap.total)) {
             ret["swap_total"] = size2string(swap.total);
         }
@@ -328,10 +343,14 @@ static nlohmann::json next_sample(sigar_t* instance,
         if (is_implemented(swap.allocstall)) {
             ret["allocstall"] = std::to_string(swap.allocstall);
         }
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to get swap information: %s\n",
+                exception.what());
     }
 
-    sigar_mem_t mem;
-    if (sigar_mem_get(instance, &mem) == SIGAR_OK) {
+    try {
+        const auto mem = instance.get_memory();
         if (is_implemented(mem.total)) {
             ret["mem_total"] = size2string(mem.total);
         }
@@ -344,6 +363,10 @@ static nlohmann::json next_sample(sigar_t* instance,
         if (is_implemented(mem.actual_free)) {
             ret["mem_actual_free"] = size2string(mem.actual_free);
         }
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to get memory information: %s\n",
+                exception.what());
     }
 
     if (babysitter_pid) {
@@ -356,27 +379,33 @@ static nlohmann::json next_sample(sigar_t* instance,
 
     auto disks = find_disk_usages(instance);
     if (!disks.empty()) {
-        ret["disks"] = populate_disk_usages(instance, disks);
+        ret["disks"] = populate_disk_usages(disks);
     }
 
+    try {
+        const auto cgi = instance.get_control_group_info();
+        if (cgi.supported) {
+            ret["control_group_info"] = {
+                    {"version", int(cgi.version)},
+                    {"num_cpu_prc", cgi.num_cpu_prc},
+                    {"memory_max", size2string(cgi.memory_max)},
+                    {"memory_current", size2string(cgi.memory_current)},
+                    {"memory_cache", size2string(cgi.memory_cache)},
+                    {"usage_usec", us2string(cgi.usage_usec)},
+                    {"user_usec", us2string(cgi.user_usec)},
+                    {"system_usec", us2string(cgi.system_usec)},
+                    {"nr_periods", std::to_string(cgi.nr_periods)},
+                    {"nr_throttled", std::to_string(cgi.nr_throttled)},
+                    {"throttled_usec", us2string(cgi.throttled_usec)},
+                    {"nr_bursts", std::to_string(cgi.nr_bursts)},
+                    {"burst_usec", us2string(cgi.burst_usec)}};
+        }
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to get cgroup information: %s\n",
+                exception.what());
+    }
 #ifdef __linux__
-    sigar_control_group_info_t cgi;
-    sigar_get_control_group_info(&cgi);
-    ret["control_group_info"] = {
-            {"version", int(cgi.version)},
-            {"num_cpu_prc", cgi.num_cpu_prc},
-            {"memory_max", size2string(cgi.memory_max)},
-            {"memory_current", size2string(cgi.memory_current)},
-            {"memory_cache", size2string(cgi.memory_cache)},
-            {"usage_usec", us2string(cgi.usage_usec)},
-            {"user_usec", us2string(cgi.user_usec)},
-            {"system_usec", us2string(cgi.system_usec)},
-            {"nr_periods", std::to_string(cgi.nr_periods)},
-            {"nr_throttled", std::to_string(cgi.nr_throttled)},
-            {"throttled_usec", us2string(cgi.throttled_usec)},
-            {"nr_bursts", std::to_string(cgi.nr_bursts)},
-            {"burst_usec", us2string(cgi.burst_usec)}};
-
     using namespace cb::cgroup;
     auto& cgroup_instance = ControlGroup::instance();
     for (const auto& type :
@@ -397,13 +426,16 @@ static nlohmann::json next_sample(sigar_t* instance,
 }
 
 int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
-    sigar_t* sigar;
-    if (sigar_open(&sigar)) {
-        fprintf(stderr, "Failed to initialize sigar\n");
+    std::unique_ptr<SigarIface> instance;
+    try {
+        instance = SigarIface::New();
+    } catch (const std::exception& exception) {
+        fprintf(error, "Failed to initialize sigar: %s\n", exception.what());
         return EXIT_FAILURE;
     }
 
-    const auto message = next_sample(sigar, babysitter_pid).dump(indentation);
+    const auto message =
+            next_sample(*instance, babysitter_pid).dump(indentation);
     if (indentation == -1) {
         fprintf(output, "%u\n", int(message.size()));
     }
@@ -411,15 +443,17 @@ int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid) {
     if (indentation != -1) {
         fprintf(output, "\n");
     }
-    sigar_close(sigar);
     return EXIT_SUCCESS;
 }
 
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid) {
-    sigar_t* sigar;
-
-    if (sigar_open(&sigar) != SIGAR_OK) {
-        fprintf(error, "Failed to open sigar\n");
+    std::unique_ptr<SigarIface> instance;
+    try {
+        instance = SigarIface::New();
+    } catch (const std::exception& exception) {
+        fprintf(error,
+                "Failed to create sigar instance: %s\n",
+                exception.what());
         return EXIT_FAILURE;
     }
 
@@ -431,12 +465,11 @@ int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid) {
         }
 
         const auto message =
-                next_sample(sigar, babysitter_pid).dump(indentation);
+                next_sample(*instance, babysitter_pid).dump(indentation);
         fprintf(output, "%u\n", int(message.size()));
         fwrite(message.data(), message.size(), 1, output);
         fflush(output);
     }
 
-    sigar_close(sigar);
     return EXIT_SUCCESS;
 }

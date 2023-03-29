@@ -9,7 +9,7 @@
  */
 #pragma once
 
-#include <sigar.h>
+#include <sigar/types.h>
 #include <cstdio>
 #include <optional>
 

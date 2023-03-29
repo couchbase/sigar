@@ -16,20 +16,20 @@
  * limitations under the License.
  */
 
-#include <chrono>
 #include <memory>
 #include <system_error>
 #ifdef WIN32
 #include <process.h>
+#else
+#include <unistd.h>
 #endif
 
-#include "sigar.h"
 #include "sigar_private.h"
+#include <sigar.h>
 
 SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
     try {
-        auto instance = sigar_t::New();
-        *sigar = instance.release();
+        *sigar = std::make_unique<sigar_t>().release();
         return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
@@ -45,11 +45,7 @@ SIGAR_DECLARE(int) sigar_close(sigar_t* sigar) {
     return SIGAR_OK;
 }
 
-SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t* sigar) {
-    // There isn't much point of trying to cache the pid (it would break
-    // if the paren't ever called fork()). We don't use the variable
-    // internally, and if the caller don't want the overhead of a system
-    // call they can always cache it themselves
+SIGAR_DECLARE(sigar_pid_t) sigar_pid_get(sigar_t*) {
     return getpid();
 }
 
@@ -57,9 +53,9 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t* sigar, sigar_mem_t* mem) {
     if (!sigar || !mem) {
         return EINVAL;
     }
-    *mem = {};
     try {
-        return sigar->get_memory(*mem);
+        *mem = sigar->instance->get_memory();
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -74,15 +70,9 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap) {
         return EINVAL;
     }
 
-    swap->total = SIGAR_FIELD_NOTIMPL;
-    swap->used = SIGAR_FIELD_NOTIMPL;
-    swap->free = SIGAR_FIELD_NOTIMPL;
-    swap->page_in = SIGAR_FIELD_NOTIMPL;
-    swap->page_out = SIGAR_FIELD_NOTIMPL;
-    swap->allocstall = SIGAR_FIELD_NOTIMPL;
-
     try {
-        return sigar->get_swap(*swap);
+        *swap = sigar->instance->get_swap();
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -97,21 +87,9 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
         return EINVAL;
     }
 
-    // The correct thing to do would be to initialize to not impl, as
-    // linux is the only platform adding some of these fields, but
-    // it looks like people don't check if they're implemented or not
-    cpu->user = SIGAR_FIELD_NOTIMPL;
-    cpu->sys = SIGAR_FIELD_NOTIMPL;
-    cpu->nice = SIGAR_FIELD_NOTIMPL;
-    cpu->idle = SIGAR_FIELD_NOTIMPL;
-    cpu->wait = SIGAR_FIELD_NOTIMPL;
-    cpu->irq = SIGAR_FIELD_NOTIMPL;
-    cpu->soft_irq = SIGAR_FIELD_NOTIMPL;
-    cpu->stolen = SIGAR_FIELD_NOTIMPL;
-    cpu->total = SIGAR_FIELD_NOTIMPL;
-
     try {
-        return sigar->get_cpu(*cpu);
+        *cpu = sigar->instance->get_cpu();
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -121,63 +99,15 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
     }
 }
 
-static uint64_t sigar_time_now_millis() {
-    auto now = std::chrono::system_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-                   now.time_since_epoch())
-            .count();
-}
-
-int sigar_t::get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu) {
-    const auto time_now = sigar_time_now_millis();
-    sigar_proc_cpu_t prev = {};
-    auto iter = process_cache.find(pid);
-    const bool found = iter != process_cache.end();
-    if (found) {
-        prev = iter->second;
-    }
-
-    auto status = get_proc_time(pid, *(sigar_proc_time_t*)&proccpu);
-    if (status != SIGAR_OK) {
-        if (found) {
-            process_cache.erase(iter);
-        }
-        return status;
-    }
-
-    proccpu.last_time = time_now;
-    if (!found || (prev.start_time != proccpu.start_time)) {
-        // This is a new process or a different process we have in the cache
-        process_cache[pid] = proccpu;
-        return SIGAR_OK;
-    }
-
-    auto time_diff = time_now - prev.last_time;
-    if (!time_diff) {
-        // we don't want divide by zero
-        time_diff = 1;
-    }
-    proccpu.percent = (proccpu.total - prev.total) / (double)time_diff;
-    process_cache[pid] = proccpu;
-
-    return SIGAR_OK;
-}
-
 SIGAR_DECLARE(int)
 sigar_proc_mem_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_mem_t* procmem) {
     if (!sigar || !procmem) {
         return EINVAL;
     }
 
-    procmem->size = SIGAR_FIELD_NOTIMPL;
-    procmem->resident = SIGAR_FIELD_NOTIMPL;
-    procmem->share = SIGAR_FIELD_NOTIMPL;
-    procmem->minor_faults = SIGAR_FIELD_NOTIMPL;
-    procmem->major_faults = SIGAR_FIELD_NOTIMPL;
-    procmem->page_faults = SIGAR_FIELD_NOTIMPL;
-
     try {
-        return sigar->get_proc_memory(pid, *procmem);
+        *procmem = sigar->instance->get_proc_memory(pid);
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -192,10 +122,10 @@ sigar_proc_cpu_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_cpu_t* proccpu) {
     if (!sigar || !proccpu) {
         return EINVAL;
     }
-    *proccpu = {};
 
     try {
-        return sigar->get_proc_cpu(pid, *proccpu);
+        *proccpu = sigar->instance->get_proc_cpu(pid);
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -212,14 +142,10 @@ sigar_proc_state_get(sigar_t* sigar,
     if (!sigar || !procstate) {
         return EINVAL;
     }
-    *procstate = {};
-    procstate->tty = SIGAR_FIELD_NOTIMPL;
-    procstate->nice = SIGAR_FIELD_NOTIMPL;
-    procstate->threads = SIGAR_FIELD_NOTIMPL;
-    procstate->processor = SIGAR_FIELD_NOTIMPL;
 
     try {
-        return sigar->get_proc_state(pid, *procstate);
+        *procstate = sigar->instance->get_proc_state(pid);
+        return SIGAR_OK;
     } catch (const std::bad_alloc&) {
         return ENOMEM;
     } catch (const std::system_error& ex) {
@@ -230,18 +156,6 @@ sigar_proc_state_get(sigar_t* sigar,
 }
 
 SIGAR_PUBLIC_API
-void sigar::iterate_child_processes(sigar_t* sigar,
-                                    sigar_pid_t pid,
-                                    IterateChildProcessCallback callback) {
-    sigar->iterate_child_processes(pid, callback);
-}
-
-SIGAR_PUBLIC_API
 void sigar::iterate_threads(IterateThreadCallback callback) {
-    auto instance = sigar_t::New();
-    instance->iterate_threads(callback);
-}
-
-void sigar::iterate_disks(sigar_t* sigar, sigar::IterateDiskCallback callback) {
-    sigar->iterate_disks(callback);
+    SigarIface::New()->iterate_threads(callback);
 }

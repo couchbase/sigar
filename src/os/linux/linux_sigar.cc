@@ -18,17 +18,25 @@
 
 // The linux implementation consumes the files in the /proc filesystem per
 // the documented format in https://man7.org/linux/man-pages/man5/proc.5.html
-#ifdef __linux__
+#include <sigar/sigar.h>
+
+#if defined(__linux__) || defined(__APPLE__)
 
 #include "sigar.h"
 #include "sigar_private.h"
 
+#include <cgroup/cgroup.h>
 #include <platform/dirutils.h>
 #include <platform/split_string.h>
+#include <unistd.h>
 #include <cerrno>
 #include <charconv>
+#include <cstring>
 #include <filesystem>
 #include <functional>
+#include <optional>
+
+namespace sigar {
 
 #define pageshift(x) ((x)*SystemConstants::instance().pagesize)
 #define SIGAR_TICK2MSEC(s) \
@@ -41,7 +49,7 @@
 const char* mock_root = nullptr;
 
 // To allow mocking around with the linux tests just add a prefix
-SIGAR_PUBLIC_API void sigar_set_mock_root(const char* root) {
+void SigarIface::set_mock_root(const char* root) {
     mock_root = root;
 }
 
@@ -114,7 +122,15 @@ struct SystemConstants {
     }
 
     SystemConstants()
-        : pagesize(getpagesize()),
+        : pagesize(
+#ifdef __APPLE__
+                  // The mock files was collected on a system with a
+                  // 4k; we need to use that ;-)
+                  4096
+#else
+                  getpagesize()
+#endif
+                  ),
           boot_time(get_boot_time()),
           ticks(sysconf(_SC_CLK_TCK)) {
     }
@@ -139,37 +155,40 @@ struct SystemConstants {
     const int ticks;
 };
 
-class LinuxSigar : public sigar_t {
+class LinuxSigar : public SigarIface {
 public:
-    int get_memory(sigar_mem_t& mem) override;
-    int get_swap(sigar_swap_t& swap) override;
-    int get_cpu(sigar_cpu_t& cpu) override;
-    int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) override;
-    int get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) override;
+    sigar_mem_t get_memory() override;
+    sigar_swap_t get_swap() override;
+    sigar_cpu_t get_cpu() override;
+    sigar_proc_mem_t get_proc_memory(sigar_pid_t pid) override;
+    sigar_proc_state_t get_proc_state(sigar_pid_t pid) override;
     void iterate_child_processes(
             sigar_pid_t pid,
             sigar::IterateChildProcessCallback callback) override;
     void iterate_threads(sigar::IterateThreadCallback callback) override;
     void iterate_disks(sigar::IterateDiskCallback callback) override;
+    sigar_control_group_info get_control_group_info() const override;
 
 protected:
-    int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) override;
+    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
+            sigar_pid_t pid) override;
 
     static bool check_parents(
             pid_t pid,
             pid_t ppid,
             const std::unordered_map<sigar_pid_t, linux_proc_stat_t>& procs);
-    static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
     static linux_proc_stat_t parse_stat_file(const std::filesystem::path& name,
                                              bool use_usec = false);
 
     static std::optional<uint64_t> get_device_queue_depth(
             std::string_view name);
+
+    static linux_proc_stat_t proc_stat_read(sigar_pid_t pid) {
+        return parse_stat_file(get_proc_root() / std::to_string(pid) / "stat");
+    }
 };
 
-sigar_t::sigar_t() = default;
-
-std::unique_ptr<sigar_t> sigar_t::New() {
+std::unique_ptr<SigarIface> NewLinuxSigar() {
     return std::make_unique<LinuxSigar>();
 }
 
@@ -199,7 +218,8 @@ static uint64_t stoull(std::string_view value) {
     return -1;
 }
 
-int LinuxSigar::get_memory(sigar_mem_t& mem) {
+sigar_mem_t LinuxSigar::get_memory() {
+    sigar_mem_t mem;
     uint64_t buffers = 0;
     uint64_t cached = 0;
     sigar_tokenize_file_line_by_line(
@@ -234,12 +254,11 @@ int LinuxSigar::get_memory(sigar_mem_t& mem) {
     auto kern = buffers + cached;
     mem.actual_free = mem.free + kern;
     mem.actual_used = mem.used - kern;
-    mem_calc_ram(mem);
-
-    return SIGAR_OK;
+    return mem;
 }
 
-int LinuxSigar::get_swap(sigar_swap_t& swap) {
+sigar_swap_t LinuxSigar::get_swap() {
+    sigar_swap_t swap;
     sigar_tokenize_file_line_by_line(
             0,
             "meminfo",
@@ -285,10 +304,11 @@ int LinuxSigar::get_swap(sigar_swap_t& swap) {
             },
             ' ');
 
-    return SIGAR_OK;
+    return swap;
 }
 
-int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
+sigar_cpu_t LinuxSigar::get_cpu() {
+    sigar_cpu_t cpu;
     int status = ENOENT;
     sigar_tokenize_file_line_by_line(
             0,
@@ -326,7 +346,12 @@ int LinuxSigar::get_cpu(sigar_cpu_t& cpu) {
             },
             ' ');
 
-    return status;
+    if (status != SIGAR_OK) {
+        throw std::system_error(
+                std::error_code(status, std::system_category()),
+                "LinuxSigar::get_cpu(): failed to parse /proc/stat");
+    }
+    return cpu;
 }
 
 linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
@@ -404,15 +429,6 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
     return ret;
 }
 
-std::pair<int, linux_proc_stat_t> LinuxSigar::proc_stat_read(sigar_pid_t pid) {
-    try {
-        const auto nm = get_proc_root() / std::to_string(pid) / "stat";
-        return {SIGAR_OK, parse_stat_file(nm)};
-    } catch (const std::exception& e) {
-        return {EINVAL, {}};
-    }
-}
-
 bool LinuxSigar::check_parents(
         pid_t pid,
         pid_t ppid,
@@ -435,8 +451,7 @@ void LinuxSigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
     std::unordered_map<sigar_pid_t, linux_proc_stat_t> allprocs;
 
-    for (const auto& p :
-         std::filesystem::directory_iterator(get_proc_root())) {
+    for (const auto& p : std::filesystem::directory_iterator(get_proc_root())) {
         if (p.path().filename() == std::filesystem::path(".") ||
             p.path().filename() == std::filesystem::path("..")) {
             continue;
@@ -459,12 +474,10 @@ void LinuxSigar::iterate_child_processes(
     }
 }
 
-int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
-    const auto [status, pstat] = proc_stat_read(pid);
-    if (status != SIGAR_OK) {
-        return status;
-    }
+sigar_proc_mem_t LinuxSigar::get_proc_memory(sigar_pid_t pid) {
+    const auto pstat = proc_stat_read(pid);
 
+    sigar_proc_mem_t procmem;
     procmem.minor_faults = pstat.minor_faults;
     procmem.major_faults = pstat.major_faults;
     procmem.page_faults = procmem.minor_faults + procmem.major_faults;
@@ -487,28 +500,21 @@ int LinuxSigar::get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) {
             },
             ' ');
 
-    return SIGAR_OK;
+    return procmem;
 }
 
-int LinuxSigar::get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) {
-    const auto [status, pstat] = proc_stat_read(pid);
-    if (status != SIGAR_OK) {
-        return status;
-    }
-
-    proctime.user = pstat.utime;
-    proctime.sys = pstat.stime;
-    proctime.total = proctime.user + proctime.sys;
-    proctime.start_time = pstat.start_time;
-
-    return SIGAR_OK;
+std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> LinuxSigar::get_proc_time(
+        sigar_pid_t pid) {
+    const auto pstat = proc_stat_read(pid);
+    return {pstat.start_time,
+            pstat.utime,
+            pstat.stime,
+            pstat.utime + pstat.stime};
 }
 
-int LinuxSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
-    auto [status, pstat] = proc_stat_read(pid);
-    if (status != SIGAR_OK) {
-        return status;
-    }
+sigar_proc_state_t LinuxSigar::get_proc_state(sigar_pid_t pid) {
+    auto pstat = proc_stat_read(pid);
+    sigar_proc_state_t procstate;
 
     // according to the proc manpage pstat.name contains up to 16 characters,
     // and procstate.name is 128 bytes large, but to be on the safe side ;)
@@ -535,7 +541,7 @@ int LinuxSigar::get_proc_state(sigar_pid_t pid, sigar_proc_state_t& procstate) {
             },
             ':');
 
-    return SIGAR_OK;
+    return procstate;
 }
 
 void LinuxSigar::iterate_threads(sigar::IterateThreadCallback callback) {
@@ -644,4 +650,32 @@ void LinuxSigar::iterate_disks(sigar::IterateDiskCallback callback) {
             },
             ' ');
 }
+
+sigar_control_group_info LinuxSigar::get_control_group_info() const {
+    auto& cg = cb::cgroup::ControlGroup::instance();
+    sigar_control_group_info info;
+    info.supported = 1;
+    info.version = uint8_t(cg.get_version());
+    info.num_cpu_prc = uint16_t(cg.get_available_cpu());
+    info.memory_max = cg.get_max_memory();
+    info.memory_current = cg.get_current_memory();
+    info.memory_cache = cg.get_current_cache_memory();
+    const auto stats = cg.get_cpu_stats();
+    info.usage_usec = stats.usage.count();
+    info.user_usec = stats.user.count();
+    info.system_usec = stats.system.count();
+    info.nr_periods = stats.nr_periods;
+    info.nr_throttled = stats.nr_throttled;
+    info.throttled_usec = stats.throttled.count();
+    info.nr_bursts = stats.nr_bursts;
+    info.burst_usec = stats.burst.count();
+    return info;
+}
+} // namespace sigar
+#else
+namespace sigar {
+std::unique_ptr<SigarIface> NewLinuxSigar() {
+    return {};
+}
+} // namespace sigar
 #endif

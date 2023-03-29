@@ -96,6 +96,7 @@ Options:
 
     sigar_port::input = stdin;
     sigar_port::output = stdout;
+    sigar_port::error = stderr;
 
 #ifdef WIN32
     sigar_port::indentation = sigar_port::human_readable_output ? 2 : -1;

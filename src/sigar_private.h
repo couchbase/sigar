@@ -17,57 +17,7 @@
  */
 #pragma once
 
-#include <sigar.h>
-
-#include <cctype>
-#include <cstdlib>
-#include <cstring>
-#include <memory>
-#include <unordered_map>
-
-#ifndef WIN32
-#include <strings.h>
-#include <unistd.h>
-#include <cstddef>
-#endif
-
-struct sigar_proc_time_t {
-    uint64_t start_time, user, sys, total;
-};
-
-struct sigar_t {
-protected:
-    sigar_t();
-
-    void mem_calc_ram(sigar_mem_t& mem) {
-        const auto total = mem.total / 1024;
-        const auto diff = total - (mem.actual_used / 1024);
-        mem.free_percent = (double)(diff * 100) / total;
-    }
-
-    virtual int get_proc_time(sigar_pid_t pid, sigar_proc_time_t& proctime) = 0;
-
-public:
-    static std::unique_ptr<sigar_t> New();
-
-    virtual ~sigar_t() = default;
-
-    virtual int get_memory(sigar_mem_t& mem) = 0;
-    virtual int get_swap(sigar_swap_t& swap) = 0;
-    virtual int get_cpu(sigar_cpu_t& cpu) = 0;
-    virtual int get_proc_memory(sigar_pid_t pid, sigar_proc_mem_t& procmem) = 0;
-    virtual int get_proc_state(sigar_pid_t pid,
-                               sigar_proc_state_t& procstate) = 0;
-    virtual void iterate_child_processes(
-            sigar_pid_t pid, sigar::IterateChildProcessCallback callback) = 0;
-    virtual void iterate_threads(sigar::IterateThreadCallback callback) = 0;
-    virtual void iterate_disks(sigar::IterateDiskCallback callback) = 0;
-
-    int get_proc_cpu(sigar_pid_t pid, sigar_proc_cpu_t& proccpu);
-
-    char errbuf[256] = {};
-    std::unordered_map<sigar_pid_t, sigar_proc_cpu_t> process_cache;
-};
+#include <sigar/sigar.h>
 
 #define SIGAR_STRNCPY(dest, src, len) \
     strncpy(dest, src, len);          \
@@ -79,3 +29,10 @@ public:
 
 #define SIGAR_MSEC 1000L
 #define SIGAR_USEC SIGAR_MSEC * 1000L
+
+struct sigar_t {
+    sigar_t() : instance(sigar::SigarIface::New()) {
+    }
+    std::unique_ptr<sigar::SigarIface> instance;
+    std::array<char, 256> errbuf;
+};

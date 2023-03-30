@@ -84,14 +84,6 @@ sigar_proc_state_get(sigar_t* sigar,
                      sigar_proc_state_t* procstate);
 
 #ifdef __cplusplus
-namespace sigar {
-
-using sigar_tid_t = sigar_pid_t;
-
-SIGAR_PUBLIC_API
-void iterate_threads(IterateThreadCallback callback);
-
-} // namespace sigar
 }
 #endif
 

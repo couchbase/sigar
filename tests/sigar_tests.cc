@@ -39,11 +39,9 @@
 
 #include <folly/portability/GTest.h>
 #include <nlohmann/json.hpp>
-#include <platform/platform_thread.h>
 #include <platform/timeutils.h>
 #include <sigar.h>
 #include <sigar_control_group.h>
-#include <chrono>
 #include <thread>
 
 class Sigar : public ::testing::Test {
@@ -139,45 +137,6 @@ TEST_F(Sigar, sigar_get_control_group_info) {
 #else
     ASSERT_EQ(0, info.supported);
 #endif
-}
-
-TEST_F(Sigar, iterate_process_threads_self) {
-    std::atomic_bool isrunning{false};
-    std::atomic_bool shouldstop{false};
-    std::thread mythread{[&isrunning, &shouldstop]() {
-        cb_set_thread_name("my-thread-name");
-        isrunning = true;
-        while (!shouldstop) {
-            std::this_thread::sleep_for(std::chrono::milliseconds{10});
-        }
-    }};
-
-    // wait for the thread to start..
-    while (!isrunning) {
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-    }
-
-    // thread is running. Iterate over all threads and look for the one
-    bool found;
-    try {
-        int callbacks = 0;
-        sigar::iterate_threads(
-                [&callbacks, &found](
-                        auto tid, auto name, auto user, auto system) {
-                    ++callbacks;
-                    if (name == "my-thread-name") {
-                        found = true;
-                    }
-                });
-        EXPECT_NE(0, callbacks) << "Expected at least 1 thread to be found";
-    } catch (const std::exception& e) {
-        FAIL() << "Got exception: " << e.what();
-    }
-#ifndef WIN32
-    EXPECT_TRUE(found) << "Failed to locate the thread to search for";
-#endif
-    shouldstop = true;
-    mythread.join();
 }
 
 #ifdef __linux__

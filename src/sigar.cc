@@ -154,8 +154,3 @@ sigar_proc_state_get(sigar_t* sigar,
         return EINVAL;
     }
 }
-
-SIGAR_PUBLIC_API
-void sigar::iterate_threads(IterateThreadCallback callback) {
-    SigarIface::New()->iterate_threads(callback);
-}

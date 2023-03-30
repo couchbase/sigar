@@ -7,6 +7,7 @@
  *   software will be governed by the Apache License, Version 2.0, included in
  *   the file licenses/APL2.txt.
  */
+#include "platform/platform_thread.h"
 #include <folly/portability/GTest.h>
 #include <platform/dirutils.h>
 #include <platform/process_monitor.h>
@@ -106,6 +107,45 @@ TEST_F(NativeSigar, iterate_child_processes) {
                 pids.push_back(pid);
             });
     EXPECT_TRUE(pids.empty()) << "I expected all childs to be gone!";
+}
+
+TEST_F(NativeSigar, iterate_process_threads_self) {
+    std::atomic_bool isrunning{false};
+    std::atomic_bool shouldstop{false};
+    std::thread mythread{[&isrunning, &shouldstop]() {
+        cb_set_thread_name("my-thread-name");
+        isrunning = true;
+        while (!shouldstop) {
+            std::this_thread::sleep_for(std::chrono::milliseconds{10});
+        }
+    }};
+
+    // wait for the thread to start..
+    while (!isrunning) {
+        std::this_thread::sleep_for(std::chrono::milliseconds{10});
+    }
+
+    // thread is running. Iterate over all threads and look for the one
+    bool found;
+    try {
+        int callbacks = 0;
+        instance->iterate_threads(
+                [&callbacks, &found](
+                        auto tid, auto name, auto user, auto system) {
+                    ++callbacks;
+                    if (name == "my-thread-name") {
+                        found = true;
+                    }
+                });
+        EXPECT_NE(0, callbacks) << "Expected at least 1 thread to be found";
+    } catch (const std::exception& e) {
+        FAIL() << "Got exception: " << e.what();
+    }
+#ifndef WIN32
+    EXPECT_TRUE(found) << "Failed to locate the thread to search for";
+#endif
+    shouldstop = true;
+    mythread.join();
 }
 
 TEST_F(NativeSigar, get_disk_stats) {

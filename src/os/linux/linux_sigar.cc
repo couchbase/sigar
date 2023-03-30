@@ -41,7 +41,7 @@
 const char* mock_root = nullptr;
 
 // To allow mocking around with the linux tests just add a prefix
-SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root) {
+SIGAR_PUBLIC_API void sigar_set_mock_root(const char* root) {
     mock_root = root;
 }
 
@@ -50,6 +50,13 @@ static std::filesystem::path get_proc_root() {
         return std::filesystem::path{mock_root} / "mock" / "linux" / "proc";
     }
     return std::filesystem::path{"/proc"};
+}
+
+static std::filesystem::path get_sys_root() {
+    if (mock_root) {
+        return std::filesystem::path{mock_root} / "mock" / "linux" / "sys";
+    }
+    return std::filesystem::path{"/sys"};
 }
 
 void sigar_tokenize_file_line_by_line(
@@ -155,6 +162,9 @@ protected:
     static std::pair<int, linux_proc_stat_t> proc_stat_read(sigar_pid_t pid);
     static linux_proc_stat_t parse_stat_file(const std::filesystem::path& name,
                                              bool use_usec = false);
+
+    static std::optional<uint64_t> get_device_queue_depth(
+            std::string_view name);
 };
 
 sigar_t::sigar_t() = default;
@@ -549,6 +559,18 @@ void LinuxSigar::iterate_threads(sigar::IterateThreadCallback callback) {
     }
 }
 
+std::optional<uint64_t> LinuxSigar::get_device_queue_depth(
+        std::string_view name) {
+    try {
+        auto file = get_sys_root() / "block" / name / "device" / "queue_depth";
+        return stoull(cb::io::loadFile(file));
+    } catch (const std::exception& e) {
+        // We don't expect files to exist for any non-physical drive so just
+        // ignore the errors.
+        return {};
+    }
+}
+
 void LinuxSigar::iterate_disks(sigar::IterateDiskCallback callback) {
     sigar_tokenize_file_line_by_line(
             0,
@@ -612,6 +634,10 @@ void LinuxSigar::iterate_disks(sigar::IterateDiskCallback callback) {
 
                 disk.queue = stoull(vec[12]);
                 disk.time = std::chrono::milliseconds(stoull(vec[13]));
+
+                if (auto queue_depth = get_device_queue_depth(disk.name)) {
+                    disk.queue_depth = *queue_depth;
+                }
 
                 callback(disk);
                 return true;

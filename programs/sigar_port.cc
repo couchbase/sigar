@@ -245,6 +245,10 @@ static nlohmann::json populate_disk_usages(
             json["queue"] = std::to_string(disk.queue);
         }
 
+        if (is_implemented(disk.queue_depth)) {
+            json["queue_depth"] = std::to_string(disk.queue_depth);
+        }
+
         ret.emplace_back(std::move(json));
     }
 

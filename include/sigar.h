@@ -134,7 +134,7 @@ sigar_proc_state_get(sigar_t* sigar,
 
 #ifdef __linux__
 // To allow mocking around with the linux tests just add a prefix
-SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root);
+SIGAR_PUBLIC_API void sigar_set_mock_root(const char* root);
 #endif
 
 #ifdef __cplusplus
@@ -208,6 +208,9 @@ struct disk_usage_t {
 
     // I/Os currently in progress
     uint64_t queue = std::numeric_limits<uint64_t>::max();
+
+    // Max queue depth of the device
+    uint64_t queue_depth = std::numeric_limits<uint64_t>::max();
 };
 
 using IterateDiskCallback = std::function<void(const disk_usage_t&)>;

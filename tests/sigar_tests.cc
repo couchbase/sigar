@@ -315,11 +315,11 @@ TEST_F(Sigar, test_sigar_proc_state_get) {
 class MockSigar : public Sigar {
 public:
     static void SetUpTestCase() {
-        sigar_set_procfs_root(SOURCE_ROOT);
+        sigar_set_mock_root(SOURCE_ROOT);
     }
 
     static void TearDownTestCase() {
-        sigar_set_procfs_root(nullptr);
+        sigar_set_mock_root(nullptr);
     }
 };
 
@@ -404,6 +404,7 @@ TEST_F(MockSigar, sigar_get_disk_stats) {
     EXPECT_EQ(std::chrono::milliseconds(4282901220), usages[0].wtime);
 
     EXPECT_EQ(0, usages[0].queue);
+    EXPECT_EQ(25, usages[0].queue_depth);
     EXPECT_EQ(std::chrono::milliseconds(3312412208), usages[0].time);
 
     EXPECT_EQ("sdb1", usages[1].name);
@@ -416,6 +417,7 @@ TEST_F(MockSigar, sigar_get_disk_stats) {
 
     EXPECT_EQ(0, usages[1].queue);
     EXPECT_EQ(std::chrono::milliseconds(19792), usages[1].time);
+    EXPECT_EQ(std::numeric_limits<uint64_t>::max(), usages[1].queue_depth);
 }
 
 #endif

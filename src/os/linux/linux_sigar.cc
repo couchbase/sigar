@@ -220,12 +220,10 @@ static uint64_t stoull(std::string_view value) {
 
 sigar_mem_t LinuxSigar::get_memory() {
     sigar_mem_t mem;
-    uint64_t buffers = 0;
-    uint64_t cached = 0;
     sigar_tokenize_file_line_by_line(
             0,
             "meminfo",
-            [&mem, &buffers, &cached](const auto& vec) {
+            [&mem](const auto& vec) {
                 if (vec.size() < 2) {
                     return true;
                 }
@@ -237,23 +235,16 @@ sigar_mem_t LinuxSigar::get_memory() {
                     mem.free = stoull(vec[1]);
                     return true;
                 }
-                if (vec.front() == "Buffers") {
-                    buffers = stoull(vec[1]);
+                if (vec.front() == "MemAvailable") {
+                    mem.actual_free = stoull(vec[1]);
                     return true;
                 }
-                if (vec.front() == "Cached") {
-                    cached = stoull(vec[1]);
-                    return true;
-                }
-
                 return true;
             },
             ':');
 
     mem.used = mem.total - mem.free;
-    auto kern = buffers + cached;
-    mem.actual_free = mem.free + kern;
-    mem.actual_used = mem.used - kern;
+    mem.actual_used = mem.total - mem.actual_free;
     return mem;
 }
 

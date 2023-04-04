@@ -183,8 +183,8 @@ TEST_F(MockSigar, test_sigar_mem_get) {
     EXPECT_EQ(33283383296, mem.total);
     EXPECT_EQ(19910578176, mem.used);
     EXPECT_EQ(13372805120, mem.free);
-    EXPECT_EQ(9683591168, mem.actual_used);
-    EXPECT_EQ(23599792128, mem.actual_free);
+    EXPECT_EQ(10057596928, mem.actual_used);
+    EXPECT_EQ(23225786368, mem.actual_free);
 }
 
 TEST_F(MockSigar, sigar_proc_state_get) {

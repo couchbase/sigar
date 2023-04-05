@@ -10,11 +10,11 @@
 
 #include "sigar_port.h"
 
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <stdexcept>
 #include <string>
+#include <fmt/format.h>
 
 static bool is_interesting_process(std::string_view name) {
     return !(name == "moxi" || name == "inet_gethost" || name == "memsup" ||
@@ -30,10 +30,12 @@ int find_interesting_procs(
 
     if (sigar_proc_state_get(sigar, babysitter_pid, &proc_state) != SIGAR_OK ||
         sigar_proc_cpu_get(sigar, babysitter_pid, &proc_cpu) != SIGAR_OK) {
-        fprintf(stderr,
-                "Failed to lookup the babysitter process with pid %u",
-                babysitter_pid);
-        exit(1);
+        sigar::logit(sigar::LogLevel::Error,
+                fmt::format("Failed to lookup the babysitter process with pid "
+                            "{}. Exit with code {}",
+                            babysitter_pid,
+                            SIGAR_NO_BABYSITTER));
+        exit(SIGAR_NO_BABYSITTER);
     }
 
     int interesting_count = 0;

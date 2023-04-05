@@ -9,6 +9,7 @@ cb_add_test_executable(sigar_tests
 target_link_libraries(sigar_tests
                       sigar
                       platform
+                      fmt::fmt
                       Folly::folly
                       GTest::gtest
                       GTest::gtest_main)

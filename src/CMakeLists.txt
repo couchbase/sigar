@@ -32,8 +32,11 @@ IF (WIN32)
                 os/win32/win32_sigar.cc
                 sigar_control_group_not_supported.cc)
     target_compile_definitions(sigar PRIVATE -DSIGAR_SHARED -D_CRT_NONSTDC_NO_DEPRECATE)
-    target_link_libraries(sigar ws2_32 netapi32 version kernel32 ntdll psapi)
+    target_link_libraries(sigar
+            PRIVATE ws2_32 netapi32 version kernel32 ntdll psapi)
 ENDIF (WIN32)
+
+target_link_libraries(sigar PRIVATE fmt::fmt)
 
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)
 target_include_directories(sigar INTERFACE ${sigar_SOURCE_DIR}/include)

@@ -131,6 +131,33 @@ SIGAR_PUBLIC_API void sigar_set_procfs_root(const char* root);
 #ifdef __cplusplus
 namespace sigar {
 
+enum class LogLevel {
+    Debug,
+    Info,
+    Error
+};
+
+/**
+ * Set a callback function to receive log information produced by
+ * the library.
+ *
+ * @param level The minimum level to log
+ * @param callback The callback function to call with each log message
+ */
+SIGAR_PUBLIC_API
+void set_log_callback(LogLevel level,
+                      std::function<void(LogLevel, std::string_view)> callback);
+
+/**
+ * Utility function to put messages into the sigar log from outside the
+ * library
+ *
+ * @param level The type of log message
+ * @param message The message to log
+ */
+SIGAR_PUBLIC_API
+void logit(LogLevel level, std::string_view message);
+
 /**
  * The IterateChildProcessCallback is called with the following
  * parameters:

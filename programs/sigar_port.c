@@ -79,7 +79,9 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
 
     int ticks_to_refresh = PROCS_REFRESH_INTERVAL;
 
-    MUST_SUCCEED(sigar_open(&sigar));
+    if (sigar_open(&sigar) != SIGAR_OK) {
+        return SIGAR_INIT_FAIL;
+    }
 
     while (!feof(in)) {
         int req;
@@ -154,5 +156,5 @@ int sigar_port_main(sigar_pid_t babysitter_pid, FILE* in, FILE* out) {
     }
 
     sigar_close(sigar);
-    return 0;
+    return SIGAR_NORMAL_EXIT;
 }

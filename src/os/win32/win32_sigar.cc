@@ -40,6 +40,8 @@
 #include <system_error>
 #include <vector>
 
+#include <fmt/format.h>
+
 #define EPOCH_DELTA 11644473600000000L
 
 /* XXX: support CP_UTF8 ? */
@@ -175,10 +177,22 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
 
 static int get_counter_error_code(std::string_view key) {
     if (key == PERF_TITLE_MEM_KEY) {
+        sigar::logit(sigar::LogLevel::Error,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_MEMORY_COUNTER",
+                                 key));
         return SIGAR_NO_MEMORY_COUNTER;
     } else if (key == PERF_TITLE_PROC_KEY) {
+        sigar::logit(sigar::LogLevel::Error,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_PROCESS_COUNTER",
+                                 key));
         return SIGAR_NO_PROCESS_COUNTER;
     } else if (key == PERF_TITLE_CPU_KEY) {
+        sigar::logit(sigar::LogLevel::Error,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_PROCESSOR_COUNTER",
+                                 key));
         return SIGAR_NO_PROCESSOR_COUNTER;
     }
 
@@ -204,6 +218,12 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
         if (retval == ERROR_MORE_DATA) {
             bytes = perfbuf_grow();
         } else {
+            std::system_error error(
+                    std::error_code(retval, std::system_category()),
+                    fmt::format("Win32Sigar::get_perf_object_inst(): "
+                                "RegQueryValueExA({})",
+                                counter_key));
+            sigar::logit(sigar::LogLevel::Error, error.what());
             *err = retval;
             return NULL;
         }
@@ -375,7 +395,13 @@ std::pair<int, std::vector<sigar_pid_t>> Win32Sigar::get_all_pids() {
         }
 
         if (!EnumProcesses((DWORD*)perfbuf.data(), perfbuf.size(), &retval)) {
-            return {int(GetLastError()), {}};
+            const auto error_code = GetLastError();
+            std::system_error error(
+                    std::error_code(error_code, std::system_category()),
+                    "Win32Sigar::get_all_pids(): EnumProcesses");
+            sigar::logit(sigar::LogLevel::Error, error.what());
+
+            return {int(error_code), {}};
         }
     } while (retval == perfbuf.size()); // unlikely
 

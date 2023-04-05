@@ -16,9 +16,12 @@
  * limitations under the License.
  */
 
-#include <stdio.h>
+#include <atomic>
 #include <chrono>
+#include <functional>
+#include <shared_mutex>
 #include <system_error>
+
 #ifdef WIN32
 #include <process.h>
 #endif
@@ -26,17 +29,97 @@
 #include "sigar.h"
 #include "sigar_private.h"
 
-SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
-    try {
-        *sigar = sigar_t::New();
-        return SIGAR_OK;
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
+#define FMT_HEADER_ONLY
+#include <fmt/format.h>
+
+using sigar::logit;
+using sigar::LogLevel;
+using namespace std::string_view_literals;
+
+// I don't want to include folly as the library is also used from various
+// go projects, and all I really needed was a folly::Synchronized.
+class Logger {
+public:
+    static Logger& instance() {
+        static Logger inst;
+        return inst;
     }
+
+    void setCallback(
+            sigar::LogLevel l,
+            std::function<void(sigar::LogLevel, std::string_view)> cb) {
+        std::unique_lock<std::shared_mutex> guard(lock);
+        level = l;
+        callback = std::move(cb);
+    }
+
+    void log(sigar::LogLevel l, std::string_view message) {
+        if (l < level) {
+            return;
+        }
+        std::shared_lock<std::shared_mutex> guard(lock);
+        if (callback && l >= level) {
+            callback(l, message);
+        }
+    }
+
+protected:
+    std::shared_mutex lock;
+    std::atomic<sigar::LogLevel> level{sigar::LogLevel::Error};
+    std::function<void(sigar::LogLevel, std::string_view)> callback;
+};
+
+SIGAR_PUBLIC_API
+void sigar::set_log_callback(
+        sigar::LogLevel level,
+        std::function<void(sigar::LogLevel, std::string_view)> callback) {
+    Logger::instance().setCallback(level, std::move(callback));
+}
+
+SIGAR_PUBLIC_API
+void sigar::logit(sigar::LogLevel level, std::string_view message) {
+    Logger::instance().log(level, message);
+}
+
+static int execute_and_catch_exceptions(std::function<int()> function,
+                                        std::string_view method) {
+    logit(LogLevel::Debug, method);
+    std::string message;
+    int ret = EINVAL;
+
+    try {
+        ret = function();
+        if (ret != SIGAR_OK) {
+            logit(LogLevel::Debug,
+                  fmt::format("{} returned error {}", method, ret));
+        }
+        return ret;
+    } catch (const std::bad_alloc&) {
+        message = "No memory";
+        ret = ENOMEM;
+    } catch (const std::system_error& ex) {
+        message = ex.what();
+        ret = ex.code().value();
+    } catch (const std::exception& ex) {
+        message = ex.what();
+        ret = EINVAL;
+    } catch (...) {
+        message = "Unknown exception";
+        ret = EINVAL;
+    }
+
+    logit(sigar::LogLevel::Error,
+          fmt::format("{}: failed due to {}", method, message));
+    return ret;
+}
+
+SIGAR_DECLARE(int) sigar_open(sigar_t** sigar) {
+    return execute_and_catch_exceptions(
+            [&sigar]() {
+                *sigar = sigar_t::New();
+                return SIGAR_OK;
+            },
+            "sigar_open"sv);
 }
 
 SIGAR_DECLARE(int) sigar_close(sigar_t* sigar) {
@@ -57,15 +140,9 @@ SIGAR_DECLARE(int) sigar_mem_get(sigar_t* sigar, sigar_mem_t* mem) {
         return EINVAL;
     }
     *mem = {};
-    try {
-        return sigar->get_memory(*mem);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, &mem]() { return sigar->get_memory(*mem); },
+            "sigar_mem_get"sv);
 }
 
 SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap) {
@@ -84,15 +161,9 @@ SIGAR_DECLARE(int) sigar_swap_get(sigar_t* sigar, sigar_swap_t* swap) {
     swap->allocstall_normal = SIGAR_FIELD_NOTIMPL;
     swap->allocstall_movable = SIGAR_FIELD_NOTIMPL;
 
-    try {
-        return sigar->get_swap(*swap);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, &swap]() { return sigar->get_swap(*swap); },
+            "sigar_swap_get"sv);
 }
 
 SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
@@ -116,15 +187,9 @@ SIGAR_DECLARE(int) sigar_cpu_get(sigar_t* sigar, sigar_cpu_t* cpu) {
 #endif
     *cpu = {};
 
-    try {
-        return sigar->get_cpu(*cpu);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, &cpu]() { return sigar->get_cpu(*cpu); },
+            "sigar_cpu_get"sv);
 }
 
 static uint64_t sigar_time_now_millis() {
@@ -182,15 +247,11 @@ sigar_proc_mem_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_mem_t* procmem) {
     procmem->major_faults = SIGAR_FIELD_NOTIMPL;
     procmem->page_faults = SIGAR_FIELD_NOTIMPL;
 
-    try {
-        return sigar->get_proc_memory(pid, *procmem);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, pid, &procmem]() {
+                return sigar->get_proc_memory(pid, *procmem);
+            },
+            fmt::format("sigar_proc_mem_get({})", pid));
 }
 
 SIGAR_DECLARE(int)
@@ -200,15 +261,11 @@ sigar_proc_cpu_get(sigar_t* sigar, sigar_pid_t pid, sigar_proc_cpu_t* proccpu) {
     }
     *proccpu = {};
 
-    try {
-        return sigar->get_proc_cpu(pid, *proccpu);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, pid, &proccpu]() {
+                return sigar->get_proc_cpu(pid, *proccpu);
+            },
+            fmt::format("sigar_proc_cpu_get({})", pid));
 }
 
 SIGAR_DECLARE(int)
@@ -218,21 +275,18 @@ sigar_proc_state_get(sigar_t* sigar,
     if (!sigar || !procstate) {
         return EINVAL;
     }
+
     *procstate = {};
     procstate->tty = SIGAR_FIELD_NOTIMPL;
     procstate->nice = SIGAR_FIELD_NOTIMPL;
     procstate->threads = SIGAR_FIELD_NOTIMPL;
     procstate->processor = SIGAR_FIELD_NOTIMPL;
 
-    try {
-        return sigar->get_proc_state(pid, *procstate);
-    } catch (const std::bad_alloc&) {
-        return ENOMEM;
-    } catch (const std::system_error& ex) {
-        return ex.code().value();
-    } catch (...) {
-        return EINVAL;
-    }
+    return execute_and_catch_exceptions(
+            [&sigar, pid, &procstate]() {
+                return sigar->get_proc_state(pid, *procstate);
+            },
+            fmt::format("sigar_proc_state_get({})", pid));
 }
 
 SIGAR_PUBLIC_API

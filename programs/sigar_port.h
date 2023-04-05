@@ -18,13 +18,14 @@
 extern "C" {
 #endif
 
-#define MUST_SUCCEED(body)      \
-    do {                        \
-        int _ret = (body);      \
-        if (_ret != SIGAR_OK) { \
-            exit(1);            \
-        }                       \
-    } while (0)
+enum {
+    SIGAR_NORMAL_EXIT,
+    SIGAR_INVALID_USAGE,
+    SIGAR_INIT_FAIL,
+    SIGAR_NO_BABYSITTER,
+    SIGAR_EXCEPTION,
+    SIGAR_OTHER_EXCEPTION
+};
 
 #define NUM_INTERESTING_PROCS 40
 #define PROC_NAME_LEN 60

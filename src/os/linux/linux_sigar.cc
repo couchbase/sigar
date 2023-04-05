@@ -86,7 +86,6 @@ void sigar_tokenize_file_line_by_line(
 constexpr size_t stat_pid_index = 1;
 constexpr size_t stat_name_index = 2;
 constexpr size_t stat_ppid_index = 4;
-constexpr size_t stat_tty_index = 7;
 constexpr size_t stat_minor_faults_index = 10;
 constexpr size_t stat_major_faults_index = 12;
 constexpr size_t stat_utime_index = 14;
@@ -103,7 +102,6 @@ struct linux_proc_stat_t {
     uint64_t minor_faults;
     uint64_t major_faults;
     uint64_t ppid;
-    int tty;
     int priority;
     int nice;
     uint64_t start_time;
@@ -396,7 +394,6 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
     ret.name = std::string{fields[stat_name_index].data(),
                            fields[stat_name_index].size()};
     ret.ppid = stoull(fields[stat_ppid_index]);
-    ret.tty = stoull(fields[stat_tty_index]);
     ret.minor_faults = stoull(fields[stat_minor_faults_index]);
     ret.major_faults = stoull(fields[stat_major_faults_index]);
     if (use_usec) {
@@ -511,7 +508,6 @@ sigar_proc_state_t LinuxSigar::get_proc_state(sigar_pid_t pid) {
     }
     strcpy(procstate.name, pstat.name.c_str());
     procstate.ppid = pstat.ppid;
-    procstate.tty = pstat.tty;
     procstate.priority = pstat.priority;
     procstate.nice = pstat.nice;
     procstate.processor = pstat.processor;

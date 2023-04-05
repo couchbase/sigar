@@ -231,7 +231,6 @@ TEST_F(MockSigar, sigar_proc_state_get) {
     const auto ps = instance->get_proc_state(66666666);
     EXPECT_STREQ("java  vm", ps.name);
     EXPECT_EQ(10563, ps.ppid);
-    EXPECT_EQ(1026, ps.tty);
     EXPECT_EQ(20, ps.priority);
     EXPECT_EQ(0, ps.nice);
     EXPECT_EQ(4, ps.processor);

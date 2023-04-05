@@ -111,15 +111,12 @@ struct sigar_proc_cpu_t {
 struct sigar_proc_state_t {
 #ifdef __cplusplus
     sigar_proc_state_t()
-        : nice(-1),
-          processor(-1),
-          threads(std::numeric_limits<uint64_t>::max()) {
+        : processor(-1), threads(std::numeric_limits<uint64_t>::max()) {
     }
 #endif
     char name[SIGAR_PROC_NAME_LEN];
     sigar_pid_t ppid;
     int priority;
-    int nice;
     int processor;
     uint64_t threads;
 };

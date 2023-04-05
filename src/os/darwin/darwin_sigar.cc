@@ -449,7 +449,6 @@ sigar_proc_state_t AppleSigar::get_proc_state(sigar_pid_t pid) {
     SIGAR_SSTRCPY(procstate.name, pinfo.kp_proc.p_comm);
     procstate.ppid = pinfo.kp_eproc.e_ppid;
     procstate.priority = pinfo.kp_proc.p_priority;
-    procstate.nice = pinfo.kp_proc.p_nice;
     procstate.threads = get_proc_threads(pid);
     return procstate;
 }

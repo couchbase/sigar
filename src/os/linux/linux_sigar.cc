@@ -93,7 +93,6 @@ constexpr size_t stat_stime_index = 15;
 constexpr size_t stat_priority_index = 18;
 constexpr size_t stat_start_time_index = 22;
 constexpr size_t stat_rss_index = 24;
-constexpr size_t stat_processor_index = 39;
 
 struct linux_proc_stat_t {
     sigar_pid_t pid;
@@ -106,7 +105,6 @@ struct linux_proc_stat_t {
     uint64_t utime;
     uint64_t stime;
     std::string name;
-    int processor;
 };
 
 struct SystemConstants {
@@ -352,7 +350,7 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
 
     auto line = std::move(content);
     auto fields = cb::string::split(line, ' ');
-    if (fields.size() < stat_processor_index) {
+    if (fields.size() < stat_rss_index) {
         throw std::runtime_error("parse_stat_file(): file " +
                                  name.generic_string() +
                                  " does not contain enough fields");
@@ -373,7 +371,7 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
         iter++;
         iter++;
         fields.erase(iter);
-        if (fields.size() < stat_processor_index) {
+        if (fields.size() < stat_rss_index) {
             throw std::runtime_error("parse_stat_file(): file " +
                                      name.generic_string() +
                                      " does not contain enough fields");
@@ -407,7 +405,6 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
     ret.start_time += SystemConstants::instance().boot_time; /* seconds */
     ret.start_time *= 1000; /* milliseconds */
     ret.rss = stoull(fields[stat_rss_index]);
-    ret.processor = stoull(fields[stat_processor_index]);
     return ret;
 }
 
@@ -506,7 +503,6 @@ sigar_proc_state_t LinuxSigar::get_proc_state(sigar_pid_t pid) {
     strcpy(procstate.name, pstat.name.c_str());
     procstate.ppid = pstat.ppid;
     procstate.priority = pstat.priority;
-    procstate.processor = pstat.processor;
 
     sigar_tokenize_file_line_by_line(
             pid,

@@ -232,7 +232,6 @@ TEST_F(MockSigar, sigar_proc_state_get) {
     EXPECT_STREQ("java  vm", ps.name);
     EXPECT_EQ(10563, ps.ppid);
     EXPECT_EQ(20, ps.priority);
-    EXPECT_EQ(4, ps.processor);
     EXPECT_EQ(91, ps.threads);
 }
 

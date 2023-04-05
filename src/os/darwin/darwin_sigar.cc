@@ -48,12 +48,6 @@
 #define SIGAR_NSEC2MSEC(s) ((uint64_t)(s) / ((uint64_t)1000000L))
 #define SIGAR_NSEC2USEC(s) ((uint64_t)(s) / ((uint64_t)1000L))
 
-#define SIGAR_PROC_STATE_SLEEP 'S'
-#define SIGAR_PROC_STATE_RUN 'R'
-#define SIGAR_PROC_STATE_STOP 'T'
-#define SIGAR_PROC_STATE_ZOMBIE 'Z'
-#define SIGAR_PROC_STATE_IDLE 'D'
-
 namespace sigar {
 /**
  * Class to hold the system sized (constants which never change for the
@@ -149,15 +143,12 @@ protected:
     vm_statistics64 get_vmstat();
 
     /**
-     * Get the number of threads in the provided process and the
-     * "highest state" of one of them ('R' if it has one thread which
-     * is running etc). If no one use the "state" field we should
-     * look into removing it)
+     * Get the number of threads in the provided process
      *
      * @param pid the pid to look up
-     * @return number of threads and the state
+     * @return number of threads or std::numeric_limits<uint64_t>::max
      */
-    static std::pair<uint64_t, char> get_proc_threads(sigar_pid_t pid);
+    static uint64_t get_proc_threads(sigar_pid_t pid);
     static kinfo_proc get_pinfo(sigar_pid_t pid);
 
     const int ticks;
@@ -425,39 +416,11 @@ std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> AppleSigar::get_proc_time(
     return {proctime.start_time, proctime.user, proctime.sys, proctime.total};
 }
 
-/* thread state mapping derived from ps.tproj */
-static const char thread_states[] = {
-        /*0*/ '-',
-        /*1*/ SIGAR_PROC_STATE_RUN,
-        /*2*/ SIGAR_PROC_STATE_ZOMBIE,
-        /*3*/ SIGAR_PROC_STATE_SLEEP,
-        /*4*/ SIGAR_PROC_STATE_IDLE,
-        /*5*/ SIGAR_PROC_STATE_STOP,
-        /*6*/ SIGAR_PROC_STATE_STOP,
-        /*7*/ '?'};
-
-static int thread_state_get(thread_basic_info_data_t* info) {
-    switch (info->run_state) {
-    case TH_STATE_RUNNING:
-        return 1;
-    case TH_STATE_UNINTERRUPTIBLE:
-        return 2;
-    case TH_STATE_WAITING:
-        return (info->sleep_time > 20) ? 4 : 3;
-    case TH_STATE_STOPPED:
-        return 5;
-    case TH_STATE_HALTED:
-        return 6;
-    default:
-        return 7;
-    }
-}
-
-std::pair<uint64_t, char> AppleSigar::get_proc_threads(sigar_pid_t pid) {
+uint64_t AppleSigar::get_proc_threads(sigar_pid_t pid) {
     // We don't have access privileges to look at another process, so there
     // is no point of even trying
     if (pid != getpid()) {
-        return {std::numeric_limits<uint64_t>::max(), 'R'};
+        return std::numeric_limits<uint64_t>::max();
     }
 
     mach_port_t task, self = mach_task_self();
@@ -475,66 +438,19 @@ std::pair<uint64_t, char> AppleSigar::get_proc_threads(sigar_pid_t pid) {
                                 "AppleSigar::get_proc_threads: task_threads()");
     }
 
-    int state = TH_STATE_HALTED + 1;
-    for (mach_msg_type_number_t i = 0; i < count; i++) {
-        mach_msg_type_number_t info_count = THREAD_BASIC_INFO_COUNT;
-        thread_basic_info_data_t info;
-
-        status = thread_info(threads[i],
-                             THREAD_BASIC_INFO,
-                             (thread_info_t)&info,
-                             &info_count);
-        if (status == KERN_SUCCESS) {
-            int tstate = thread_state_get(&info);
-            if (tstate < state) {
-                state = tstate;
-            }
-        }
-    }
-
     vm_deallocate(self, (vm_address_t)threads, sizeof(thread_t) * count);
 
-    return {count, thread_states[state]};
+    return count;
 }
 
 sigar_proc_state_t AppleSigar::get_proc_state(sigar_pid_t pid) {
     sigar_proc_state_t procstate;
     const auto pinfo = get_pinfo(pid);
-    int state = pinfo.kp_proc.p_stat;
-
     SIGAR_SSTRCPY(procstate.name, pinfo.kp_proc.p_comm);
     procstate.ppid = pinfo.kp_eproc.e_ppid;
     procstate.priority = pinfo.kp_proc.p_priority;
     procstate.nice = pinfo.kp_proc.p_nice;
-
-    const auto [threads, thrstate] = get_proc_threads(pid);
-    procstate.threads = threads;
-    procstate.state = thrstate;
-
-    switch (state) {
-    case SIDL:
-        procstate.state = 'D';
-        break;
-    case SRUN:
-#ifdef SONPROC
-    case SONPROC:
-#endif
-        procstate.state = 'R';
-        break;
-    case SSLEEP:
-        procstate.state = 'S';
-        break;
-    case SSTOP:
-        procstate.state = 'T';
-        break;
-    case SZOMB:
-        procstate.state = 'Z';
-        break;
-    default:
-        procstate.state = '?';
-        break;
-    }
-
+    procstate.threads = get_proc_threads(pid);
     return procstate;
 }
 

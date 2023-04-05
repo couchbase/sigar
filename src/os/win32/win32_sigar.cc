@@ -65,7 +65,6 @@ struct sigar_win32_pinfo_t {
     uint64_t size;
     uint64_t resident;
     char name[SIGAR_PROC_NAME_LEN];
-    char state;
     uint64_t handles;
     uint64_t threads;
     uint64_t page_faults;
@@ -554,7 +553,6 @@ sigar_proc_state_t Win32Sigar::get_proc_state(sigar_pid_t pid) {
     }
 
     memcpy(procstate.name, pinfo.name, sizeof(procstate.name));
-    procstate.state = pinfo.state;
     procstate.ppid = pinfo.ppid;
     procstate.priority = pinfo.priority;
     procstate.threads = pinfo.threads;
@@ -636,7 +634,6 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
             continue;
         }
 
-        pinfo.state = 'R'; /* XXX? */
         SIGAR_W2A(PdhInstanceName(inst), pinfo.name, sizeof(pinfo.name));
 
         pinfo.size = PERF_VAL64(PERF_IX_MEM_VSIZE);

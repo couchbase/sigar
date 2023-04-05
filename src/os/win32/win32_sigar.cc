@@ -60,7 +60,6 @@ namespace sigar {
 struct sigar_win32_pinfo_t {
     sigar_pid_t pid;
     int ppid;
-    int priority;
     time_t mtime;
     uint64_t size;
     uint64_t resident;
@@ -554,7 +553,6 @@ sigar_proc_state_t Win32Sigar::get_proc_state(sigar_pid_t pid) {
 
     memcpy(procstate.name, pinfo.name, sizeof(procstate.name));
     procstate.ppid = pinfo.ppid;
-    procstate.priority = pinfo.priority;
     procstate.threads = pinfo.threads;
 
     return procstate;
@@ -639,7 +637,6 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
         pinfo.size = PERF_VAL64(PERF_IX_MEM_VSIZE);
         pinfo.resident = PERF_VAL64(PERF_IX_MEM_SIZE);
         pinfo.ppid = PERF_VAL(PERF_IX_PPID);
-        pinfo.priority = PERF_VAL(PERF_IX_PRIORITY);
         pinfo.handles = PERF_VAL(PERF_IX_HANDLE_CNT);
         pinfo.threads = PERF_VAL(PERF_IX_THREAD_CNT);
         pinfo.page_faults = PERF_VAL(PERF_IX_PAGE_FAULTS);

@@ -115,7 +115,6 @@ struct sigar_proc_state_t {
 #endif
     char name[SIGAR_PROC_NAME_LEN];
     sigar_pid_t ppid;
-    int priority;
     uint64_t threads;
 };
 

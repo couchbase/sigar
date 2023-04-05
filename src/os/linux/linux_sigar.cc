@@ -90,7 +90,6 @@ constexpr size_t stat_minor_faults_index = 10;
 constexpr size_t stat_major_faults_index = 12;
 constexpr size_t stat_utime_index = 14;
 constexpr size_t stat_stime_index = 15;
-constexpr size_t stat_priority_index = 18;
 constexpr size_t stat_start_time_index = 22;
 constexpr size_t stat_rss_index = 24;
 
@@ -100,7 +99,6 @@ struct linux_proc_stat_t {
     uint64_t minor_faults;
     uint64_t major_faults;
     uint64_t ppid;
-    int priority;
     uint64_t start_time;
     uint64_t utime;
     uint64_t stime;
@@ -399,7 +397,6 @@ linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,
         ret.utime = SIGAR_TICK2MSEC(stoull(fields[stat_utime_index]));
         ret.stime = SIGAR_TICK2MSEC(stoull(fields[stat_stime_index]));
     }
-    ret.priority = stoull(fields[stat_priority_index]);
     ret.start_time = stoull(fields[stat_start_time_index]);
     ret.start_time /= SystemConstants::instance().ticks;
     ret.start_time += SystemConstants::instance().boot_time; /* seconds */
@@ -502,7 +499,6 @@ sigar_proc_state_t LinuxSigar::get_proc_state(sigar_pid_t pid) {
     }
     strcpy(procstate.name, pstat.name.c_str());
     procstate.ppid = pstat.ppid;
-    procstate.priority = pstat.priority;
 
     sigar_tokenize_file_line_by_line(
             pid,

@@ -178,7 +178,7 @@ public:
     }
 
     static void TearDownTestCase() {
-        SigarIface::set_mock_root(nullptr);
+        SigarIface::set_mock_root({});
     }
 
     std::unique_ptr<SigarIface> instance;

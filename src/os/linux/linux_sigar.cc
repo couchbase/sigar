@@ -46,25 +46,29 @@ namespace sigar {
     ((uint64_t)(s) *       \
      ((uint64_t)SIGAR_USEC / (double)SystemConstants::instance().ticks))
 
-const char* mock_root = nullptr;
-
-// To allow mocking around with the linux tests just add a prefix
-void SigarIface::set_mock_root(const char* root) {
-    mock_root = root;
+static std::filesystem::path mock_root;
+void SigarIface::set_mock_root(std::filesystem::path root) {
+    if (!root.empty() && !is_directory(root)) {
+        throw std::runtime_error(
+                "SigarIface::set_mock_root: The provided directory must exists "
+                "and be a directory");
+    }
+    mock_root = std::move(root);
 }
 
 static std::filesystem::path get_proc_root() {
-    if (mock_root) {
-        return std::filesystem::path{mock_root} / "mock" / "linux" / "proc";
+    if (mock_root.empty()) {
+        return std::filesystem::path{"/proc"};
     }
-    return std::filesystem::path{"/proc"};
+
+    return mock_root / "mock" / "linux" / "proc";
 }
 
 static std::filesystem::path get_sys_root() {
-    if (mock_root) {
-        return std::filesystem::path{mock_root} / "mock" / "linux" / "sys";
+    if (mock_root.empty()) {
+        return std::filesystem::path{"/sys"};
     }
-    return std::filesystem::path{"/sys"};
+    return mock_root / "mock" / "linux" / "sys";
 }
 
 void sigar_tokenize_file_line_by_line(

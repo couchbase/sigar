@@ -17,6 +17,10 @@
 #include <tuple>
 #include <unordered_map>
 
+#if defined(__linux__) || defined(__APPLE__)
+#include <filesystem>
+#endif
+
 namespace sigar {
 
 /**
@@ -60,7 +64,7 @@ public:
      *
      * This method should _only_ be used for unit testing
      */
-    static void set_mock_root(const char* root);
+    static void set_mock_root(std::filesystem::path root);
 #endif
 
     virtual ~SigarIface() = default;

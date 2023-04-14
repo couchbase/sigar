@@ -50,10 +50,15 @@ TEST_F(NativeSigar, iterate_child_processes) {
     // 6 processes
     std::vector<sigar_pid_t> pids;
     instance->iterate_child_processes(
-            getpid(), [&pids](auto pid, auto ppid, auto starttime, auto name) {
+            getpid(),
+            [&pids, inst = instance.get()](
+                    auto pid, auto ppid, auto starttime, auto name) {
                 EXPECT_EQ(pids.end(), std::find(pids.begin(), pids.end(), pid))
                         << "The process should not be reported twice";
                 pids.push_back(pid);
+
+                const auto pcpu = inst->get_proc_cpu(pid);
+                EXPECT_EQ(pcpu.start_time, starttime);
             });
     EXPECT_EQ(6, pids.size()) << "I expected to get 6 childs";
 

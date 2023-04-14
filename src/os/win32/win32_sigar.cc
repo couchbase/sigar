@@ -60,13 +60,19 @@ namespace sigar {
 struct sigar_win32_pinfo_t {
     sigar_pid_t pid;
     int ppid;
-    time_t mtime;
     uint64_t size;
     uint64_t resident;
     char name[SIGAR_PROC_NAME_LEN];
     uint64_t handles;
     uint64_t threads;
     uint64_t page_faults;
+};
+
+struct AllPidInfo {
+    sigar_pid_t pid;
+    sigar_pid_t ppid;
+    std::string name;
+    uint64_t start_time;
 };
 
 class Win32Sigar : public SigarIface {
@@ -111,8 +117,9 @@ protected:
     bool check_parents(
             sigar_pid_t pid,
             sigar_pid_t ppid,
-            std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo);
-    std::pair<int, std::vector<sigar_pid_t>> get_all_pids();
+            const std::unordered_map<sigar_pid_t, AllPidInfo>& allprocinfo);
+
+    std::unordered_map<sigar_pid_t, AllPidInfo> get_all_pids();
     std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
     int get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem);
     PERF_OBJECT_TYPE* get_perf_object_inst(char* counter_key,
@@ -409,43 +416,46 @@ sigar_cpu_t Win32Sigar::get_cpu() {
     return cpu;
 }
 
-std::pair<int, std::vector<sigar_pid_t>> Win32Sigar::get_all_pids() {
-    std::vector<sigar_pid_t> allpids;
-    DWORD retval;
-    DWORD size = 0;
-
-    do {
-        /* re-use the perfbuf */
-        if (size == 0) {
-            size = perfbuf_init();
-        } else {
-            size = perfbuf_grow();
-        }
-
-        if (!EnumProcesses((DWORD*)perfbuf.data(), perfbuf.size(), &retval)) {
-            return {int(GetLastError()), {}};
-        }
-    } while (retval == perfbuf.size()); // unlikely
-
-    auto* pids = (DWORD*)perfbuf.data();
-
-    size = retval / sizeof(DWORD);
-
-    for (DWORD i = 0; i < size; i++) {
-        DWORD pid = pids[i];
-        if (pid == 0) {
-            continue; /* dont include the system Idle process */
-        }
-        allpids.emplace_back(pid);
+std::unordered_map<sigar_pid_t, AllPidInfo> Win32Sigar::get_all_pids() {
+    std::unordered_map<sigar_pid_t, AllPidInfo> allpids;
+    const auto pid = getpid();
+    auto snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+    if (snapshotHandle == INVALID_HANDLE_VALUE) {
+        throw std::runtime_error("CreateToolhelp32Snapshot: failed " +
+                                 std::to_string(GetLastError()));
     }
 
-    return {SIGAR_OK, std::move(allpids)};
+    PROCESSENTRY32 entry;
+    entry.dwSize = sizeof(entry);
+
+    if (!Process32First(snapshotHandle, &entry)) {
+        CloseHandle(snapshotHandle);
+        throw std::runtime_error("Process32First: failed " +
+                                 std::to_string(GetLastError()));
+    }
+
+    do {
+        try {
+            uint64_t start_time, user, sys, total;
+            std::tie(start_time, user, sys, total) =
+                    get_proc_time(sigar_pid_t(entry.th32ProcessID));
+            allpids[sigar_pid_t(entry.th32ProcessID)] = {
+                    sigar_pid_t(entry.th32ProcessID),
+                    sigar_pid_t(entry.th32ParentProcessID),
+                    std::string(entry.szExeFile),
+                    start_time};
+        } catch (const std::exception&) {
+        }
+    } while (Process32Next(snapshotHandle, &entry));
+
+    CloseHandle(snapshotHandle);
+    return allpids;
 }
 
 bool Win32Sigar::check_parents(
         sigar_pid_t pid,
         sigar_pid_t ppid,
-        std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo) {
+        const std::unordered_map<sigar_pid_t, AllPidInfo>& allprocinfo) {
     std::vector<sigar_pid_t> pids;
     do {
         auto iter = allprocinfo.find(pid);
@@ -469,20 +479,10 @@ bool Win32Sigar::check_parents(
 
 void Win32Sigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
-    const auto [ret, allpids] = get_all_pids();
-    if (ret == SIGAR_OK) {
-        std::unordered_map<sigar_pid_t, sigar_win32_pinfo_t> allprocinfo;
-        for (const auto& pid : allpids) {
-            auto [st, pinfo] = get_proc_info(pid);
-            if (st == SIGAR_OK) {
-                allprocinfo[pid] = std::move(pinfo);
-            }
-        }
-
-        for (const auto& [pid, pinfo] : allprocinfo) {
-            if (check_parents(pid, ppid, allprocinfo)) {
-                callback(pinfo.pid, pinfo.ppid, pinfo.mtime, pinfo.name);
-            }
+    const auto allpids = get_all_pids();
+    for (const auto& [pid, pinfo] : allpids) {
+        if (check_parents(pid, ppid, allpids)) {
+            callback(pid, pinfo.ppid, pinfo.start_time, pinfo.name);
         }
     }
 }

@@ -17,18 +17,32 @@
 #include <unistd.h>
 #endif
 
-#include <getopt.h>
+#include <platform/command_line_options_parser.h>
+#include <charconv>
 #include <iostream>
 #include <optional>
 #include <string>
-#include <vector>
 
-static sigar_pid_t parse_pid(const std::string& pidstr) {
+static sigar_pid_t parse_pid(std::string_view pidstr) {
     try {
-        const auto result = std::stoul(pidstr);
-        return sigar_pid_t(result);
-    } catch (const std::exception&) {
-        std::cerr << "Failed to parse pid" << std::endl;
+        sigar_pid_t value{};
+        const auto [ptr, ec]{std::from_chars(
+                pidstr.data(), pidstr.data() + pidstr.size(), value)};
+        if (ec != std::errc()) {
+            if (ec == std::errc::invalid_argument) {
+                throw std::invalid_argument("no conversion");
+            }
+            if (ec == std::errc::result_out_of_range) {
+                throw std::out_of_range("value exceeds long");
+            }
+            throw std::system_error(std::make_error_code(ec));
+        }
+        if (ptr != pidstr.data() + pidstr.size()) {
+            throw std::invalid_argument("invalid characters in pid string");
+        }
+        return value;
+    } catch (const std::exception& exception) {
+        std::cerr << "Failed to parse pid: " << exception.what() << std::endl;
         std::exit(EXIT_FAILURE);
     }
 }
@@ -43,54 +57,42 @@ int main(int argc, char** argv) {
     std::optional<sigar_pid_t> babysitter_pid;
     enum Option { Json, BabysitterPid, Snapshot, HumanReadable, Help };
 
-    const std::vector<option> options{
-            {{"json", no_argument, nullptr, Option::Json},
-             {"babysitter_pid",
-              required_argument,
-              nullptr,
-              Option::BabysitterPid},
-             {"snapshot", no_argument, nullptr, Option::Snapshot},
-             {"human-readable", no_argument, nullptr, Option::HumanReadable},
-             {"help", no_argument, nullptr, Option::Help},
-             {nullptr, 0, nullptr, 0}}};
+    cb::getopt::CommandLineOptionsParser parser;
+    using cb::getopt::Argument;
 
-    int cmd;
-    while ((cmd = getopt_long(argc, argv, "", options.data(), nullptr)) !=
-           EOF) {
-        switch (cmd) {
-        case Option::Json:
-            // Ignored (no longer used as the default is JSON)
-            break;
-        case Option::BabysitterPid:
-            babysitter_pid = parse_pid(optarg);
-            break;
-        case Option::Snapshot:
-            snapshot = true;
-            break;
-        case Option::HumanReadable:
-            sigar_port::human_readable_output = true;
-            break;
-        case Option::Help:
-        default:
-            std::cerr << "Usage: " << argv[0] << R"( [options]
+    parser.addOption({[&babysitter_pid](auto value) {
+                          babysitter_pid = parse_pid(value);
+                      },
+                      "babysitter_pid",
+                      Argument::Required,
+                      "pid",
+                      "The parent pid of all processes to report"});
+    parser.addOption({[](auto) {}, "json", "Ignored"});
+    parser.addOption({[&snapshot](auto) { snapshot = true; },
+                      "snapshot",
+                      "Dump the current information and terminate"});
+    parser.addOption({[](auto) { sigar_port::human_readable_output = true; },
+                      "human-readable",
+                      "Print sizes in \"human readable\" form by converting to "
+                      "(K/M/T/P) by using power 1024. Print times as 1h:1m:32s "
+                      "(or just \"22 ms\")"});
+    parser.addOption({[&parser](auto) {
+                          std::cerr << "sigar_port [options]" << std::endl;
+                          parser.usage(std::cerr);
+                          std::exit(EXIT_SUCCESS);
+                      },
+                      "help",
+                      "Print this help"});
 
-Options:
-   --human-readable         Print sizes in "human readable" form by
-                            converting to (K/M/T/P) by using power 1024
-                            Print times as 1h:1m:32s (or just "22 ms")
-   --snapshot               Dump the current information and terminate
-   --json                   Ignored
-   --babysitter_pid=<pid>   The parent pid of all processes to report
-
-)";
-            exit(EXIT_FAILURE);
-        }
-    }
+    const auto arguments = parser.parse(argc, argv, [&parser]() {
+        std::cerr << std::endl;
+        parser.usage(std::cerr);
+        std::exit(EXIT_FAILURE);
+    });
 
     if (!babysitter_pid) {
-        // no pid provided through getopt...
-        if (optind < argc) {
-            babysitter_pid = parse_pid(argv[optind]);
+        if (!arguments.empty()) {
+            babysitter_pid = parse_pid(arguments.front());
         }
     }
 

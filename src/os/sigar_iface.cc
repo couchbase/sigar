@@ -41,49 +41,4 @@ std::unique_ptr<SigarIface> SigarIface::New(Backend backend) {
 
 SigarIface::SigarIface() = default;
 
-static uint64_t time_now_millis() {
-    auto now = std::chrono::system_clock::now();
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-                   now.time_since_epoch())
-            .count();
-}
-
-sigar_proc_cpu_t SigarIface::get_proc_cpu(sigar_pid_t pid) {
-    sigar_proc_cpu_t proccpu;
-    const auto time_now = time_now_millis();
-    sigar_proc_cpu_t prev = {};
-    auto iter = process_cache.find(pid);
-    const bool found = iter != process_cache.end();
-    if (found) {
-        prev = iter->second;
-    }
-
-    try {
-        std::tie(proccpu.start_time, proccpu.user, proccpu.sys, proccpu.total) =
-                get_proc_time(pid);
-    } catch (const std::system_error&) {
-        if (found) {
-            process_cache.erase(iter);
-        }
-        throw;
-    }
-
-    proccpu.last_time = time_now;
-    if (!found || (prev.start_time != proccpu.start_time)) {
-        // This is a new process or a different process we have in the cache
-        process_cache[pid] = proccpu;
-        return proccpu;
-    }
-
-    auto time_diff = time_now - prev.last_time;
-    if (!time_diff) {
-        // we don't want divide by zero
-        time_diff = 1;
-    }
-    proccpu.percent = (proccpu.total - prev.total) / (double)time_diff;
-    process_cache[pid] = proccpu;
-
-    return proccpu;
-}
-
 } // namespace sigar

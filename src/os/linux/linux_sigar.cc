@@ -35,6 +35,7 @@
 #include <filesystem>
 #include <functional>
 #include <optional>
+#include <unordered_map>
 
 namespace sigar {
 
@@ -162,11 +163,9 @@ public:
     void iterate_threads(sigar::IterateThreadCallback callback) override;
     void iterate_disks(sigar::IterateDiskCallback callback) override;
     sigar_control_group_info get_control_group_info() const override;
+    sigar_proc_cpu_t get_proc_cpu(sigar_pid_t pid) const override;
 
 protected:
-    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
-            sigar_pid_t pid) override;
-
     static bool check_parents(
             pid_t pid,
             pid_t ppid,
@@ -483,13 +482,9 @@ sigar_proc_mem_t LinuxSigar::get_proc_memory(sigar_pid_t pid) {
     return procmem;
 }
 
-std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> LinuxSigar::get_proc_time(
-        sigar_pid_t pid) {
+sigar_proc_cpu_t LinuxSigar::get_proc_cpu(sigar_pid_t pid) const {
     const auto pstat = proc_stat_read(pid);
-    return {pstat.start_time,
-            pstat.utime,
-            pstat.stime,
-            pstat.utime + pstat.stime};
+    return {pstat.start_time, pstat.utime, pstat.stime};
 }
 
 sigar_proc_state_t LinuxSigar::get_proc_state(sigar_pid_t pid) {

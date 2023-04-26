@@ -14,8 +14,6 @@
 
 #include <array>
 #include <memory>
-#include <tuple>
-#include <unordered_map>
 
 #if defined(__linux__) || defined(__APPLE__)
 #include <filesystem>
@@ -154,22 +152,10 @@ public:
      * @param pid the process to query
      * @throws a subclass of std::exception if an error occurs
      */
-    sigar_proc_cpu_t get_proc_cpu(sigar_pid_t pid);
+    virtual sigar_proc_cpu_t get_proc_cpu(sigar_pid_t pid) const = 0;
 
 protected:
     SigarIface();
-
-    /// A process cache used by get_proc_cpu
-    std::unordered_map<sigar_pid_t, sigar_proc_cpu_t> process_cache;
-
-    /**
-     * Get the process times for the provided pid
-     *
-     * @param pid the process to query
-     * @return tuple of start_time, user, sys, total;
-     */
-    virtual std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
-            sigar_pid_t pid) = 0;
 };
 
 } // namespace sigar

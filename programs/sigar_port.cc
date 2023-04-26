@@ -179,12 +179,11 @@ static nlohmann::json populate_interesting_procs(
             continue;
         }
 
-        nlohmann::json child = {{"name", proc.name.data()},
-                                {"pid", std::to_string(proc.pid)},
-                                {"ppid", std::to_string(proc.ppid)}};
-        if (is_implemented(proc_cpu.percent)) {
-            child["cpu_utilization"] = (uint32_t)(100 * proc_cpu.percent);
-        }
+        nlohmann::json child = {
+                {"name", proc.name.data()},
+                {"pid", std::to_string(proc.pid)},
+                {"ppid", std::to_string(proc.ppid)},
+                {"start_time", std::to_string(proc_cpu.start_time)}};
         if (is_implemented(proc_cpu.user)) {
             child["cpu_user"] = ms2string(proc_cpu.user);
         }

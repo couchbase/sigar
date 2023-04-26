@@ -135,11 +135,9 @@ public:
         ret.supported = false;
         return ret;
     }
+    sigar_proc_cpu_t get_proc_cpu(sigar_pid_t pid) const override;
 
 protected:
-    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
-            sigar_pid_t pid) override;
-
     vm_statistics64 get_vmstat();
 
     /**
@@ -401,8 +399,7 @@ static int get_proc_times(sigar_pid_t pid, sigar_proc_time_t* time) {
     return SIGAR_OK;
 }
 
-std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> AppleSigar::get_proc_time(
-        sigar_pid_t pid) {
+sigar_proc_cpu_t AppleSigar::get_proc_cpu(sigar_pid_t pid) const {
     sigar_proc_time_t proctime;
     const auto pinfo = get_pinfo(pid);
 
@@ -413,7 +410,7 @@ std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> AppleSigar::get_proc_time(
     }
 
     proctime.start_time = tv2msec(pinfo.kp_proc.p_starttime);
-    return {proctime.start_time, proctime.user, proctime.sys, proctime.total};
+    return {proctime.start_time, proctime.user, proctime.sys};
 }
 
 uint64_t AppleSigar::get_proc_threads(sigar_pid_t pid) {

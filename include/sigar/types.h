@@ -97,12 +97,47 @@ struct sigar_proc_mem_t {
 struct sigar_proc_cpu_t {
 #ifdef __cplusplus
     sigar_proc_cpu_t()
-        : start_time(0), user(0), sys(0), total(0), last_time(0), percent(0) {
+        : start_time(0),
+          user(0),
+          sys(0),
+          total(std::numeric_limits<uint64_t>::max()),
+          percent(std::numeric_limits<double>::max()) {
+    }
+    sigar_proc_cpu_t(uint64_t start, uint64_t u, uint64_t s)
+        : start_time(start),
+          user(u),
+          sys(s),
+          total(std::numeric_limits<uint64_t>::max()),
+          percent(std::numeric_limits<double>::max()) {
     }
 #endif
-    /* must match sigar_proc_time_t fields */
-    uint64_t start_time, user, sys, total;
-    uint64_t last_time;
+    /// The start time is picked from the operating system and its base
+    /// varies from implementation to implementation. The intended use
+    /// of the member is to allow the caller to detect if multiple samples
+    /// represents the same process (or if has been restarted since the
+    /// last time). Note that sigar cannot _guarantee_ that the operating
+    /// system didn't recycle the pid and ended up with the same start_time
+    /// (but on unix-like systems the odds are pretty low as they typically
+    /// increase the pid until it wraps around starting on the first
+    /// available number, whereas Windows typically use a more aggressive
+    /// policy of reusing the process id).
+    uint64_t start_time;
+    /// The amount (in milliseconds) the process spent running in userspace
+    /// since the process was started
+    uint64_t user;
+    /// The amount (in milliseconds) the process spent running in kernel space
+    /// since the process was started
+    uint64_t sys;
+
+    /*
+     * The following fields are no longer being maintained and always
+     * set to SIGAR_FIELD_NOTIMPL
+     */
+
+    /* The total amount of time spent by the process. user + sys */
+    uint64_t total;
+
+    /* percent is always set to double max value and is to be removed */
     double percent;
 };
 

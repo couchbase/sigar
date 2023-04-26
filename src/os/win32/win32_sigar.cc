@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include <time.h>
 #include <system_error>
+#include <unordered_map>
 #include <vector>
 
 #include <fmt/format.h>
@@ -102,12 +103,11 @@ public:
         ret.supported = false;
         return ret;
     }
+    sigar_proc_cpu_t get_proc_cpu(sigar_pid_t pid) const override;
 
 protected:
     static constexpr size_t PERFBUF_SIZE = 8192;
 
-    std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
-            sigar_pid_t pid) override;
     static void enable_debug_privilege();
     bool check_parents(
             sigar_pid_t pid,
@@ -503,14 +503,12 @@ std::unordered_map<sigar_pid_t, AllPidInfo> Win32Sigar::get_all_pids() {
 
     do {
         try {
-            uint64_t start_time, user, sys, total;
-            std::tie(start_time, user, sys, total) =
-                    get_proc_time(sigar_pid_t(entry.th32ProcessID));
+            auto cpu = get_proc_cpu(sigar_pid_t(entry.th32ProcessID));
             allpids[sigar_pid_t(entry.th32ProcessID)] = {
                     sigar_pid_t(entry.th32ProcessID),
                     sigar_pid_t(entry.th32ParentProcessID),
                     std::string(entry.szExeFile),
-                    start_time};
+                    cpu.start_time};
         } catch (const std::exception&) {
         }
     } while (Process32Next(snapshotHandle, &entry));
@@ -586,14 +584,13 @@ sigar_proc_mem_t Win32Sigar::get_proc_memory(sigar_pid_t pid) {
     return procmem;
 }
 
-std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> Win32Sigar::get_proc_time(
-        sigar_pid_t pid) {
+sigar_proc_cpu_t Win32Sigar::get_proc_cpu(sigar_pid_t pid) const {
     auto proc = OpenProcess(
             PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, (DWORD)pid);
     if (!proc) {
         throw std::system_error(
                 std::error_code(GetLastError(), std::system_category()),
-                "Win32Sigar::get_proc_time: OpenProcess");
+                "Win32Sigar::get_proc_cpu: OpenProcess");
     }
 
     FILETIME start_time, exit_time, system_time, user_time;
@@ -608,7 +605,7 @@ std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> Win32Sigar::get_proc_time(
 
     if (status != ERROR_SUCCESS) {
         throw std::system_error(std::error_code(status, std::system_category()),
-                                "Win32Sigar::get_proc_time: GetProcessTimes");
+                                "Win32Sigar::get_proc_cpu: GetProcessTimes");
     }
 
     uint64_t start = 0;
@@ -618,9 +615,7 @@ std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> Win32Sigar::get_proc_time(
 
     return {start,
             NS100_2MSEC(filetime2uint(user_time)),
-            NS100_2MSEC(filetime2uint(system_time)),
-            NS100_2MSEC(filetime2uint(user_time)) +
-                    NS100_2MSEC(filetime2uint(system_time))};
+            NS100_2MSEC(filetime2uint(system_time))};
 }
 
 sigar_proc_state_t Win32Sigar::get_proc_state(sigar_pid_t pid) {

@@ -35,6 +35,7 @@ Commands:
     resize <number> - Resize buffer to the provided number
     loop <seconds>  - Constantly read the clock in a loop the next
                       provided number of seconds
+    read <filename> - Read the named file (and discard the output)
 
 )",
             getpid());
@@ -78,11 +79,27 @@ Commands:
                 vector.resize(val);
                 vector.shrink_to_fit();
                 std::fill(vector.begin(), vector.end(), 'a');
-            } else if (command == "loop") {
+            } else if (command == "loop"s) {
                 auto timeout = std::chrono::steady_clock::now() +
                                std::chrono::seconds{stoi(argument)};
                 while (std::chrono::steady_clock::now() < timeout) {
                     // do nothing
+                }
+            } else if (command == "read"s) {
+                if (vector.empty()) {
+                    fprintf(stderr,
+                            "Resize the vector to the size of chunks you want "
+                            "to read\n");
+                } else {
+                    FILE* fp = fopen(argument.c_str(), "r");
+                    if (fp) {
+                        while (!ferror(fp) && !feof(fp)) {
+                            (void)fread(vector.data(), 1, vector.size(), fp);
+                        }
+                        fclose(fp);
+                    } else {
+                        perror("Failed to open file");
+                    }
                 }
             } else {
                 fprintf(stderr, "Unknown command\n");

@@ -20,6 +20,8 @@
 
 #ifdef WIN32
 
+#include <sigar/logger.h>
+
 #include "sigar.h"
 #include "sigar_pdh.h"
 #include "sigar_private.h"
@@ -45,6 +47,7 @@
 #include <system_error>
 #include <vector>
 
+#include <fmt/format.h>
 #include <platform/platform_thread.h>
 
 #define EPOCH_DELTA 11644473600000000L
@@ -226,10 +229,22 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
 
 static int get_counter_error_code(std::string_view key) {
     if (key == PERF_TITLE_MEM_KEY) {
+        sigar::logit(sigar::loglevel::err,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_MEMORY_COUNTER",
+                                 key));
         return SIGAR_NO_MEMORY_COUNTER;
     } else if (key == PERF_TITLE_PROC_KEY) {
+        sigar::logit(sigar::loglevel::err,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_PROCESS_COUNTER",
+                                 key));
         return SIGAR_NO_PROCESS_COUNTER;
     } else if (key == PERF_TITLE_CPU_KEY) {
+        sigar::logit(sigar::loglevel::err,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_PROCESSOR_COUNTER",
+                                 key));
         return SIGAR_NO_PROCESSOR_COUNTER;
     }
 
@@ -255,6 +270,12 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
         if (retval == ERROR_MORE_DATA) {
             bytes = perfbuf_grow();
         } else {
+            std::system_error error(
+                    std::error_code(retval, std::system_category()),
+                    fmt::format("Win32Sigar::get_perf_object_inst(): "
+                                "RegQueryValueExA({})",
+                                counter_key));
+            sigar::logit(sigar::loglevel::err, error.what());
             *err = retval;
             return NULL;
         }

@@ -43,7 +43,6 @@ TEST(SigarPort, SigarPortTestJSON) {
 
     sigar_port::input = portIn;
     sigar_port::output = portOut;
-    sigar_port::error = stderr;
 
     int exitcode;
     std::thread second{[&exitcode]() { exitcode = sigar_port_main(getpid()); }};

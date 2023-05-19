@@ -36,3 +36,19 @@ struct sigar_t {
     std::unique_ptr<sigar::SigarIface> instance;
     std::array<char, 256> errbuf;
 };
+
+// We don't want a dependency for spdlog in sigar as it is also
+// used from go binaries (and all we really need is the error
+// constants... Just copy in a few of them to make sure we
+// can log errors from our binaries)
+
+namespace sigar::loglevel {
+enum Level : int {
+    trace,
+    debug,
+    info,
+    warn,
+    err,
+    critical,
+};
+}

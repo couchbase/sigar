@@ -8,11 +8,13 @@
 #
 # Instead this means that programs linking with sigar_cpp needs
 # to add which underlying cgroup library they want...
-add_library(sigar_cpp OBJECT os/sigar_iface.cc
+add_library(sigar_cpp OBJECT
+        os/logger.cc
+        os/sigar_iface.cc
         os/darwin/darwin_sigar.cc
         os/win32/win32_sigar.cc
         os/linux/linux_sigar.cc)
-target_link_libraries(sigar_cpp PRIVATE platform_headers)
+target_link_libraries(sigar_cpp PRIVATE platform_headers fmt::fmt)
 target_link_libraries(sigar_cpp PUBLIC nlohmann_json::nlohmann_json)
 
 if (APPLE)

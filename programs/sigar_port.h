@@ -14,6 +14,15 @@
 #include <optional>
 
 namespace sigar_port {
+enum {
+    SIGAR_NORMAL_EXIT,
+    SIGAR_INVALID_USAGE,
+    SIGAR_INIT_FAIL,
+    SIGAR_NO_BABYSITTER,
+    SIGAR_EXCEPTION,
+    SIGAR_OTHER_EXCEPTION
+};
+
 /// Set to true if you want the system to convert values to a more
 /// human readable form
 extern bool human_readable_output;
@@ -23,8 +32,6 @@ extern int indentation;
 extern FILE* input;
 /// Where sigar_port should try to write its output
 extern FILE* output;
-/// Where sigar_port should try to write errors
-extern FILE* error;
 } // namespace sigar_port
 
 int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid);

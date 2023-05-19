@@ -117,7 +117,6 @@ int main() {
 
     sigar_port::input = stdin;
     sigar_port::output = stdout;
-    sigar_port::error = stderr;
     sigar_port::indentation = 2;
 
     while (!feof(stdin)) {

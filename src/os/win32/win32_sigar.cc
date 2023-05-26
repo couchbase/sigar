@@ -81,18 +81,10 @@ struct AllPidInfo {
 class Win32Sigar : public SigarIface {
 public:
     Win32Sigar() : SigarIface() {
-        auto result = RegConnectRegistryA("", HKEY_PERFORMANCE_DATA, &handle);
-        if (result != ERROR_SUCCESS) {
-            throw std::system_error(
-                    std::error_code(result, std::system_category()),
-                    "Win32Sigar(): RegConnectRegistryA");
-        }
-
         enable_debug_privilege();
     }
 
     ~Win32Sigar() override {
-        RegCloseKey(handle);
     }
 
     sigar_mem_t get_memory() override;
@@ -125,6 +117,10 @@ protected:
     std::unordered_map<sigar_pid_t, AllPidInfo> get_all_pids();
     std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
     int get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem);
+    PERF_OBJECT_TYPE* do_get_perf_object_inst(HKEY key,
+                                              char* counter_key,
+                                              DWORD inst,
+                                              DWORD* err);
     PERF_OBJECT_TYPE* get_perf_object_inst(char* counter_key,
                                            DWORD inst,
                                            DWORD* err);
@@ -147,8 +143,8 @@ protected:
                                                 DWORD* err);
 
 public:
-    HKEY handle;
     std::vector<BYTE> perfbuf;
+    bool working_perf_proc_key = true;
 };
 
 #define PERF_TITLE_PROC 230
@@ -253,27 +249,28 @@ static int get_counter_error_code(std::string_view key) {
             std::string(key));
 }
 
-PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
-                                                   DWORD inst,
-                                                   DWORD* err) {
+PERF_OBJECT_TYPE* Win32Sigar::do_get_perf_object_inst(HKEY handle,
+                                                      char* counter_key,
+                                                      DWORD inst,
+                                                      DWORD* err) {
     *err = SIGAR_OK;
 
     DWORD retval;
     DWORD type;
     auto bytes = perfbuf_init();
-    while ((retval = RegQueryValueExA(handle,
-                                      counter_key,
-                                      NULL,
-                                      &type,
-                                      perfbuf.data(),
-                                      &bytes)) != ERROR_SUCCESS) {
+    while ((retval = RegQueryValueEx(handle,
+                                     counter_key,
+                                     nullptr,
+                                     &type,
+                                     perfbuf.data(),
+                                     &bytes)) != ERROR_SUCCESS) {
         if (retval == ERROR_MORE_DATA) {
             bytes = perfbuf_grow();
         } else {
             std::system_error error(
                     std::error_code(retval, std::system_category()),
                     fmt::format("Win32Sigar::get_perf_object_inst(): "
-                                "RegQueryValueExA({})",
+                                "RegQueryValueEx({})",
                                 counter_key));
             sigar::logit(sigar::loglevel::err, error.what());
             *err = retval;
@@ -282,8 +279,31 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
     }
 
     auto* block = reinterpret_cast<PERF_DATA_BLOCK*>(perfbuf.data());
+    if (bytes <= sizeof(PERF_DATA_BLOCK)) {
+        const auto message = fmt::format(
+                "Win32Sigar::get_perf_object_inst(): returned {} "
+                "bytes which is less than PERF_DATA_BLOCK size {}",
+                bytes,
+                sizeof(PERF_DATA_BLOCK));
+
+        sigar::logit(sigar::loglevel::err, message);
+        throw std::runtime_error(std::move(message));
+    }
+
+    if (block->Signature[0] != 'P' || block->Signature[1] != 'E' ||
+        block->Signature[2] != 'R' || block->Signature[3] != 'F') {
+        const auto message = fmt::format(
+                "Win32Sigar::get_perf_object_inst(): Signature isn't PERF");
+        sigar::logit(sigar::loglevel::err, message);
+        throw std::runtime_error(std::move(message));
+    }
+
     if (block->NumObjectTypes == 0) {
         *err = get_counter_error_code(counter_key);
+        if (*err == SIGAR_NO_PROCESS_COUNTER) {
+            working_perf_proc_key = false;
+        }
+
         return nullptr;
     }
     auto* object = PdhFirstObject(block);
@@ -305,6 +325,32 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
         return NULL;
     } else {
         return object;
+    }
+}
+
+PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
+                                                   DWORD inst,
+                                                   DWORD* err) {
+    if (!working_perf_proc_key &&
+        strcmp(counter_key, PERF_TITLE_PROC_KEY) == 0) {
+        *err = SIGAR_NO_PROCESS_COUNTER;
+        return nullptr;
+    }
+
+    HKEY handle;
+    auto result = RegConnectRegistry(nullptr, HKEY_PERFORMANCE_DATA, &handle);
+    if (result != ERROR_SUCCESS) {
+        throw std::system_error(std::error_code(result, std::system_category()),
+                                "get_perf_object_inst(): RegConnectRegistry");
+    }
+
+    try {
+        auto* ret = do_get_perf_object_inst(handle, counter_key, inst, err);
+        RegCloseKey(handle);
+        return ret;
+    } catch (const std::exception&) {
+        RegCloseKey(handle);
+        throw;
     }
 }
 
@@ -500,6 +546,19 @@ bool Win32Sigar::check_parents(
 
 void Win32Sigar::iterate_child_processes(
         sigar_pid_t ppid, sigar::IterateChildProcessCallback callback) {
+    if (!working_perf_proc_key) {
+        // This code is used from sigar_port to populate interesting
+        // processes; but we can't read any information out of them
+        // anyway. Bail out and save us from calling the code to
+        // try to look up the processes when we cannot get any details
+        // from them.
+        sigar::logit(
+                sigar::loglevel::debug,
+                "Win32Sigar::iterate_child_processes(): Don't try to look up "
+                "processes as we cannot get details of the processes anyway");
+        return;
+    }
+
     const auto allpids = get_all_pids();
     for (const auto& [pid, pinfo] : allpids) {
         if (check_parents(pid, ppid, allpids)) {
@@ -590,7 +649,22 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
     memset(&perf_offsets, 0, sizeof(perf_offsets));
     object = get_perf_object_inst(PERF_TITLE_PROC_KEY, 1, &err);
 
-    if (object == NULL) {
+    if (!object) {
+        if (err == SIGAR_NO_PROCESS_COUNTER) {
+            auto proc = OpenProcess(
+                    PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, (DWORD)pid);
+            if (proc) {
+                sigar::logit(sigar::loglevel::debug,
+                             fmt::format("Win32Sigar::get_proc_info({}): "
+                                         "process found via OpenProcess.",
+                                         pid));
+                CloseHandle(proc);
+                pinfo.pid = pid;
+                pinfo.ppid = 1;
+                return {SIGAR_OK, pinfo};
+            }
+        }
+
         return {int(err), {}};
     }
 

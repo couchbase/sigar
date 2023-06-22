@@ -96,19 +96,10 @@ struct sigar_proc_mem_t {
 
 struct sigar_proc_cpu_t {
 #ifdef __cplusplus
-    sigar_proc_cpu_t()
-        : start_time(0),
-          user(0),
-          sys(0),
-          total(std::numeric_limits<uint64_t>::max()),
-          percent(std::numeric_limits<double>::max()) {
+    sigar_proc_cpu_t() : start_time(0), user(0), sys(0) {
     }
     sigar_proc_cpu_t(uint64_t start, uint64_t u, uint64_t s)
-        : start_time(start),
-          user(u),
-          sys(s),
-          total(std::numeric_limits<uint64_t>::max()),
-          percent(std::numeric_limits<double>::max()) {
+        : start_time(start), user(u), sys(s) {
     }
 #endif
     /// The start time is picked from the operating system and its base
@@ -128,17 +119,6 @@ struct sigar_proc_cpu_t {
     /// The amount (in milliseconds) the process spent running in kernel space
     /// since the process was started
     uint64_t sys;
-
-    /*
-     * The following fields are no longer being maintained and always
-     * set to SIGAR_FIELD_NOTIMPL
-     */
-
-    /* The total amount of time spent by the process. user + sys */
-    uint64_t total;
-
-    /* percent is always set to double max value and is to be removed */
-    double percent;
 };
 
 #define SIGAR_PROC_NAME_LEN 128

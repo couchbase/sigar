@@ -630,6 +630,9 @@ sigar_control_group_info LinuxSigar::get_control_group_info() const {
     info.memory_max = cg.get_max_memory();
     info.memory_current = cg.get_current_memory();
     info.memory_cache = cg.get_current_cache_memory();
+    info.memory_active_file = cg.get_current_active_file_memory();
+    info.memory_inactive_file = cg.get_current_inactive_file_memory();
+
     const auto stats = cg.get_cpu_stats();
     info.usage_usec = stats.usage.count();
     info.user_usec = stats.user.count();

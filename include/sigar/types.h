@@ -172,6 +172,8 @@ struct sigar_control_group_info {
     uint64_t memory_max;
     uint64_t memory_current;
     uint64_t memory_cache;
+    uint64_t memory_active_file;
+    uint64_t memory_inactive_file;
     uint64_t usage_usec;
     uint64_t user_usec;
     uint64_t system_usec;

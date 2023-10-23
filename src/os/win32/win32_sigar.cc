@@ -227,7 +227,7 @@ PERF_OBJECT_TYPE* Win32Sigar::do_get_perf_object_inst(HKEY handle,
     }
 
     auto* block = reinterpret_cast<PERF_DATA_BLOCK*>(perfbuf.data());
-    if (bytes <= sizeof(PERF_DATA_BLOCK)) {
+    if (bytes < sizeof(PERF_DATA_BLOCK)) {
         const auto message = fmt::format(
                 "Win32Sigar::get_perf_object_inst(): returned {} "
                 "bytes which is less than PERF_DATA_BLOCK size {}",

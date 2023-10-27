@@ -379,9 +379,15 @@ static nlohmann::json next_sample(SigarIface& instance,
         }
     }
 
-    auto disks = find_disk_usages(instance);
-    if (!disks.empty()) {
-        ret["disks"] = populate_disk_usages(disks);
+    try {
+        auto disks = find_disk_usages(instance);
+        if (!disks.empty()) {
+            ret["disks"] = populate_disk_usages(disks);
+        }
+    } catch (const std::exception& exception) {
+        logit(spdlog::level::err,
+              fmt::format("Failed to get disk usage information: {}",
+                          exception.what()));
     }
 
     try {
@@ -408,19 +414,25 @@ static nlohmann::json next_sample(SigarIface& instance,
                           exception.what()));
     }
 #ifdef __linux__
-    using namespace cb::cgroup;
-    auto& cgroup_instance = ControlGroup::instance();
-    for (const auto& type :
-         {PressureType::Io, PressureType::Memory, PressureType::Cpu}) {
-        auto pd = cgroup_instance.get_system_pressure_data(type);
-        if (pd) {
-            ret["pressure"][to_string(type)] = *pd;
-        }
+    try {
+        using namespace cb::cgroup;
+        auto& cgroup_instance = ControlGroup::instance();
+        for (const auto& type :
+             {PressureType::Io, PressureType::Memory, PressureType::Cpu}) {
+            auto pd = cgroup_instance.get_system_pressure_data(type);
+            if (pd) {
+                ret["pressure"][to_string(type)] = *pd;
+            }
 
-        pd = cgroup_instance.get_pressure_data(type);
-        if (pd) {
-            ret["control_group_info"]["pressure"][to_string(type)] = *pd;
+            pd = cgroup_instance.get_pressure_data(type);
+            if (pd) {
+                ret["control_group_info"]["pressure"][to_string(type)] = *pd;
+            }
         }
+    } catch (const std::exception& exception) {
+        logit(spdlog::level::err,
+              fmt::format("Failed to get cgroup pressure information: {}",
+                          exception.what()));
     }
 #endif
 

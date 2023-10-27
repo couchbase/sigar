@@ -1,15 +1,20 @@
-add_library(sigar_port_impl OBJECT sigar_port.c sigar_port_util.cc)
-target_link_libraries(sigar_port_impl PRIVATE sigar)
-target_link_libraries(sigar_port_impl PUBLIC fmt::fmt)
+add_library(sigar_port_impl OBJECT sigar_port.cc)
+target_link_libraries(sigar_port_impl
+        PRIVATE sigar_cpp nlohmann_json::nlohmann_json platform)
+target_link_libraries(sigar_port_impl PUBLIC spdlog::spdlog)
 
-add_executable(sigar_port $<TARGET_OBJECTS:sigar_port_impl> sigar_port_main.cc)
+add_executable(sigar_port
+        $<TARGET_OBJECTS:sigar_port_impl> sigar_port_main.cc)
+target_link_libraries(sigar_port
+        PRIVATE
+        sigar_cpp
+        platform
+        nlohmann_json::nlohmann_json
+        spdlog::spdlog)
 
-# Use mcd_time from kv_engine to format a timestamp in the logs
-# We could have used the logger form memcached as it deals with
-# file rotation, but that would require additional changes
-# in ns_server to make sure we only keep N files.
-target_include_directories(sigar_port
-        SYSTEM PRIVATE ${Memcached_SOURCE_DIR}/include)
-target_link_libraries(sigar_port PRIVATE sigar mcd_time fmt::fmt platform)
+cb_add_test_executable(sigar_interactive_test_cpp
+        sigar_interactive_test.cc)
+target_link_libraries(sigar_interactive_test_cpp
+        PRIVATE sigar_cpp sigar_port_impl platform)
 
 install(TARGETS sigar_port RUNTIME DESTINATION bin)

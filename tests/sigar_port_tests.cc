@@ -9,20 +9,23 @@
  */
 
 #include <folly/portability/GTest.h>
-#include <folly/portability/Unistd.h>
+#include <nlohmann/json.hpp>
 #include <array>
-#include <thread>
 #include <cerrno>
+#include <cstdio>
+#include <thread>
 
 #include "../programs/sigar_port.h"
 
-TEST(SigarPort, SigarPortTest) {
 #ifdef WIN32
-    // For some reason it doesn't look like the pipe impl
-    // from Folly works as expected.. I'm getting invalid argument
-    // for fflush, fread etc
-    GTEST_SKIP();
-#else
+#include <fcntl.h>
+#include <io.h>
+
+#define pipe(a) _pipe(a, 8192, _O_BINARY)
+#define fdopen(a, b) _fdopen(a, b)
+#endif
+
+TEST(SigarPort, SigarPortTestJSON) {
     std::array<int, 2> fds;
     ASSERT_EQ(0, pipe(fds.data())) << strerror(errno);
 
@@ -38,31 +41,43 @@ TEST(SigarPort, SigarPortTest) {
     ASSERT_NE(nullptr, portOut);
     ASSERT_NE(nullptr, myOut);
 
+    sigar_port::input = portIn;
+    sigar_port::output = portOut;
+
     int exitcode;
-    std::thread second{[&exitcode, portIn, portOut]() {
-        exitcode = sigar_port_main(getpid(), portIn, portOut);
-    }};
+    std::thread second{[&exitcode]() { exitcode = sigar_port_main(getpid()); }};
 
-    int cmd = 0;
-    ASSERT_EQ(1, fwrite(&cmd, sizeof(cmd), 1, myOut)) << strerror(errno);
-    ASSERT_EQ(0, fflush(myOut)) << strerror(errno);
+    fprintf(myOut, "next\n");
+    fflush(myOut);
 
-    system_stats stats;
-    ASSERT_EQ(1, fread(&stats, sizeof(stats), 1, myIn)) << strerror(errno);
+    auto getline = [](auto input) -> nlohmann::json {
+        // Should receive one line with content size,
+        // then content size data with JSON
+        std::array<char, 80> line;
+        fgets(line.data(), line.size(), input);
+        auto size = std::stoul(line.data());
+        EXPECT_NE(0, size);
+        std::string data;
+        data.resize(size);
 
-    EXPECT_EQ(CURRENT_SYSTEM_STAT_VERSION, stats.version);
+        fread(data.data(), size, 1, input);
+        return nlohmann::json::parse(data);
+    };
 
-#ifdef __linux__
-    EXPECT_NE(-1, stats.allocstall);
-#else
-    EXPECT_EQ(-1, stats.allocstall);
-#endif
+    const auto content1 = getline(myIn);
+    EXPECT_FALSE(content1.empty());
+
     // do it one more time
-    ASSERT_EQ(1, fwrite(&cmd, sizeof(cmd), 1, myOut)) << strerror(errno);
-    ASSERT_EQ(0, fflush(myOut)) << strerror(errno);
-    ASSERT_EQ(1, fread(&stats, sizeof(stats), 1, myIn)) << strerror(errno);
+    fprintf(myOut, "next\n");
+    fflush(myOut);
 
-    // Close the pipeline.. This will cause sigar_port thread to stop
+    const auto content2 = getline(myIn);
+    EXPECT_FALSE(content2.empty());
+
+    // something should differ
+    EXPECT_NE(content1, content2);
+
+    // Close the pipeline... This will cause sigar_port thread to stop
     ASSERT_EQ(0, fclose(myOut)) << strerror(errno);
     ASSERT_EQ(0, fclose(myIn)) << strerror(errno);
 
@@ -73,5 +88,4 @@ TEST(SigarPort, SigarPortTest) {
     ASSERT_EQ(0, fclose(portIn)) << strerror(errno);
     ASSERT_EQ(0, fclose(portOut)) << strerror(errno);
     ASSERT_EQ(0, exitcode);
-#endif
 }

@@ -19,6 +19,8 @@
 
 #ifdef WIN32
 #include <process.h>
+#else
+#include <unistd.h>
 #endif
 
 int main(int argc, char** argv) {
@@ -78,7 +80,7 @@ options:
     const auto pidfile =
             directory / boost::filesystem::path(std::string{"pid_"} +
                                                 std::to_string(getpid()));
-    if (exists(pidfile)) {
+    if (boost::filesystem::exists(pidfile)) {
         std::cerr << pidfile.generic_string() << " exists!" << std::endl;
         return EXIT_FAILURE;
     }

@@ -8,233 +8,249 @@
  *   the file licenses/APL2.txt.
  */
 
-#include "sigar.h"
+#include "sigar/logger.h"
 #include "sigar_port.h"
 
 #ifdef WIN32
 #include <fcntl.h>
 #include <io.h>
+#else
+#include <unistd.h>
 #endif
 
-#include <fmt/format.h>
-#include <fmt/ostream.h>
 #include <getopt.h>
-#include <memcached/isotime.h>
 #include <nlohmann/json.hpp>
 #include <platform/dirutils.h>
-#include <sys/stat.h>
-#include <cerrno>
-#include <cinttypes>
-#include <cstdio>
+#include <spdlog/sinks/null_sink.h>
+#include <spdlog/sinks/rotating_file_sink.h>
+#include <spdlog/sinks/stdout_color_sinks.h>
+#include <spdlog/spdlog.h>
+#include <charconv>
 #include <iostream>
 #include <optional>
+#include <string>
 
-static int parse_pid(char* pidstr, std::optional<sigar_pid_t>& result) {
-    // The size and signed-ness of sigar_pid_t is different depending on the
-    // system, but it is an integral type. So we use a maximum size integer
-    // type to handle all systems uniformly.
-    uintmax_t pid;
-    char* pidend;
+using namespace std::string_view_literals;
 
-    errno = 0;
-    pid = strtoumax(pidstr, &pidend, 10);
-    if (errno != 0 || *pidend != '\0') {
-        return 0;
+// arg spdlog::level::from_str didn't like these strings..
+static spdlog::level::level_enum to_level(std::string_view view) {
+    if (view == "trace"sv) {
+        return spdlog::level::trace;
+    }
+    if (view == "debug"sv) {
+        return spdlog::level::debug;
+    }
+    if (view == "info"sv) {
+        return spdlog::level::info;
+    }
+    if (view == "warning"sv) {
+        return spdlog::level::warn;
+    }
+    if (view == "error"sv) {
+        return spdlog::level::err;
+    }
+    if (view == "critical"sv) {
+        return spdlog::level::critical;
     }
 
-    // In general, this is incorrect, since we don't know if the value will
-    // fit into the type. And there's no easy way to check that it will given
-    // that we don't even know what sigar_pid_t is a typedef for. But since in
-    // our case it's ns_server that passes the value, we should be fine.
-    result = (sigar_pid_t)pid;
-    return 1;
+    throw std::runtime_error(fmt::format("Unknown log level: \"{}\""));
 }
 
-/// The name of the log file to use
-static std::string logfile;
+static std::shared_ptr<spdlog::logger> logger;
 
-/// Get the size of the logfile. Assume it is empty if we fail to get the
-/// file size (the file doesn't exists for instance)
-static std::size_t get_logfile_size() {
-    struct stat st;
-    if (stat(logfile.c_str(), &st) == 0) {
-        return std::size_t(st.st_size);
-    }
-    return 0;
-}
-
-namespace sigar {
-std::string to_string(const LogLevel& level) {
-    switch (level) {
-    case LogLevel::Debug:
-        return "DEBUG";
-    case LogLevel::Info:
-        return "INFO";
-    case LogLevel::Error:
-        return "ERROR";
-    }
-
-    return std::to_string(int(level));
-}
-
-std::ostream& operator<<(std::ostream& os, const LogLevel& level) {
-    os << to_string(level);
-    return os;
-}
-} // namespace sigar
-
-/**
- * The callback function which implements all of the logging:
- *   * Check if the message fits within the 20MB limit of the current file
- *   * If it doesn't fit; rename the current file to .old
- *   * Write the message into the file.
- *
- * @param level The log level for the message
- * @param msg The message to log
- */
-void logit(sigar::LogLevel level, std::string_view msg) {
-    static const std::size_t MaxLogSize = 20 * 1024 * 1024;
-    static FILE* fp = nullptr;
-    static std::size_t nbytes = 0;
-
-    if (!fp) {
-        // the logfile is not open, get the size of the file so that we know
-        // when to rotate
-        nbytes = get_logfile_size();
-    }
-
-    const auto message = fmt::format(
-            "{} {}: {}\n", ISOTime::generatetimestamp(), level, msg);
-
-    // Check to see if the message still fits in the current file
-    if ((nbytes + message.size()) > MaxLogSize) {
-        if (fp) {
-            fclose(fp);
-            fp = nullptr;
+static sigar_pid_t parse_pid(std::string_view pidstr) {
+    try {
+        sigar_pid_t value{};
+        const auto [ptr, ec]{std::from_chars(
+                pidstr.data(), pidstr.data() + pidstr.size(), value)};
+        if (ec != std::errc()) {
+            if (ec == std::errc::invalid_argument) {
+                throw std::invalid_argument("no conversion");
+            }
+            if (ec == std::errc::result_out_of_range) {
+                throw std::out_of_range("value exceeds long");
+            }
+            throw std::system_error(std::make_error_code(ec));
         }
-
-        // Try to rename the file, but a failure is not fatal as we'll
-        // just try again at a later time
-        std::string old = logfile + ".old";
-        ::remove(old.c_str());
-        ::rename(logfile.c_str(), old.c_str());
-    }
-
-    if (!fp) {
-        // The logfile isn't open (may have been closed due to rotation)
-        nbytes = get_logfile_size();
-        fp = fopen(logfile.c_str(), "a");
-        if (!fp) {
-            return;
+        if (ptr != pidstr.data() + pidstr.size()) {
+            throw std::invalid_argument("invalid characters in pid string");
         }
+        return value;
+    } catch (const std::exception& exception) {
+        std::cerr << "Failed to parse pid: " << exception.what() << std::endl;
+        std::exit(EXIT_FAILURE);
     }
+}
 
-    fwrite(message.data(), message.size(), 1, fp);
-    fflush(fp);
-    nbytes += message.size();
+static void logit(int level, std::string_view msg) {
+    logger->log(spdlog::level::level_enum(level), "{}", msg);
 }
 
 int main(int argc, char** argv) {
+    using namespace sigar_port;
+
 #ifdef WIN32
     _setmode(1, _O_BINARY);
     _setmode(0, _O_BINARY);
 #endif
 
+    bool snapshot = false;
     std::optional<sigar_pid_t> babysitter_pid;
-    enum Option { BabysitterPid, Logfile, Config, Help };
+    std::optional<std::string> logfile;
+    std::optional<std::string> configfile;
+    spdlog::level::level_enum loglevel = spdlog::level::err;
 
-    std::string config;
-    auto loglevel = sigar::LogLevel::Error;
+    enum Option {
+        BabysitterPid,
+        LogFile,
+        ConfigFile,
+        LogLevel,
+        Snapshot,
+        HumanReadable,
+        Json,
+        Help
+    };
 
-    const std::vector<option> options{
-            {{"babysitter_pid",
-              required_argument,
-              nullptr,
-              Option::BabysitterPid},
-             {"logfile", required_argument, nullptr, Option::Logfile},
-             {"config", required_argument, nullptr, Option::Config},
-             {"help", no_argument, nullptr, Option::Help},
-             {nullptr, 0, nullptr, 0}}};
-
+    std::vector<option> long_options = {
+            {"babysitter_pid",
+             required_argument,
+             nullptr,
+             Option::BabysitterPid},
+            {"logfile", required_argument, nullptr, Option::LogFile},
+            {"config", required_argument, nullptr, Option::ConfigFile},
+            {"loglevel", required_argument, nullptr, Option::LogLevel},
+            {"snapshot", no_argument, nullptr, Option::Snapshot},
+            {"human-readable", no_argument, nullptr, Option::HumanReadable},
+            {"json", no_argument, nullptr, Option::Json},
+            {"help", no_argument, nullptr, Option::Help},
+            {nullptr, 0, nullptr, 0}};
     int cmd;
-    while ((cmd = getopt_long(argc, argv, "", options.data(), nullptr)) !=
+    while ((cmd = getopt_long(argc, argv, "", long_options.data(), nullptr)) !=
            EOF) {
         switch (cmd) {
         case Option::BabysitterPid:
-            if (!parse_pid(optarg, babysitter_pid)) {
-                fprintf(stderr, "Failed to parse pid\n");
-                exit(SIGAR_INVALID_USAGE);
+            babysitter_pid = parse_pid(optarg);
+            break;
+        case Option::LogFile:
+            logfile = optarg;
+            break;
+        case Option::ConfigFile:
+            configfile = optarg;
+            break;
+        case Option::LogLevel:
+            try {
+                loglevel = to_level(optarg);
+            } catch (const std::exception& e) {
+                std::cerr << "Error: " << e.what() << std::endl;
+                std::exit(SIGAR_INVALID_USAGE);
             }
             break;
-        case Option::Logfile:
-            logfile.assign(optarg);
-            sigar::set_log_callback(loglevel, logit);
+        case Option::Snapshot:
+            snapshot = true;
             break;
-        case Option::Config:
-            config = optarg;
+        case Option::HumanReadable:
+            human_readable_output = true;
+            break;
+        case Option::Json:
+            // Not used
             break;
         case Option::Help:
         default:
-            std::cerr << "Usage: " << argv[0] << R"( [options]
-
-Options:
-   --config=filename        Read extra config from config file
-   --logfile=filename       Use filename for logging
-   --babysitter_pid=<pid>   The parent pid of all processes to report
-
+            std::cerr << R"(sigar_port [options]
+--babysitter_pid pid  The parent pid of all processes to report
+--logfile filename    Use filename for logging
+--config filename     Read extra config from file
+--loglevel level      Use the provided log level
+--snapshot            Dump the current information and terminate
+--human-readable      Print sizes in "human readable" form by converting to
+                      (K/M/T/P) by using power 1024. Print times as
+                      1h:1m:32s (or just "22 ms")
+--help                Print this help
 )";
-            exit(EXIT_FAILURE);
+            std::exit(SIGAR_INVALID_USAGE);
         }
     }
 
-    if (!babysitter_pid) {
-        std::cerr << "No pid provided" << std::endl;
-        exit(EXIT_FAILURE);
+#ifdef WIN32
+    indentation = human_readable_output ? 2 : -1;
+#else
+    indentation = (isatty(fileno(stdout)) || isatty(fileno(stdin)) ||
+                   human_readable_output)
+                          ? 2
+                          : -1;
+#endif
+
+    if (logfile) {
+        // Create a file rotating logger with 1mb size max and 3 rotated files
+        auto max_size = 1024 * 1024;
+        auto max_files = 3;
+        logger = spdlog::rotating_logger_mt(
+                "sigar_logger", *logfile, max_size, max_files);
+    } else {
+        if (indentation != -1) {
+            logger = std::make_shared<spdlog::logger>(
+                    "sigar_logger",
+                    std::make_shared<spdlog::sinks::stderr_color_sink_st>());
+        }
+        if (!logger) {
+            logger = std::make_shared<spdlog::logger>(
+                    "sigar_logger",
+                    std::make_shared<spdlog::sinks::null_sink_mt>());
+        }
+        spdlog::register_logger(logger);
     }
 
-    if (!config.empty()) {
-        if (cb::io::isFile(config)) {
+    logger->set_level(loglevel);
+    logger->set_pattern("%^%Y-%m-%dT%T.%f%z %l %v%$");
+
+    if (configfile) {
+        if (cb::io::isFile(*configfile)) {
             try {
                 const auto json =
-                        nlohmann::json::parse(cb::io::loadFile(config));
-                logfile = json.value("logfile", logfile);
-                const auto lvl = json.value("loglevel", std::string{"error"});
-                if (lvl == "debug") {
-                    loglevel = sigar::LogLevel::Debug;
-                } else if (lvl == "info") {
-                    loglevel = sigar::LogLevel::Info;
-                }
+                        nlohmann::json::parse(cb::io::loadFile(*configfile));
+
+                logger->set_level(to_level(json.value("loglevel", "error")));
             } catch (const std::exception& exception) {
-                sigar::logit(
-                        sigar::LogLevel::Error,
-                        fmt::format("Failed to read config file \"{}\": {}",
-                                    config,
-                                    exception.what()));
+                logger->error("Failed to read configuration: {}",
+                              exception.what());
             }
+        } else {
+            logger->info(R"(Configuration file "{}" not found)", *configfile);
         }
     }
 
-    if (!logfile.empty()) {
-        sigar::set_log_callback(loglevel, logit);
-    }
+    sigar::set_log_callback(loglevel, logit);
+
+    input = stdin;
+    output = stdout;
 
     int ret;
     try {
-        sigar::logit(
-                sigar::LogLevel::Info,
-                fmt::format("Starting sigar_port monitoring babysitter pid {}",
-                            babysitter_pid.value()));
-        ret = sigar_port_main(babysitter_pid.value(), stdin, stdout);
+        if (snapshot) {
+            if (babysitter_pid) {
+                logger->info("Request snapshot with babysitter pid {}",
+                             *babysitter_pid);
+            } else {
+                logger->info("Request snapshot");
+            }
+            ret = sigar_port_snapshot(babysitter_pid);
+        } else {
+            if (babysitter_pid) {
+                logger->info("Starting sigar_port monitoring babysitter pid {}",
+                             babysitter_pid.value());
+            } else {
+                logger->info("Starting sigar_port");
+            }
+            ret = sigar_port_main(babysitter_pid);
+        }
     } catch (const std::exception& exception) {
-        sigar::logit(sigar::LogLevel::Error,
-                     fmt::format("Exception occurred: {}", exception.what()));
+        logger->error("Exception occurred: {}", exception.what());
         ret = SIGAR_EXCEPTION;
     } catch (...) {
-        sigar::logit(sigar::LogLevel::Error, "Unknown exception thrown");
+        logger->error("Unknown exception occurred");
         ret = SIGAR_OTHER_EXCEPTION;
     }
 
-    sigar::logit(sigar::LogLevel::Info,
-                 fmt::format("Terminate with exit code: {}", ret));
+    logger->info("Terminate with exit code: {}", ret);
     return ret;
 }

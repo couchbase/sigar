@@ -1,49 +1,51 @@
-## sigar has some base files + a set of platform specific files
+# ideally we should have linked sigar_cpp with cgroup as it use that
+# but the cgroup functionality is also linked into platform (as
+# it utilize methods in there) and we'll get the symbols
+# defined twice (both in cgroup and in platform). The ones
+# in cgroup is to be used _without_ overriding operator new
+# etc as the shared object is used from go programs where
+# we don't want to override operator new...
+#
+# Instead this means that programs linking with sigar_cpp needs
+# to add which underlying cgroup library they want...
+add_library(sigar_cpp OBJECT
+        os/logger.cc
+        os/sigar_iface.cc
+        os/darwin/darwin_sigar.cc
+        os/win32/win32_sigar.cc
+        os/linux/linux_sigar.cc)
+target_link_libraries(sigar_cpp PRIVATE platform_headers fmt::fmt)
+target_link_libraries(sigar_cpp PUBLIC Boost::filesystem  nlohmann_json::nlohmann_json)
 
-INCLUDE_DIRECTORIES(../include/)
+if (APPLE)
+    target_link_libraries(sigar_cpp PRIVATE proc)
+elseif (WIN32)
+    target_compile_definitions(sigar_cpp PRIVATE -D_CRT_NONSTDC_NO_DEPRECATE)
+    target_link_libraries(sigar_cpp
+            PRIVATE platform ws2_32 netapi32 version kernel32 ntdll psapi)
+endif ()
 
-SET(SIGAR_COMMON_SRC
-    sigar.cc
-    sigar_format.cc
-    sigar_private.h
-    )
+set_target_properties(sigar_cpp
+        PROPERTIES
+        POSITION_INDEPENDENT_CODE
+        true)
+target_include_directories(sigar_cpp PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(sigar_cpp PUBLIC ${sigar_SOURCE_DIR}/include)
 
-## linux
-IF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/linux/linux_sigar.cc
-                os/linux/sigar_cgroup.cc)
-    target_include_directories(sigar SYSTEM PRIVATE AFTER
-                               ${BOOST_INCLUDE_DIR}
-                               ${Platform_SOURCE_DIR}/include)
-    target_link_libraries(sigar PRIVATE cgroup ${Boost_FILESYSTEM_LIBRARY})
-ENDIF (CMAKE_SYSTEM_NAME STREQUAL "Linux")
-
-## macosx
-IF (APPLE)
-    add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/darwin/darwin_sigar.cc
-                sigar_control_group_not_supported.cc)
-    target_link_libraries(sigar PRIVATE proc)
-ENDIF (APPLE)
-
-IF (WIN32)
-    add_library(sigar SHARED ${SIGAR_COMMON_SRC}
-                os/win32/win32_sigar.cc
-                sigar_control_group_not_supported.cc)
-    target_compile_definitions(sigar PRIVATE -DSIGAR_SHARED -D_CRT_NONSTDC_NO_DEPRECATE)
-    target_link_libraries(sigar
-            PRIVATE ws2_32 netapi32 version kernel32 ntdll psapi)
-ENDIF (WIN32)
-
-target_link_libraries(sigar PRIVATE fmt::fmt)
-
+add_library(sigar SHARED
+        sigar.cc
+        sigar_control_group.cc
+        sigar_format.cc
+        sigar_private.h)
+target_link_libraries(sigar PRIVATE sigar_cpp)
 target_compile_definitions(sigar PRIVATE -DBUILDING_SIGAR=1)
-target_include_directories(sigar INTERFACE ${sigar_SOURCE_DIR}/include)
-target_include_directories(sigar PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(sigar PUBLIC ${sigar_SOURCE_DIR}/include)
+if (UNIX)
+    target_link_libraries(sigar PRIVATE cgroup)
+endif ()
 
 INSTALL(TARGETS sigar
-	RUNTIME DESTINATION bin
-	ARCHIVE DESTINATION lib
-	LIBRARY DESTINATION lib
-	)
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        )

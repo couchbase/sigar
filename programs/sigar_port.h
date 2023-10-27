@@ -9,15 +9,11 @@
  */
 #pragma once
 
-#include <sigar_control_group.h>
+#include <sigar/types.h>
+#include <cstdio>
+#include <optional>
 
-#include <sigar.h>
-#include <stdio.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
+namespace sigar_port {
 enum {
     SIGAR_NORMAL_EXIT,
     SIGAR_INVALID_USAGE,
@@ -27,73 +23,16 @@ enum {
     SIGAR_OTHER_EXCEPTION
 };
 
-#define NUM_INTERESTING_PROCS 40
-#define PROC_NAME_LEN 60
+/// Set to true if you want the system to convert values to a more
+/// human readable form
+extern bool human_readable_output;
+/// Set the indentation you want for the JSON payload returned
+extern int indentation;
+/// Where sigar_port should try to read the next line of input
+extern FILE* input;
+/// Where sigar_port should try to write its output
+extern FILE* output;
+} // namespace sigar_port
 
-struct proc {
-    sigar_pid_t pid;
-    sigar_pid_t ppid;
-    uint64_t start_time;
-    char name[PROC_NAME_LEN];
-};
-
-/// Find all of the descendants of the babysitter process and populate the
-/// interesting_proc array with the more information about each process
-///
-/// \param sigar the library handle
-/// \param babysitter_pid the pid of the babysitter
-/// \param interesting_procs the array to populate
-/// \return The number of processes found
-int find_interesting_procs(
-        sigar_t* sigar,
-        sigar_pid_t babysitter_pid,
-        struct proc interesting_procs[NUM_INTERESTING_PROCS]);
-
-int sigar_port_main(sigar_pid_t babysitter, FILE* in, FILE* out);
-
-struct proc_stats {
-    char name[PROC_NAME_LEN];
-    uint32_t cpu_utilization;
-
-    uint64_t pid;
-    uint64_t ppid;
-
-    uint64_t mem_size;
-    uint64_t mem_resident;
-    uint64_t mem_share;
-    uint64_t minor_faults;
-    uint64_t major_faults;
-    uint64_t page_faults;
-};
-
-// Version 7 extended the control group information
-#define CURRENT_SYSTEM_STAT_VERSION 7
-
-struct system_stats {
-    uint32_t version;
-    uint32_t struct_size;
-
-    uint64_t cpu_total_ms;
-    uint64_t cpu_idle_ms;
-    uint64_t cpu_user_ms;
-    uint64_t cpu_sys_ms;
-    uint64_t cpu_irq_ms;
-    uint64_t cpu_stolen_ms;
-
-    uint64_t swap_total;
-    uint64_t swap_used;
-
-    uint64_t mem_total;
-    uint64_t mem_used;
-    uint64_t mem_actual_used;
-    uint64_t mem_actual_free;
-
-    uint64_t allocstall;
-
-    struct proc_stats interesting_procs[NUM_INTERESTING_PROCS];
-    sigar_control_group_info_t control_group_info;
-};
-
-#ifdef __cplusplus
-}
-#endif
+int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid);
+int sigar_port_snapshot(std::optional<sigar_pid_t> babysitter_pid);

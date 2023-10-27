@@ -37,14 +37,11 @@
  * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <boost/filesystem.hpp>
 #include <folly/portability/GTest.h>
-#include <platform/dirutils.h>
-#include <platform/process_monitor.h>
+#include <nlohmann/json.hpp>
+#include <platform/timeutils.h>
 #include <sigar.h>
 #include <sigar_control_group.h>
-#include <chrono>
-#include <condition_variable>
 #include <thread>
 
 class Sigar : public ::testing::Test {
@@ -70,7 +67,23 @@ TEST_F(Sigar, test_sigar_cpu_get) {
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.user);
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.sys);
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.idle);
+#ifdef WIN32
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.nice);
+#else
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.nice);
+#endif
+
+#if defined(WIN32) || defined(__APPLE__)
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.wait);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.stolen);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.irq);
+    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, cpu.soft_irq);
+#else
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.wait);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.stolen);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.irq);
+    EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.soft_irq);
+#endif
     EXPECT_NE(SIGAR_FIELD_NOTIMPL, cpu.total);
 }
 
@@ -80,7 +93,6 @@ TEST_F(Sigar, test_sigar_mem_get) {
     ASSERT_EQ(SIGAR_OK, ret)
             << "sigar_mem_get: " << sigar_strerror(instance, ret);
 
-    EXPECT_LT(0, mem.ram);
     EXPECT_LT(0, mem.total);
     EXPECT_LT(0, mem.used);
     EXPECT_LT(0, mem.free);
@@ -100,93 +112,6 @@ TEST_F(Sigar, test_sigar_swap_get) {
     ASSERT_EQ(SIGAR_OK, ret)
             << "sigar_swap_get: " << sigar_strerror(instance, ret);
     ASSERT_EQ(swap.total, swap.used + swap.free);
-}
-
-TEST_F(Sigar, test_sigar_proc_list_get_children) {
-    auto binary = boost::filesystem::current_path() / "sigar_tests_child";
-    auto directory = boost::filesystem::path(
-            cb::io::mkdtemp((boost::filesystem::current_path() / "sigar_tests")
-                                    .generic_string()));
-    std::vector<std::string> cmdline = {{binary.generic_string(),
-                                         "--directory",
-                                         directory.generic_string(),
-                                         "--create-child=5"}};
-    auto child = ProcessMonitor::create(cmdline, [](const auto&) {});
-
-    // Wait until they're all running
-    std::vector<std::string> files;
-    while (files.size() < 6) {
-        // check if any processes died!
-        files = cb::io::findFilesContaining(directory.generic_string(), "pid");
-    }
-
-    // We've got all of the processes running.. now lets check if sigar gives me
-    // 6 processes
-    std::vector<sigar_pid_t> pids;
-    sigar::iterate_child_processes(
-            instance,
-            getpid(),
-            [&pids](auto pid, auto ppid, auto starttime, auto name) {
-                EXPECT_EQ(pids.end(), std::find(pids.begin(), pids.end(), pid))
-                        << "The process should not be reported twice";
-                pids.push_back(pid);
-            });
-    EXPECT_EQ(6, pids.size()) << "I expected to get 6 childs";
-
-    for (const auto& pid : pids) {
-        sigar_proc_mem_t proc_mem;
-        sigar_proc_state_t proc_state;
-        int ret;
-
-        if (SIGAR_OK == (ret = sigar_proc_mem_get(instance, pid, &proc_mem))) {
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.size);
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.resident);
-#if !(defined(__APPLE__) || defined(WIN32))
-            // MacOS X and win32 do provide them
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.share);
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.minor_faults);
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.major_faults);
-#endif
-#if !defined(__APPLE__)
-            EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_mem.page_faults);
-#endif
-        } else {
-            switch (ret) {
-            case ESRCH:
-            case EPERM:
-                /* track the expected error code */
-                break;
-            default:
-                FAIL() << "sigar_proc_mem_get: errno: " << strerror(errno)
-                       << " " << sigar_strerror(instance, ret);
-            }
-        }
-
-        ret = sigar_proc_state_get(instance, pid, &proc_state);
-        ASSERT_EQ(SIGAR_OK, ret)
-                << "sigar_proc_state_get: " << sigar_strerror(instance, ret);
-        ASSERT_NE(nullptr, proc_state.name);
-#ifndef __APPLE__
-        EXPECT_NE(SIGAR_FIELD_NOTIMPL, proc_state.threads);
-#endif
-    }
-
-    remove_all(directory);
-
-    while (child->isRunning()) {
-        std::this_thread::sleep_for(std::chrono::milliseconds{10});
-    }
-    // Make sure we get time to reap the process...
-    std::this_thread::sleep_for(std::chrono::milliseconds{10});
-
-    pids.clear();
-    sigar::iterate_child_processes(
-            instance,
-            getpid(),
-            [&pids](auto pid, auto ppid, auto starttime, auto name) {
-                pids.push_back(pid);
-            });
-    EXPECT_TRUE(pids.empty()) << "I expected all childs to be gone!";
 }
 
 TEST_F(Sigar, sigar_get_control_group_info) {
@@ -222,78 +147,16 @@ TEST_F(Sigar, test_sigar_proc_state_get) {
             << "sigar_proc_state_get: " << sigar_strerror(instance, ret);
     ASSERT_NE(nullptr, proc_state.name);
     EXPECT_EQ(1, proc_state.threads);
-    std::thread second{[&proc_state, &ret, i = instance]() {
-        ret = sigar_proc_state_get(i, getpid(), &proc_state);
+
+    std::thread second{[]() {
+        sigar_t* instance;
+        ASSERT_EQ(SIGAR_OK, sigar_open(&instance));
+        sigar_proc_state_t proc_state;
+        EXPECT_EQ(SIGAR_OK,
+                  sigar_proc_state_get(instance, getpid(), &proc_state));
+        sigar_close(instance);
+        EXPECT_EQ(2, proc_state.threads);
     }};
     second.join();
-    ASSERT_EQ(SIGAR_OK, ret);
-    EXPECT_EQ(2, proc_state.threads);
 }
-
-class MockSigar : public Sigar {
-public:
-    static void SetUpTestCase() {
-        sigar_set_procfs_root(SOURCE_ROOT);
-    }
-
-    static void TearDownTestCase() {
-        sigar_set_procfs_root(nullptr);
-    }
-};
-
-TEST_F(MockSigar, MB49911) {
-    sigar_cpu_t cpu;
-    EXPECT_EQ(SIGAR_OK, sigar_cpu_get(instance, &cpu));
-    EXPECT_EQ(88917270, cpu.user);
-    EXPECT_EQ(11349280, cpu.sys);
-    EXPECT_EQ(240, cpu.nice);
-    EXPECT_EQ(7945213060, cpu.idle);
-    EXPECT_EQ(1651470, cpu.wait);
-    EXPECT_EQ(0, cpu.irq);
-    EXPECT_EQ(209860, cpu.soft_irq);
-    EXPECT_EQ(0, cpu.stolen);
-    EXPECT_EQ(8047341180, cpu.total);
-}
-
-TEST_F(MockSigar, test_sigar_proc_mem_get) {
-    sigar_proc_mem_t procmem;
-    ASSERT_EQ(SIGAR_OK, sigar_proc_mem_get(instance, 66666666, &procmem));
-
-    EXPECT_EQ(11762167808, procmem.size);
-    EXPECT_EQ(3729625088, procmem.resident);
-    EXPECT_EQ(437837824, procmem.share);
-    EXPECT_EQ(27177033, procmem.minor_faults);
-    EXPECT_EQ(115493, procmem.major_faults);
-    EXPECT_EQ(27292526, procmem.page_faults);
-}
-
-TEST_F(MockSigar, test_sigar_swap_get) {
-    sigar_swap_t swap;
-    ASSERT_EQ(SIGAR_OK, sigar_swap_get(instance, &swap));
-    EXPECT_EQ(1023406080, swap.total);
-    EXPECT_EQ(0, swap.used);
-    EXPECT_EQ(1023406080, swap.free);
-    EXPECT_EQ(0, swap.page_in);
-    EXPECT_EQ(0, swap.page_out);
-    EXPECT_EQ(SIGAR_FIELD_NOTIMPL, swap.allocstall);
-    EXPECT_EQ(0, swap.allocstall_dma);
-    EXPECT_EQ(0, swap.allocstall_dma32);
-    EXPECT_EQ(0, swap.allocstall_normal);
-    EXPECT_EQ(0, swap.allocstall_movable);
-    ASSERT_EQ(swap.total, swap.used + swap.free);
-}
-
-TEST_F(MockSigar, test_sigar_mem_get) {
-    sigar_mem_t mem;
-    ASSERT_EQ(SIGAR_OK, sigar_mem_get(instance, &mem));
-    EXPECT_EQ(31744, mem.ram);
-    EXPECT_EQ(33283383296, mem.total);
-    EXPECT_EQ(19910578176, mem.used);
-    EXPECT_EQ(13372805120, mem.free);
-    EXPECT_EQ(9683591168, mem.actual_used);
-    EXPECT_EQ(23599792128, mem.actual_free);
-    EXPECT_EQ(29, int(mem.used_percent));
-    EXPECT_EQ(70, int(mem.free_percent));
-}
-
 #endif

@@ -14,6 +14,7 @@
 #ifdef WIN32
 #include <fcntl.h>
 #include <io.h>
+#include <process.h>
 #else
 #include <unistd.h>
 #endif
@@ -129,7 +130,11 @@ int main(int argc, char** argv) {
            EOF) {
         switch (cmd) {
         case Option::BabysitterPid:
-            babysitter_pid = parse_pid(optarg);
+            if (optarg == "self"sv) {
+                babysitter_pid = getpid();
+            } else {
+                babysitter_pid = parse_pid(optarg);
+            }
             break;
         case Option::LogFile:
             logfile = optarg;

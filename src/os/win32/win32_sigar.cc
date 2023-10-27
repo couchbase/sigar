@@ -230,23 +230,31 @@ static int get_counter_error_code(std::string_view key) {
                                  "SIGAR_NO_MEMORY_COUNTER",
                                  key));
         return SIGAR_NO_MEMORY_COUNTER;
-    } else if (key == PERF_TITLE_PROC_KEY) {
+    }
+    if (key == PERF_TITLE_PROC_KEY) {
         sigar::logit(sigar::loglevel::err,
                      fmt::format("Win32Sigar::get_counter_error_code({}): "
                                  "SIGAR_NO_PROCESS_COUNTER",
                                  key));
         return SIGAR_NO_PROCESS_COUNTER;
-    } else if (key == PERF_TITLE_CPU_KEY) {
+    }
+    if (key == PERF_TITLE_CPU_KEY) {
         sigar::logit(sigar::loglevel::err,
                      fmt::format("Win32Sigar::get_counter_error_code({}): "
                                  "SIGAR_NO_PROCESSOR_COUNTER",
                                  key));
         return SIGAR_NO_PROCESSOR_COUNTER;
     }
+    if (key == PERF_TITLE_DISK_KEY) {
+        sigar::logit(sigar::loglevel::err,
+                     fmt::format("Win32Sigar::get_counter_error_code({}): "
+                                 "SIGAR_NO_DISK_COUNTER",
+                                 key));
+        return SIGAR_NO_DISK_COUNTER;
+    }
 
     throw std::invalid_argument(
-            std::string("get_counter_error_code(): Invalid key: ") +
-            std::string(key));
+            fmt::format("get_counter_error_code(): Invalid key: {}", key));
 }
 
 PERF_OBJECT_TYPE* Win32Sigar::do_get_perf_object_inst(HKEY handle,

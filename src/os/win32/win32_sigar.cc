@@ -28,6 +28,7 @@
 
 #include <windows.h>
 
+#include <lm.h>
 #include <process.h>
 #include <processthreadsapi.h>
 #include <psapi.h>
@@ -48,6 +49,7 @@
 #include <vector>
 
 #include <fmt/format.h>
+#include <nlohmann/json.hpp>
 #include <platform/platform_thread.h>
 
 #define EPOCH_DELTA 11644473600000000L
@@ -80,9 +82,7 @@ struct AllPidInfo {
 
 class Win32Sigar : public SigarIface {
 public:
-    Win32Sigar() : SigarIface() {
-        enable_debug_privilege();
-    }
+    Win32Sigar();
 
     ~Win32Sigar() override {
     }
@@ -109,6 +109,9 @@ protected:
     std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
             sigar_pid_t pid) override;
     static void enable_debug_privilege();
+    static void log_user_information();
+    static void inspect_perf_registry_settings();
+
     bool check_parents(
             sigar_pid_t pid,
             sigar_pid_t ppid,
@@ -221,6 +224,80 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     time /= 10;
     time -= EPOCH_DELTA;
     return time;
+}
+
+void Win32Sigar::inspect_perf_registry_settings() {
+    for (const auto& entry : {"PerfProc", "PerfDisk", "PerfOs"}) {
+        auto key = fmt::format(
+                "SYSTEM\\CurrentControlSet\\Services\\{}\\Performance", entry);
+        sigar::logit(sigar::loglevel::info, fmt::format("Checking {}", key));
+        HKEY handle;
+        auto err = RegOpenKeyEx(
+                HKEY_LOCAL_MACHINE, key.c_str(), 0, KEY_READ, &handle);
+        if (err == ERROR_SUCCESS) {
+            DWORD type = 0;
+            BYTE buffer[1024];
+            DWORD size = sizeof(buffer);
+            err = RegQueryValueEx(handle,
+                                  "Disable Performance Counters",
+                                  nullptr,
+                                  &type,
+                                  buffer,
+                                  &size);
+            if (err == ERROR_SUCCESS) {
+                if (type == REG_DWORD && size == sizeof(DWORD)) {
+                    DWORD* dw = reinterpret_cast<DWORD*>(buffer);
+                    if (*dw) {
+                        sigar::logit(sigar::loglevel::err,
+                                     fmt::format("Win32Sigar::inspect_perf_"
+                                                 "registry_settings(): "
+                                                 "\"{}\\Disable Performance "
+                                                 "Counters\" exists "
+                                                 "and perf is disabled",
+                                                 key));
+                        sigar::logit(
+                                sigar::loglevel::err,
+                                fmt::format("Consider running \"lodctr /E:{}\" "
+                                            "to enable the performance counter",
+                                            entry));
+                    } else {
+                        sigar::logit(sigar::loglevel::info,
+                                     fmt::format("Win32Sigar::inspect_perf_"
+                                                 "registry_settings(): "
+                                                 "\"{}\\Disable Performance "
+                                                 "Counters\" exists, "
+                                                 "but is perf is enabled",
+                                                 key));
+                    }
+                } else {
+                    sigar::logit(
+                            sigar::loglevel::err,
+                            fmt::format("Win32Sigar::inspect_perf_"
+                                        "registry_settings():  Unexpected "
+                                        "type or size for \"{}\". The entry "
+                                        "should be REG_DWORD with a value of 0",
+                                        key));
+                }
+            } else if (err != ERROR_FILE_NOT_FOUND) {
+                std::system_error error(
+                        std::error_code(err, std::system_category()),
+                        fmt::format(
+                                "Win32Sigar::inspect_perf_registry_settings(): "
+                                "RegGetValue(\"{}\\Disable Performance "
+                                "Counters\")",
+                                key));
+                sigar::logit(sigar::loglevel::err, error.what());
+            }
+            RegCloseKey(handle);
+        } else {
+            std::system_error error(
+                    std::error_code(err, std::system_category()),
+                    fmt::format("Win32Sigar::inspect_perf_registry_settings(): "
+                                "RegOpenKeyEx(\"{}\")",
+                                key));
+            sigar::logit(sigar::loglevel::err, error.what());
+        }
+    }
 }
 
 static int get_counter_error_code(std::string_view key) {
@@ -421,6 +498,78 @@ void Win32Sigar::enable_debug_privilege() {
     }
 
     CloseHandle(handle);
+}
+
+static std::string to_string(const wchar_t* ptr) {
+    char buffer[1024];
+    int size = wcstombs(buffer, ptr, sizeof(buffer));
+    return std::string(buffer, size);
+}
+
+void Win32Sigar::log_user_information() {
+    try {
+        wchar_t user[1024];
+        DWORD size = sizeof(user) / sizeof(wchar_t);
+        nlohmann::json json;
+
+        if (GetUserNameW(user, &size)) {
+            json["user"] = to_string(user);
+        }
+
+        LPBYTE buffer = nullptr;
+        DWORD entries = 0;
+        DWORD total_entries = 0;
+        if (NetUserGetLocalGroups(nullptr,
+                                  user,
+                                  0,
+                                  LG_INCLUDE_INDIRECT,
+                                  &buffer,
+                                  MAX_PREFERRED_LENGTH,
+                                  &entries,
+                                  &total_entries) == NERR_Success) {
+            nlohmann::json grps = nlohmann::json::array();
+            auto* groups = reinterpret_cast<LOCALGROUP_USERS_INFO_0*>(buffer);
+            for (int ii = 0; ii < entries; ii++) {
+                grps.push_back(to_string(groups[ii].lgrui0_name));
+            }
+
+            NetApiBufferFree(buffer);
+            json["local_groups"] = std::move(grps);
+            buffer = nullptr;
+            entries = 0;
+            total_entries = 0;
+        }
+
+        if (NetUserGetGroups(nullptr,
+                             user,
+                             0,
+                             &buffer,
+                             MAX_PREFERRED_LENGTH,
+                             &entries,
+                             &total_entries) == NERR_Success) {
+            nlohmann::json grps = nlohmann::json::array();
+            auto* ggroups = reinterpret_cast<GROUP_USERS_INFO_0*>(buffer);
+            for (int ii = 0; ii < entries; ii++) {
+                grps.push_back(to_string(ggroups[ii].grui0_name));
+            }
+            NetApiBufferFree(buffer);
+            json["global_groups"] = std::move(grps);
+        }
+
+        if (!json.empty()) {
+            sigar::logit(sigar::loglevel::info,
+                         fmt::format("Running as: {}", json.dump()));
+        }
+    } catch (const std::exception& e) {
+        sigar::logit(sigar::loglevel::err,
+                     fmt::format("Failed to determine user id: {}", e.what()));
+    }
+}
+
+Win32Sigar::Win32Sigar() : SigarIface() {
+    enable_debug_privilege();
+    log_user_information();
+    inspect_perf_registry_settings();
 }
 
 std::unique_ptr<SigarIface> NewWin32Sigar() {

@@ -11,6 +11,10 @@
 #include "sigar/logger.h"
 #include "sigar_port.h"
 
+#ifdef __linux__
+#include <cgroup/cgroup.h>
+#endif
+
 #ifdef WIN32
 #include <fcntl.h>
 #include <io.h>
@@ -166,6 +170,11 @@ int main(int argc, char** argv) {
                    human_readable_output)
                           ? 2
                           : -1;
+#endif
+
+#ifdef __linux__
+    cb::cgroup::ControlGroup::setTraceCallback(
+            [](auto msg) { logit(spdlog::level::debug, msg); });
 #endif
 
     if (logfile) {

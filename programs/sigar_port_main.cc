@@ -18,6 +18,7 @@
 #ifdef WIN32
 #include <fcntl.h>
 #include <io.h>
+#include <process.h>
 #else
 #include <unistd.h>
 #endif
@@ -63,6 +64,9 @@ static spdlog::level::level_enum to_level(std::string_view view) {
 static std::shared_ptr<spdlog::logger> logger;
 
 static sigar_pid_t parse_pid(std::string_view pidstr) {
+    if (pidstr == "self"sv) {
+        return getpid();
+    }
     try {
         sigar_pid_t value{};
         const auto [ptr, ec]{std::from_chars(

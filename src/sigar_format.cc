@@ -43,6 +43,8 @@ static const char* sigar_error_string(int err) {
         return "No Process counters defined (disabled?)";
     case SIGAR_NO_PROCESSOR_COUNTER:
         return "No Processor counters defined (disabled?)";
+    case SIGAR_NO_DISK_COUNTER:
+        return "No Disk counters defined (disabled?)";
     default:
         return "Error string not specified yet";
     }

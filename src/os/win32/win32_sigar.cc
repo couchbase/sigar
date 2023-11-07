@@ -111,7 +111,7 @@ protected:
 
     std::unordered_map<sigar_pid_t, AllPidInfo> get_all_pids();
     std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
-    int get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem);
+    int get_mem_counters(sigar_mem_t& mem);
     PERF_OBJECT_TYPE* do_get_perf_object_inst(HKEY key,
                                               char* counter_key,
                                               DWORD inst,
@@ -345,7 +345,7 @@ PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
     }
 }
 
-int Win32Sigar::get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem) {
+int Win32Sigar::get_mem_counters(sigar_mem_t& mem) {
     DWORD status;
     auto* object = get_perf_object_inst(PERF_TITLE_MEM_KEY, 0, &status);
     PERF_COUNTER_DEFINITION* counter;
@@ -362,25 +362,12 @@ int Win32Sigar::get_mem_counters(sigar_swap_t* swap, sigar_mem_t* mem) {
          i++, counter = PdhNextCounter(counter)) {
         DWORD offset = counter->CounterOffset;
 
-        switch (counter->CounterNameTitleIndex) {
-        case 48: /* "Pages Output/sec" */
-            if (swap)
-                swap->page_out = *((DWORD*)(data + offset));
-            break;
-        case 76: /* "System Cache Resident Bytes" aka file cache */
-            if (mem) {
-                uint64_t kern = *((DWORD*)(data + offset));
-                mem->actual_free = mem->free + kern;
-                mem->actual_used = mem->used - kern;
-                return SIGAR_OK;
-            }
-            break;
-        case 822: /* "Pages Input/sec" */
-            if (swap)
-                swap->page_in = *((DWORD*)(data + offset));
-            break;
-        default:
-            continue;
+        if (counter->CounterNameTitleIndex == 76) {
+            /* "System Cache Resident Bytes" aka file cache */
+            uint64_t kern = *((DWORD*)(data + offset));
+            mem.actual_free = mem.free + kern;
+            mem.actual_used = mem.used - kern;
+            return SIGAR_OK;
         }
     }
 
@@ -500,7 +487,7 @@ sigar_mem_t Win32Sigar::get_memory() {
     mem.actual_free = mem.free;
     mem.actual_used = mem.used;
     /* set actual_{free,used} */
-    get_mem_counters(nullptr, &mem);
+    get_mem_counters(mem);
 
     return mem;
 }
@@ -519,8 +506,6 @@ sigar_swap_t Win32Sigar::get_swap() {
     swap.total = memstat.ullTotalPageFile;
     swap.free = memstat.ullAvailPageFile;
     swap.used = swap.total - swap.free;
-
-    get_mem_counters(&swap, nullptr);
 
     return swap;
 }

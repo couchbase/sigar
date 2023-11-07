@@ -50,8 +50,6 @@ struct sigar_swap_t {
         : total(std::numeric_limits<uint64_t>::max()),
           used(std::numeric_limits<uint64_t>::max()),
           free(std::numeric_limits<uint64_t>::max()),
-          page_in(std::numeric_limits<uint64_t>::max()),
-          page_out(std::numeric_limits<uint64_t>::max()),
           allocstall(std::numeric_limits<uint64_t>::max()) {
     }
 #endif
@@ -59,8 +57,6 @@ struct sigar_swap_t {
     uint64_t total;
     uint64_t used;
     uint64_t free;
-    uint64_t page_in;
-    uint64_t page_out;
     uint64_t allocstall;
 };
 

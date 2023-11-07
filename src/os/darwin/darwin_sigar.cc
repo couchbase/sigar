@@ -210,11 +210,6 @@ sigar_swap_t AppleSigar::get_swap() {
     swap.total = sw_usage.xsu_total;
     swap.used = sw_usage.xsu_used;
     swap.free = sw_usage.xsu_avail;
-
-    const auto vmstat = get_vmstat();
-    swap.page_in = vmstat.pageins;
-    swap.page_out = vmstat.pageouts;
-
     return swap;
 }
 

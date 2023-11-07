@@ -217,8 +217,6 @@ TEST_F(MockSigar, test_sigar_swap_get) {
     EXPECT_EQ(1023406080, swap.total);
     EXPECT_EQ(0, swap.used);
     EXPECT_EQ(1023406080, swap.free);
-    EXPECT_EQ(0, swap.page_in);
-    EXPECT_EQ(0, swap.page_out);
     EXPECT_EQ(0, swap.allocstall);
     ASSERT_EQ(swap.total, swap.used + swap.free);
 }

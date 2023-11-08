@@ -37,8 +37,6 @@ static const char* sigar_error_string(int err) {
         return "This function has not been implemented on this platform";
     case SIGAR_NO_SUCH_PROCESS:
         return "No such process";
-    case SIGAR_NO_MEMORY_COUNTER:
-        return "No Memory counters defined (disabled?)";
     default:
         return "Error string not specified yet";
     }

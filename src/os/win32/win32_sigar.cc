@@ -23,7 +23,6 @@
 #include <sigar/logger.h>
 
 #include "sigar.h"
-#include "sigar_pdh.h"
 #include "sigar_private.h"
 
 #include <windows.h>
@@ -32,25 +31,13 @@
 #include <process.h>
 #include <processthreadsapi.h>
 #include <psapi.h>
-#include <shellapi.h>
 #include <tlhelp32.h>
-#include <winperf.h>
-#include <winreg.h>
-
-#include <assert.h>
-#include <errno.h>
-#include <malloc.h>
-#include <stddef.h>
-#include <stdint.h>
-#include <stdio.h>
-#include <sys/types.h>
-#include <time.h>
-#include <system_error>
-#include <vector>
 
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
 #include <platform/platform_thread.h>
+#include <system_error>
+#include <vector>
 
 #define EPOCH_DELTA 11644473600000000L
 
@@ -96,13 +83,10 @@ public:
     }
 
 protected:
-    static constexpr size_t PERFBUF_SIZE = 8192;
-
     std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
             sigar_pid_t pid) override;
     static void enable_debug_privilege();
     static void log_user_information();
-    static void inspect_perf_registry_settings();
 
     bool check_parents(
             sigar_pid_t pid,
@@ -111,47 +95,12 @@ protected:
 
     std::unordered_map<sigar_pid_t, AllPidInfo> get_all_pids();
     std::pair<int, sigar_win32_pinfo_t> get_proc_info(sigar_pid_t pid);
-    int get_mem_counters(sigar_mem_t& mem);
-    PERF_OBJECT_TYPE* do_get_perf_object_inst(HKEY key,
-                                              char* counter_key,
-                                              DWORD inst,
-                                              DWORD* err);
-    PERF_OBJECT_TYPE* get_perf_object_inst(char* counter_key,
-                                           DWORD inst,
-                                           DWORD* err);
-
-    DWORD perfbuf_init() {
-        if (perfbuf.empty()) {
-            perfbuf.resize(PERFBUF_SIZE);
-        }
-
-        return perfbuf.size();
-    }
-
-    DWORD perfbuf_grow() {
-        perfbuf.resize(perfbuf.size() + PERFBUF_SIZE);
-        return perfbuf.size();
-    }
-
-public:
-    std::vector<BYTE> perfbuf;
 };
-
-#define PERF_TITLE_MEM_KEY "4"
-
-#define PERF_VAL(ix) \
-    perf_offsets[ix] ? *((DWORD*)((BYTE*)counter_block + perf_offsets[ix])) : 0
-
-#define PERF_VAL64(ix)                                                         \
-    perf_offsets[ix] ? *((uint64_t*)((BYTE*)counter_block + perf_offsets[ix])) \
-                     : 0
 
 /* 1/100ns units to milliseconds */
 #define NS100_2MSEC(t) ((t) / 10000)
 /* 1/100ns units to microseconds */
 #define NS100_2USEC(t) ((t) / 10)
-
-#define PERF_VAL_CPU(ix) NS100_2MSEC(PERF_VAL(ix))
 
 static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     uint64_t time;
@@ -161,217 +110,6 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     time /= 10;
     time -= EPOCH_DELTA;
     return time;
-}
-
-void Win32Sigar::inspect_perf_registry_settings() {
-    for (const auto& entry : {"PerfOs"}) {
-        auto key = fmt::format(
-                "SYSTEM\\CurrentControlSet\\Services\\{}\\Performance", entry);
-        sigar::logit(sigar::loglevel::info, fmt::format("Checking {}", key));
-        HKEY handle;
-        auto err = RegOpenKeyEx(
-                HKEY_LOCAL_MACHINE, key.c_str(), 0, KEY_READ, &handle);
-        if (err == ERROR_SUCCESS) {
-            DWORD type = 0;
-            BYTE buffer[1024];
-            DWORD size = sizeof(buffer);
-            err = RegQueryValueEx(handle,
-                                  "Disable Performance Counters",
-                                  nullptr,
-                                  &type,
-                                  buffer,
-                                  &size);
-            if (err == ERROR_SUCCESS) {
-                if (type == REG_DWORD && size == sizeof(DWORD)) {
-                    DWORD* dw = reinterpret_cast<DWORD*>(buffer);
-                    if (*dw) {
-                        sigar::logit(sigar::loglevel::err,
-                                     fmt::format("Win32Sigar::inspect_perf_"
-                                                 "registry_settings(): "
-                                                 "\"{}\\Disable Performance "
-                                                 "Counters\" exists "
-                                                 "and perf is disabled",
-                                                 key));
-                        sigar::logit(
-                                sigar::loglevel::err,
-                                fmt::format("Consider running \"lodctr /E:{}\" "
-                                            "to enable the performance counter",
-                                            entry));
-                    } else {
-                        sigar::logit(sigar::loglevel::info,
-                                     fmt::format("Win32Sigar::inspect_perf_"
-                                                 "registry_settings(): "
-                                                 "\"{}\\Disable Performance "
-                                                 "Counters\" exists, "
-                                                 "but is perf is enabled",
-                                                 key));
-                    }
-                } else {
-                    sigar::logit(
-                            sigar::loglevel::err,
-                            fmt::format("Win32Sigar::inspect_perf_"
-                                        "registry_settings():  Unexpected "
-                                        "type or size for \"{}\". The entry "
-                                        "should be REG_DWORD with a value of 0",
-                                        key));
-                }
-            } else if (err != ERROR_FILE_NOT_FOUND) {
-                std::system_error error(
-                        std::error_code(err, std::system_category()),
-                        fmt::format(
-                                "Win32Sigar::inspect_perf_registry_settings(): "
-                                "RegGetValue(\"{}\\Disable Performance "
-                                "Counters\")",
-                                key));
-                sigar::logit(sigar::loglevel::err, error.what());
-            }
-            RegCloseKey(handle);
-        } else {
-            std::system_error error(
-                    std::error_code(err, std::system_category()),
-                    fmt::format("Win32Sigar::inspect_perf_registry_settings(): "
-                                "RegOpenKeyEx(\"{}\")",
-                                key));
-            sigar::logit(sigar::loglevel::err, error.what());
-        }
-    }
-}
-
-static int get_counter_error_code(std::string_view key) {
-    if (key == PERF_TITLE_MEM_KEY) {
-        sigar::logit(sigar::loglevel::err,
-                     fmt::format("Win32Sigar::get_counter_error_code({}): "
-                                 "SIGAR_NO_MEMORY_COUNTER",
-                                 key));
-        return SIGAR_NO_MEMORY_COUNTER;
-    }
-
-    throw std::invalid_argument(
-            fmt::format("get_counter_error_code(): Invalid key: {}", key));
-}
-
-PERF_OBJECT_TYPE* Win32Sigar::do_get_perf_object_inst(HKEY handle,
-                                                      char* counter_key,
-                                                      DWORD inst,
-                                                      DWORD* err) {
-    *err = SIGAR_OK;
-
-    DWORD retval;
-    DWORD type;
-    auto bytes = perfbuf_init();
-    while ((retval = RegQueryValueEx(handle,
-                                     counter_key,
-                                     nullptr,
-                                     &type,
-                                     perfbuf.data(),
-                                     &bytes)) != ERROR_SUCCESS) {
-        if (retval == ERROR_MORE_DATA) {
-            bytes = perfbuf_grow();
-        } else {
-            std::system_error error(
-                    std::error_code(retval, std::system_category()),
-                    fmt::format("Win32Sigar::get_perf_object_inst(): "
-                                "RegQueryValueEx({})",
-                                counter_key));
-            sigar::logit(sigar::loglevel::err, error.what());
-            *err = retval;
-            return NULL;
-        }
-    }
-
-    auto* block = reinterpret_cast<PERF_DATA_BLOCK*>(perfbuf.data());
-    if (bytes < sizeof(PERF_DATA_BLOCK)) {
-        auto message = fmt::format(
-                "Win32Sigar::get_perf_object_inst(): returned {} "
-                "bytes which is less than PERF_DATA_BLOCK size {}",
-                bytes,
-                sizeof(PERF_DATA_BLOCK));
-
-        sigar::logit(sigar::loglevel::err, message);
-        throw std::runtime_error(std::move(message));
-    }
-
-    if (block->Signature[0] != 'P' || block->Signature[1] != 'E' ||
-        block->Signature[2] != 'R' || block->Signature[3] != 'F') {
-        auto message = fmt::format(
-                "Win32Sigar::get_perf_object_inst(): Signature isn't PERF");
-        sigar::logit(sigar::loglevel::err, message);
-        throw std::runtime_error(std::move(message));
-    }
-
-    if (block->NumObjectTypes == 0) {
-        *err = get_counter_error_code(counter_key);
-        return nullptr;
-    }
-    auto* object = PdhFirstObject(block);
-
-    /*
-     * only seen on windows 2003 server when pdh.dll
-     * functions are in use by the same process.
-     * confucius say what the fuck.
-     */
-    if (inst && (object->NumInstances == PERF_NO_INSTANCES)) {
-        int i;
-
-        for (i = 0; i < block->NumObjectTypes; i++) {
-            if (object->NumInstances != PERF_NO_INSTANCES) {
-                return object;
-            }
-            object = PdhNextObject(object);
-        }
-        return NULL;
-    } else {
-        return object;
-    }
-}
-
-PERF_OBJECT_TYPE* Win32Sigar::get_perf_object_inst(char* counter_key,
-                                                   DWORD inst,
-                                                   DWORD* err) {
-    HKEY handle;
-    auto result = RegConnectRegistry(nullptr, HKEY_PERFORMANCE_DATA, &handle);
-    if (result != ERROR_SUCCESS) {
-        throw std::system_error(std::error_code(result, std::system_category()),
-                                "get_perf_object_inst(): RegConnectRegistry");
-    }
-
-    try {
-        auto* ret = do_get_perf_object_inst(handle, counter_key, inst, err);
-        RegCloseKey(handle);
-        return ret;
-    } catch (const std::exception&) {
-        RegCloseKey(handle);
-        throw;
-    }
-}
-
-int Win32Sigar::get_mem_counters(sigar_mem_t& mem) {
-    DWORD status;
-    auto* object = get_perf_object_inst(PERF_TITLE_MEM_KEY, 0, &status);
-    PERF_COUNTER_DEFINITION* counter;
-    BYTE* data;
-    DWORD i;
-
-    if (!object) {
-        return status;
-    }
-
-    data = (BYTE*)((BYTE*)object + object->DefinitionLength);
-
-    for (i = 0, counter = PdhFirstCounter(object); i < object->NumCounters;
-         i++, counter = PdhNextCounter(counter)) {
-        DWORD offset = counter->CounterOffset;
-
-        if (counter->CounterNameTitleIndex == 76) {
-            /* "System Cache Resident Bytes" aka file cache */
-            uint64_t kern = *((DWORD*)(data + offset));
-            mem.actual_free = mem.free + kern;
-            mem.actual_used = mem.used - kern;
-            return SIGAR_OK;
-        }
-    }
-
-    return SIGAR_OK;
 }
 
 void Win32Sigar::enable_debug_privilege() {
@@ -463,7 +201,6 @@ void Win32Sigar::log_user_information() {
 Win32Sigar::Win32Sigar() : SigarIface() {
     enable_debug_privilege();
     log_user_information();
-    inspect_perf_registry_settings();
 }
 
 std::unique_ptr<SigarIface> NewWin32Sigar() {
@@ -472,22 +209,30 @@ std::unique_ptr<SigarIface> NewWin32Sigar() {
 
 sigar_mem_t Win32Sigar::get_memory() {
     sigar_mem_t mem;
-    MEMORYSTATUSEX memstat;
-    memstat.dwLength = sizeof(memstat);
 
-    if (!GlobalMemoryStatusEx(&memstat)) {
+    PERFORMANCE_INFORMATION pe;
+    pe.cb = sizeof(pe);
+    if (!GetPerformanceInfo(&pe, sizeof(pe))) {
         throw std::system_error(
                 std::error_code(GetLastError(), std::system_category()),
-                "Win32Sigar::get_memory(): GlobalMemoryStatusEx");
+                "Win32Sigar::get_memory(): GetPerformanceInfo failed");
     }
 
-    mem.total = memstat.ullTotalPhys;
-    mem.free = memstat.ullAvailPhys;
-    mem.used = mem.total - mem.free;
-    mem.actual_free = mem.free;
-    mem.actual_used = mem.used;
-    /* set actual_{free,used} */
-    get_mem_counters(mem);
+    mem.total = uint64_t(pe.PhysicalTotal) * pe.PageSize;
+    mem.actual_free = mem.free = uint64_t(pe.PhysicalAvailable) * pe.PageSize;
+    mem.actual_used = mem.used = mem.total - mem.free;
+
+    // According to the docs:
+    //   The amount of system cache memory, in pages.
+    //   This is the size of the standby list plus the system working set.
+    //
+    // I haven't found a good breakdown what exactly this "cache" contains
+    // of, but the following "adjustment" caused overflows so we should
+    // probably just leave the cache as used.
+    //
+    //    auto system_cache = pe.SystemCache * pe.PageSize;
+    //    mem.actual_free = mem.free + system_cache;
+    //    mem.actual_used = mem.used - system_cache;
 
     return mem;
 }

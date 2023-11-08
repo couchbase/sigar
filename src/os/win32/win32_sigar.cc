@@ -54,13 +54,6 @@
 
 #define EPOCH_DELTA 11644473600000000L
 
-/* XXX: support CP_UTF8 ? */
-#define SIGAR_W2A(lpw, lpa, chars) \
-    (lpa[0] = '\0',                \
-     WideCharToMultiByte(CP_ACP, 0, lpw, -1, (LPSTR)lpa, chars, NULL, NULL))
-
-#define sigar_isdigit(c) (isdigit(((unsigned char)(c))))
-
 namespace sigar {
 struct sigar_win32_pinfo_t {
     sigar_pid_t pid;
@@ -140,37 +133,11 @@ protected:
         return perfbuf.size();
     }
 
-    PERF_INSTANCE_DEFINITION* get_disk_instance(DWORD* perf_offsets,
-                                                DWORD* num,
-                                                DWORD* err);
-
 public:
     std::vector<BYTE> perfbuf;
 };
 
 #define PERF_TITLE_MEM_KEY "4"
-#define PERF_TITLE_DISK_KEY "236"
-
-typedef enum {
-    PERF_IX_DISK_TIME,
-    PERF_IX_DISK_READ_TIME,
-    PERF_IX_DISK_WRITE_TIME,
-    PERF_IX_DISK_READ,
-    PERF_IX_DISK_WRITE,
-    PERF_IX_DISK_READ_BYTES,
-    PERF_IX_DISK_WRITE_BYTES,
-    PERF_IX_DISK_QUEUE,
-    PERF_IX_DISK_MAX
-} perf_disk_offsets_t;
-
-#define PERF_TITLE_DISK_TIME 200 /* % Disk Time */
-#define PERF_TITLE_DISK_READ_TIME 202 /* % Disk Read Time */
-#define PERF_TITLE_DISK_WRITE_TIME 204 /* % Disk Write Time */
-#define PERF_TITLE_DISK_READ 214 /* Disk Reads/sec */
-#define PERF_TITLE_DISK_WRITE 216 /* Disk Writes/sec */
-#define PERF_TITLE_DISK_READ_BYTES 220 /* Disk Read Bytes/sec */
-#define PERF_TITLE_DISK_WRITE_BYTES 222 /* Disk Write Bytes/sec */
-#define PERF_TITLE_DISK_QUEUE 198 /* Current Disk Queue Length */
 
 #define PERF_VAL(ix) \
     perf_offsets[ix] ? *((DWORD*)((BYTE*)counter_block + perf_offsets[ix])) : 0
@@ -197,7 +164,7 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
 }
 
 void Win32Sigar::inspect_perf_registry_settings() {
-    for (const auto& entry : {"PerfDisk", "PerfOs"}) {
+    for (const auto& entry : {"PerfOs"}) {
         auto key = fmt::format(
                 "SYSTEM\\CurrentControlSet\\Services\\{}\\Performance", entry);
         sigar::logit(sigar::loglevel::info, fmt::format("Checking {}", key));
@@ -277,13 +244,6 @@ static int get_counter_error_code(std::string_view key) {
                                  "SIGAR_NO_MEMORY_COUNTER",
                                  key));
         return SIGAR_NO_MEMORY_COUNTER;
-    }
-    if (key == PERF_TITLE_DISK_KEY) {
-        sigar::logit(sigar::loglevel::err,
-                     fmt::format("Win32Sigar::get_counter_error_code({}): "
-                                 "SIGAR_NO_DISK_COUNTER",
-                                 key));
-        return SIGAR_NO_DISK_COUNTER;
     }
 
     throw std::invalid_argument(
@@ -862,129 +822,9 @@ void Win32Sigar::iterate_threads(sigar::IterateThreadCallback callback) {
     CloseHandle(snapshotHandle);
 }
 
-PERF_INSTANCE_DEFINITION* Win32Sigar::get_disk_instance(DWORD* perf_offsets,
-                                                        DWORD* num,
-                                                        DWORD* err) {
-    PERF_OBJECT_TYPE* object;
-    PERF_INSTANCE_DEFINITION* inst;
-    PERF_COUNTER_DEFINITION* counter;
-    DWORD i, found = 0;
-
-    object = get_perf_object_inst(PERF_TITLE_DISK_KEY, 1, err);
-
-    if (!object) {
-        return NULL;
-    }
-
-    for (i = 0, counter = PdhFirstCounter(object); i < object->NumCounters;
-         i++, counter = PdhNextCounter(counter)) {
-        DWORD offset = counter->CounterOffset;
-
-        switch (counter->CounterNameTitleIndex) {
-        case PERF_TITLE_DISK_TIME:
-            perf_offsets[PERF_IX_DISK_TIME] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_READ_TIME:
-            perf_offsets[PERF_IX_DISK_READ_TIME] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_WRITE_TIME:
-            perf_offsets[PERF_IX_DISK_WRITE_TIME] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_READ:
-            perf_offsets[PERF_IX_DISK_READ] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_WRITE:
-            perf_offsets[PERF_IX_DISK_WRITE] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_READ_BYTES:
-            perf_offsets[PERF_IX_DISK_READ_BYTES] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_WRITE_BYTES:
-            perf_offsets[PERF_IX_DISK_WRITE_BYTES] = offset;
-            found = 1;
-            break;
-        case PERF_TITLE_DISK_QUEUE:
-            perf_offsets[PERF_IX_DISK_QUEUE] = offset;
-            found = 1;
-            break;
-        }
-    }
-
-    if (!found) {
-        *err = ENOENT;
-        return NULL;
-    }
-
-    if (num) {
-        *num = object->NumInstances;
-    }
-    return PdhFirstInstance(object);
-}
-
-void Win32Sigar::iterate_disks(sigar::IterateDiskCallback callback) {
-    DWORD i, err;
-    PERF_OBJECT_TYPE* object;
-    PERF_INSTANCE_DEFINITION* inst;
-    PERF_COUNTER_DEFINITION* counter;
-    DWORD perf_offsets[PERF_IX_DISK_MAX];
-
-    memset(&perf_offsets, 0, sizeof(perf_offsets));
-    object = get_perf_object_inst(PERF_TITLE_DISK_KEY, 1, &err);
-
-    if (!object) {
-        return;
-    }
-
-    memset(&perf_offsets, 0, sizeof(perf_offsets));
-    inst = get_disk_instance((DWORD*)&perf_offsets, 0, &err);
-
-    if (!inst) {
-        return;
-    }
-
-    for (i = 0, inst = PdhFirstInstance(object); i < object->NumInstances;
-         i++, inst = PdhNextInstance(inst)) {
-        char drive[MAX_PATH];
-        PERF_COUNTER_BLOCK* counter_block = PdhGetCounterBlock(inst);
-        wchar_t* name = (wchar_t*)((BYTE*)inst + inst->NameOffset);
-
-        SIGAR_W2A(name, drive, sizeof(drive));
-
-        if (sigar_isdigit(*name)) {
-            char* ptr = strchr(drive, ' '); /* 2000 Server "0 C:" */
-
-            if (ptr) {
-                ++ptr;
-                SIGAR_SSTRCPY(drive, ptr);
-            } else {
-                /* XXX NT is a number only "0", how to map? */
-            }
-        }
-
-        sigar::disk_usage_t disk;
-        disk.name = drive;
-
-        disk.reads = PERF_VAL(PERF_IX_DISK_READ);
-        disk.rbytes = PERF_VAL(PERF_IX_DISK_READ_BYTES);
-
-        disk.writes = PERF_VAL(PERF_IX_DISK_WRITE);
-        disk.wbytes = PERF_VAL(PERF_IX_DISK_WRITE_BYTES);
-
-        disk.queue = PERF_VAL(PERF_IX_DISK_QUEUE);
-
-        // Windows has stats for TIME, RTIME, and WTIME, but they appear to
-        // be percentages so mapping them to some linux stat implementation
-        // is tricky. Skip omitting them here to avoid having some
-        // confusingly named stats (given that we care a lot more about linux
-        // support).
-        callback(disk);
-    }
+void Win32Sigar::iterate_disks(sigar::IterateDiskCallback) {
+    // The implementation from upstream returned values which
+    // was hard to believe was correct.
 }
 } // namespace sigar
 #else

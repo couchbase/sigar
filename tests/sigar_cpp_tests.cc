@@ -154,8 +154,8 @@ TEST_F(NativeSigar, iterate_process_threads_self) {
 }
 
 TEST_F(NativeSigar, get_disk_stats) {
-#ifdef __APPLE__
-    // Lacking a MacOS implementation means that this test doesn't work
+#ifndef __linux__
+    // disk stats is only supported on linux
     GTEST_SKIP();
 #endif
 

@@ -39,8 +39,6 @@ static const char* sigar_error_string(int err) {
         return "No such process";
     case SIGAR_NO_MEMORY_COUNTER:
         return "No Memory counters defined (disabled?)";
-    case SIGAR_NO_DISK_COUNTER:
-        return "No Disk counters defined (disabled?)";
     default:
         return "Error string not specified yet";
     }

@@ -85,7 +85,6 @@ public:
 protected:
     std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
             sigar_pid_t pid) override;
-    static void enable_debug_privilege();
     static void log_user_information();
 
     bool check_parents(
@@ -110,26 +109,6 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     time /= 10;
     time -= EPOCH_DELTA;
     return time;
-}
-
-void Win32Sigar::enable_debug_privilege() {
-    HANDLE handle;
-    TOKEN_PRIVILEGES tok;
-    memset(&tok, 0, sizeof(tok));
-
-    if (!OpenProcessToken(GetCurrentProcess(),
-                          TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-                          &handle)) {
-        return;
-    }
-
-    if (LookupPrivilegeValue(nullptr, SE_DEBUG_NAME, &tok.Privileges[0].Luid)) {
-        tok.PrivilegeCount = 1;
-        tok.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-        AdjustTokenPrivileges(handle, FALSE, &tok, 0, nullptr, 0);
-    }
-
-    CloseHandle(handle);
 }
 
 static std::string to_string(const wchar_t* ptr) {
@@ -199,7 +178,6 @@ void Win32Sigar::log_user_information() {
 }
 
 Win32Sigar::Win32Sigar() : SigarIface() {
-    enable_debug_privilege();
     log_user_information();
 }
 

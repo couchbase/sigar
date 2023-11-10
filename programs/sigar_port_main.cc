@@ -85,6 +85,7 @@ static sigar_pid_t parse_pid(std::string_view pidstr) {
 
 static void logit(int level, std::string_view msg) {
     logger->log(spdlog::level::level_enum(level), "{}", msg);
+    logger->flush();
 }
 
 int main(int argc, char** argv) {
@@ -257,5 +258,7 @@ int main(int argc, char** argv) {
     }
 
     logger->info("Terminate with exit code: {}", ret);
+    logger->flush();
+    logger.reset();
     return ret;
 }

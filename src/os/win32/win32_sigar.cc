@@ -27,14 +27,12 @@
 
 #include <windows.h>
 
-#include <lm.h>
 #include <process.h>
 #include <processthreadsapi.h>
 #include <psapi.h>
 #include <tlhelp32.h>
 
 #include <fmt/format.h>
-#include <nlohmann/json.hpp>
 #include <platform/platform_thread.h>
 #include <system_error>
 #include <vector>
@@ -61,11 +59,6 @@ struct AllPidInfo {
 
 class Win32Sigar : public SigarIface {
 public:
-    Win32Sigar();
-
-    ~Win32Sigar() override {
-    }
-
     sigar_mem_t get_memory() override;
     sigar_swap_t get_swap() override;
     sigar_cpu_t get_cpu() override;
@@ -85,7 +78,6 @@ public:
 protected:
     std::tuple<uint64_t, uint64_t, uint64_t, uint64_t> get_proc_time(
             sigar_pid_t pid) override;
-    static void log_user_information();
 
     bool check_parents(
             sigar_pid_t pid,
@@ -109,80 +101,6 @@ static uint64_t sigar_FileTimeToTime(FILETIME* ft) {
     time /= 10;
     time -= EPOCH_DELTA;
     return time;
-}
-
-static std::string to_string(const wchar_t* ptr) {
-    char buffer[1024];
-    int size = wcstombs(buffer, ptr, sizeof(buffer));
-    return std::string(buffer, size);
-}
-
-void Win32Sigar::log_user_information() {
-    try {
-        wchar_t user[1024];
-        DWORD size = sizeof(user) / sizeof(wchar_t);
-        nlohmann::json json;
-
-        if (GetUserNameW(user, &size)) {
-            json["user"] = to_string(user);
-        }
-
-        LPBYTE buffer = nullptr;
-        DWORD entries = 0;
-        DWORD total_entries = 0;
-        if (NetUserGetLocalGroups(nullptr,
-                                  user,
-                                  0,
-                                  LG_INCLUDE_INDIRECT,
-                                  &buffer,
-                                  MAX_PREFERRED_LENGTH,
-                                  &entries,
-                                  &total_entries) == NERR_Success) {
-            nlohmann::json grps = nlohmann::json::array();
-            auto* groups = reinterpret_cast<LOCALGROUP_USERS_INFO_0*>(buffer);
-            for (int ii = 0; ii < entries; ii++) {
-                grps.push_back(to_string(groups[ii].lgrui0_name));
-            }
-
-            NetApiBufferFree(buffer);
-            json["local_groups"] = std::move(grps);
-            buffer = nullptr;
-            entries = 0;
-            total_entries = 0;
-        }
-
-        if (NetUserGetGroups(nullptr,
-                             user,
-                             0,
-                             &buffer,
-                             MAX_PREFERRED_LENGTH,
-                             &entries,
-                             &total_entries) == NERR_Success) {
-            nlohmann::json grps = nlohmann::json::array();
-            auto* ggroups = reinterpret_cast<GROUP_USERS_INFO_0*>(buffer);
-            for (int ii = 0; ii < entries; ii++) {
-                grps.push_back(to_string(ggroups[ii].grui0_name));
-            }
-            NetApiBufferFree(buffer);
-            json["global_groups"] = std::move(grps);
-        }
-
-        if (!json.empty()) {
-            sigar::logit(sigar::loglevel::info,
-                         fmt::format("Running as: {}", json.dump()));
-        }
-    } catch (const std::exception& e) {
-        sigar::logit(sigar::loglevel::err,
-                     fmt::format("Failed to determine user id: {}", e.what()));
-    }
-}
-
-Win32Sigar::Win32Sigar() : SigarIface() {
-    log_user_information();
-}
-
-std::unique_ptr<SigarIface> NewWin32Sigar() {
-    return std::make_unique<Win32Sigar>();
 }
 
 sigar_mem_t Win32Sigar::get_memory() {
@@ -534,6 +452,11 @@ void Win32Sigar::iterate_disks(sigar::IterateDiskCallback) {
     // The implementation from upstream returned values which
     // was hard to believe was correct.
 }
+
+std::unique_ptr<SigarIface> NewWin32Sigar() {
+    return std::make_unique<Win32Sigar>();
+}
+
 } // namespace sigar
 #else
 namespace sigar {

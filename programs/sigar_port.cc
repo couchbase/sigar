@@ -376,11 +376,18 @@ static nlohmann::json next_sample(SigarIface& instance,
     }
 
     if (babysitter_pid) {
-        logit(spdlog::level::debug, "Collect interesting processes");
-        auto procs = find_interesting_procs(instance, babysitter_pid.value());
-        auto interesting = populate_interesting_procs(instance, procs);
-        if (!interesting.empty()) {
-            ret["interesting_procs"] = std::move(interesting);
+        try {
+            logit(spdlog::level::debug, "Collect interesting processes");
+            auto procs =
+                    find_interesting_procs(instance, babysitter_pid.value());
+            auto interesting = populate_interesting_procs(instance, procs);
+            if (!interesting.empty()) {
+                ret["interesting_procs"] = std::move(interesting);
+            }
+        } catch (const std::exception& exception) {
+            logit(spdlog::level::err,
+                  fmt::format("Failed to collect interesting processes: {}",
+                              exception.what()));
         }
     }
 

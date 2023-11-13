@@ -272,15 +272,11 @@ sigar_swap_t LinuxSigar::get_swap() {
                     return true;
                 }
 
-                if (vec.front() == "pswpin") {
-                    swap.page_in = stoull(vec[1]);
-                } else if (vec.front() == "pswpout") {
-                    swap.page_out = stoull(vec[1]);
-                } else if (vec.front() == "allocstall" ||
-                           vec.front() == "allocstall_dma" ||
-                           vec.front() == "allocstall_dma32" ||
-                           vec.front() == "allocstall_normal" ||
-                           vec.front() == "allocstall_movable") {
+                if (vec.front() == "allocstall" ||
+                    vec.front() == "allocstall_dma" ||
+                    vec.front() == "allocstall_dma32" ||
+                    vec.front() == "allocstall_normal" ||
+                    vec.front() == "allocstall_movable") {
                     swap.allocstall += stoull(vec[1]);
                 }
 

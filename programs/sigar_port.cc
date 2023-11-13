@@ -305,6 +305,8 @@ uint64_t sum_implemented(uint64_t a, uint64_t b) {
 static nlohmann::json next_sample(SigarIface& instance,
                                   std::optional<sigar_pid_t> babysitter_pid) {
     nlohmann::json ret;
+    logit(spdlog::level::debug, "Start next sample");
+    logit(spdlog::level::debug, "Collect cpu information");
     try {
         const auto cpu = instance.get_cpu();
         if (is_implemented(cpu.total)) {
@@ -334,6 +336,7 @@ static nlohmann::json next_sample(SigarIface& instance,
                           exception.what()));
     }
 
+    logit(spdlog::level::debug, "Collect swap information");
     try {
         const auto swap = instance.get_swap();
         if (is_implemented(swap.total)) {
@@ -351,6 +354,7 @@ static nlohmann::json next_sample(SigarIface& instance,
                           exception.what()));
     }
 
+    logit(spdlog::level::debug, "Collect memory information");
     try {
         const auto mem = instance.get_memory();
         if (is_implemented(mem.total)) {
@@ -372,13 +376,22 @@ static nlohmann::json next_sample(SigarIface& instance,
     }
 
     if (babysitter_pid) {
-        auto procs = find_interesting_procs(instance, babysitter_pid.value());
-        auto interesting = populate_interesting_procs(instance, procs);
-        if (!interesting.empty()) {
-            ret["interesting_procs"] = std::move(interesting);
+        try {
+            logit(spdlog::level::debug, "Collect interesting processes");
+            auto procs =
+                    find_interesting_procs(instance, babysitter_pid.value());
+            auto interesting = populate_interesting_procs(instance, procs);
+            if (!interesting.empty()) {
+                ret["interesting_procs"] = std::move(interesting);
+            }
+        } catch (const std::exception& exception) {
+            logit(spdlog::level::err,
+                  fmt::format("Failed to collect interesting processes: {}",
+                              exception.what()));
         }
     }
 
+    logit(spdlog::level::debug, "Collect disk information");
     try {
         auto disks = find_disk_usages(instance);
         if (!disks.empty()) {
@@ -390,6 +403,7 @@ static nlohmann::json next_sample(SigarIface& instance,
                           exception.what()));
     }
 
+    logit(spdlog::level::debug, "Collect cgroup information");
     try {
         const auto cgi = instance.get_control_group_info();
         if (cgi.supported) {
@@ -417,6 +431,7 @@ static nlohmann::json next_sample(SigarIface& instance,
                           exception.what()));
     }
 #ifdef __linux__
+    logit(spdlog::level::debug, "Collect pressure information");
     try {
         using namespace cb::cgroup;
         auto& cgroup_instance = ControlGroup::instance();
@@ -439,6 +454,7 @@ static nlohmann::json next_sample(SigarIface& instance,
     }
 #endif
 
+    logit(spdlog::level::debug, fmt::format("Sample: {}", ret.dump()));
     return ret;
 }
 

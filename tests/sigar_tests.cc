@@ -151,11 +151,11 @@ TEST_F(Sigar, test_sigar_proc_state_get) {
     std::thread second{[]() {
         sigar_t* instance;
         ASSERT_EQ(SIGAR_OK, sigar_open(&instance));
-        sigar_proc_state_t proc_state;
+        sigar_proc_state_t proc_state_;
         EXPECT_EQ(SIGAR_OK,
-                  sigar_proc_state_get(instance, getpid(), &proc_state));
+                  sigar_proc_state_get(instance, getpid(), &proc_state_));
         sigar_close(instance);
-        EXPECT_EQ(2, proc_state.threads);
+        EXPECT_EQ(2, proc_state_.threads);
     }};
     second.join();
 }

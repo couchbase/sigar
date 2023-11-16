@@ -85,7 +85,6 @@ static sigar_pid_t parse_pid(std::string_view pidstr) {
 
 static void logit(int level, std::string_view msg) {
     logger->log(spdlog::level::level_enum(level), "{}", msg);
-    logger->flush();
 }
 
 int main(int argc, char** argv) {
@@ -214,8 +213,7 @@ int main(int argc, char** argv) {
             try {
                 const auto json =
                         nlohmann::json::parse(cb::io::loadFile(*configfile));
-
-                logger->set_level(to_level(json.value("loglevel", "error")));
+                loglevel = to_level(json.value("loglevel", "error"));
             } catch (const std::exception& exception) {
                 logger->error("Failed to read configuration: {}",
                               exception.what());
@@ -225,6 +223,8 @@ int main(int argc, char** argv) {
         }
     }
 
+    logger->set_level(loglevel);
+    logger->flush_on(loglevel);
     sigar::set_log_callback(loglevel, logit);
 
     input = stdin;

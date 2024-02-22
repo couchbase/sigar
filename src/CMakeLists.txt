@@ -16,6 +16,7 @@ add_library(sigar_cpp OBJECT
         os/linux/linux_sigar.cc)
 target_link_libraries(sigar_cpp PRIVATE platform_headers fmt::fmt)
 target_link_libraries(sigar_cpp PUBLIC nlohmann_json::nlohmann_json)
+add_sanitizers(sigar_cpp)
 
 if (APPLE)
     target_link_libraries(sigar_cpp PRIVATE proc)
@@ -43,6 +44,7 @@ target_include_directories(sigar PUBLIC ${sigar_SOURCE_DIR}/include)
 if (UNIX)
     target_link_libraries(sigar PRIVATE cgroup)
 endif ()
+add_sanitizers(sigar)
 
 INSTALL(TARGETS sigar
         RUNTIME DESTINATION bin

@@ -17,6 +17,7 @@
 #include "sigar_port.h"
 #include <fmt/format.h>
 #include <nlohmann/json.hpp>
+#include <platform/string_utilities.h>
 #include <platform/timeutils.h>
 #include <sigar/logger.h>
 #include <sigar/sigar.h>
@@ -25,6 +26,7 @@
 #include <cgroup/cgroup.h>
 #include <sigar_control_group.h>
 #endif
+
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -42,19 +44,9 @@ FILE* output = nullptr;
 using namespace sigar;
 using namespace sigar_port;
 
-static inline std::string size2human(std::size_t value) {
-    const std::array<const char*, 6> suffix{{"", "K", "M", "G", "T", "P"}};
-    std::size_t index = 0;
-    while (value > 10240 && index < (suffix.size() - 1)) {
-        value /= 1024;
-        ++index;
-    }
-    return std::to_string(value) + suffix[index];
-}
-
 std::string size2string(uint64_t value) {
     if (human_readable_output) {
-        return size2human(value);
+        return cb::size2human(value);
     }
 
     return std::to_string(value);

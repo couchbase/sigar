@@ -304,11 +304,13 @@ static nlohmann::json next_sample(SigarIface& instance,
         if (is_implemented(cpu.total)) {
             ret["cpu_total_ms"] = ms2string(cpu.total);
         }
-        uint64_t value = sum_implemented(cpu.idle, cpu.wait);
-        if (is_implemented(value)) {
-            ret["cpu_idle_ms"] = ms2string(value);
+        if (is_implemented(cpu.idle)) {
+            ret["cpu_idle_ms"] = ms2string(cpu.idle);
         }
-        value = sum_implemented(cpu.user, cpu.nice);
+        if (is_implemented(cpu.wait)) {
+            ret["cpu_iowait_ms"] = ms2string(cpu.wait);
+        }
+        uint64_t value = sum_implemented(cpu.user, cpu.nice);
         if (is_implemented(value)) {
             ret["cpu_user_ms"] = ms2string(value);
         }

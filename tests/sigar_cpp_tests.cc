@@ -170,6 +170,10 @@ TEST_F(NativeSigar, get_disk_stats) {
     EXPECT_NE(0, usages.size());
 }
 
+TEST_F(NativeSigar, get_cpu_count) {
+    EXPECT_NE(0, instance->get_cpu_count());
+}
+
 #ifndef WIN32
 class MockSigar : public ::testing::Test {
 public:
@@ -268,5 +272,9 @@ TEST_F(MockSigar, sigar_get_disk_stats) {
     EXPECT_EQ(0, usages[1].queue);
     EXPECT_EQ(std::chrono::milliseconds(19792), usages[1].time);
     EXPECT_EQ(std::numeric_limits<uint64_t>::max(), usages[1].queue_depth);
+}
+
+TEST_F(MockSigar, get_cpu_count) {
+    EXPECT_EQ(80, instance->get_cpu_count());
 }
 #endif

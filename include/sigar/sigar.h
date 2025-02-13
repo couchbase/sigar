@@ -91,6 +91,9 @@ public:
      */
     virtual sigar_cpu_t get_cpu() = 0;
 
+    /// Get the number of CPUs in the system
+    virtual unsigned int get_cpu_count() = 0;
+
     /**
      * Get the memory information for the provided process.
      * This method is to be replaced by get_process_information

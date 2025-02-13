@@ -155,6 +155,7 @@ public:
     sigar_mem_t get_memory() override;
     sigar_swap_t get_swap() override;
     sigar_cpu_t get_cpu() override;
+    unsigned int get_cpu_count() override;
     sigar_proc_mem_t get_proc_memory(sigar_pid_t pid) override;
     sigar_proc_state_t get_proc_state(sigar_pid_t pid) override;
     void iterate_child_processes(
@@ -332,6 +333,30 @@ sigar_cpu_t LinuxSigar::get_cpu() {
                 "LinuxSigar::get_cpu(): failed to parse /proc/stat");
     }
     return cpu;
+}
+
+unsigned int LinuxSigar::get_cpu_count() {
+    int status = ENOENT;
+    unsigned int total = 0;
+    sigar_tokenize_file_line_by_line(
+            0,
+            "stat",
+            [&total, &status](const auto& vec) {
+                if (vec.front().rfind("cpu", 0) == 0 && vec.front() != "cpu") {
+                    status = SIGAR_OK;
+                    total++;
+                }
+
+                return true;
+            },
+            ' ');
+
+    if (status != SIGAR_OK) {
+        throw std::system_error(
+                std::error_code(status, std::system_category()),
+                "LinuxSigar::get_cpu_count(): failed to parse /proc/stat");
+    }
+    return total;
 }
 
 linux_proc_stat_t LinuxSigar::parse_stat_file(const std::filesystem::path& name,

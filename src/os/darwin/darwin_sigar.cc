@@ -123,6 +123,7 @@ public:
     sigar_mem_t get_memory() override;
     sigar_swap_t get_swap() override;
     sigar_cpu_t get_cpu() override;
+    unsigned int get_cpu_count() override;
     sigar_proc_mem_t get_proc_memory(sigar_pid_t pid) override;
     sigar_proc_state_t get_proc_state(sigar_pid_t pid) override;
     void iterate_child_processes(
@@ -232,6 +233,18 @@ sigar_cpu_t AppleSigar::get_cpu() {
     cpu.nice = SIGAR_TICK2MSEC(cpuload.cpu_ticks[CPU_STATE_NICE]);
     cpu.total = cpu.user + cpu.nice + cpu.sys + cpu.idle;
     return cpu;
+}
+
+unsigned int AppleSigar::get_cpu_count() {
+    unsigned int count;
+    size_t len = sizeof(count);
+    if (sysctlbyname("hw.logicalcpu", &count, &len, nullptr, 0) != 0) {
+        throw std::system_error(
+                errno,
+                std::system_category(),
+                "AppleSigar::get_cpu_count(): sysctl(hw.logicalcpu)");
+    }
+    return count;
 }
 
 static const struct kinfo_proc* lookup_proc(const std::vector<kinfo_proc>& proc,

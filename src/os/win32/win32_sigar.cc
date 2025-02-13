@@ -62,6 +62,7 @@ public:
     sigar_mem_t get_memory() override;
     sigar_swap_t get_swap() override;
     sigar_cpu_t get_cpu() override;
+    unsigned int get_cpu_count() override;
     sigar_proc_mem_t get_proc_memory(sigar_pid_t pid) override;
     sigar_proc_state_t get_proc_state(sigar_pid_t pid) override;
     void iterate_child_processes(
@@ -169,6 +170,17 @@ sigar_cpu_t Win32Sigar::get_cpu() {
     cpu.user = NS100_2MSEC(filetime2uint(user));
     cpu.total = cpu.idle + cpu.user + cpu.sys;
     return cpu;
+}
+
+unsigned int Win32Sigar::get_cpu_count() {
+    auto ret = GetActiveProcessorCount(ALL_PROCESSOR_GROUPS);
+    if (ret == 0) {
+        throw std::system_error(
+                std::error_code(GetLastError(), std::system_category()),
+                "Win32Sigar::get_cpu_count(): GetActiveProcessorCount "
+                "failed");
+    }
+    return static_cast<unsigned int>(ret);
 }
 
 std::unordered_map<sigar_pid_t, AllPidInfo> Win32Sigar::get_all_pids() {

@@ -306,6 +306,15 @@ static nlohmann::json next_sample(SigarIface& instance,
                                   std::optional<sigar_pid_t> babysitter_pid) {
     nlohmann::json ret;
     logit(spdlog::level::debug, "Start next sample");
+
+    logit(spdlog::level::debug, "Collect number of cpu's");
+    try {
+        ret["num_cpus"] = instance.get_cpu_count();
+    } catch (const std::exception& exception) {
+        logit(spdlog::level::err,
+              fmt::format("Collect number of cpu's: {}", exception.what()));
+    }
+
     logit(spdlog::level::debug, "Collect cpu information");
     try {
         const auto cpu = instance.get_cpu();

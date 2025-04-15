@@ -11,9 +11,12 @@
 #include "sigar_port.h"
 
 #include <platform/split_string.h>
+
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstring>
+#include <ranges>
 #include <string>
 #include <vector>
 
@@ -44,7 +47,7 @@ static void resize(std::vector<std::string_view>& arguments) {
     }
     vector.resize(val);
     vector.shrink_to_fit();
-    std::fill(vector.begin(), vector.end(), 'a');
+    std::ranges::fill(vector, 'a');
 }
 
 static void loop(std::vector<std::string_view>& arguments) {

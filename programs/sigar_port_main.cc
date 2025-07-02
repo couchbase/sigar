@@ -54,7 +54,7 @@ static spdlog::level::level_enum to_level(std::string_view view) {
         return spdlog::level::critical;
     }
 
-    throw std::runtime_error(fmt::format("Unknown log level: \"{}\""));
+    throw std::runtime_error(fmt::format("Unknown log level: \"{}\"", view));
 }
 
 static std::shared_ptr<spdlog::logger> logger;

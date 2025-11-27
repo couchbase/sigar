@@ -54,7 +54,7 @@ TEST(SigarPort, SigarPortTestJSON) {
         // Should receive one line with content size,
         // then content size data with JSON
         std::array<char, 80> line;
-        fgets(line.data(), line.size(), input);
+        fgets(line.data(), static_cast<int>(line.size()), input);
         auto size = std::stoul(line.data());
         EXPECT_NE(0, size);
         std::string data;

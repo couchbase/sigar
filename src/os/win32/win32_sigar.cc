@@ -185,7 +185,6 @@ unsigned int Win32Sigar::get_cpu_count() {
 
 std::unordered_map<sigar_pid_t, AllPidInfo> Win32Sigar::get_all_pids() {
     std::unordered_map<sigar_pid_t, AllPidInfo> allpids;
-    const auto pid = getpid();
     auto snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (snapshotHandle == INVALID_HANDLE_VALUE) {
         throw std::runtime_error("CreateToolhelp32Snapshot: failed " +
@@ -407,7 +406,7 @@ std::pair<int, sigar_win32_pinfo_t> Win32Sigar::get_proc_info(sigar_pid_t pid) {
 }
 
 void Win32Sigar::iterate_threads(sigar::IterateThreadCallback callback) {
-    const auto pid = getpid();
+    const auto pid = static_cast<DWORD>(getpid());
     auto snapshotHandle = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
     if (snapshotHandle == INVALID_HANDLE_VALUE) {
         throw std::runtime_error("CreateToolhelp32Snapshot: failed " +
@@ -429,7 +428,6 @@ void Win32Sigar::iterate_threads(sigar::IterateThreadCallback callback) {
                     THREAD_QUERY_INFORMATION, FALSE, entry.th32ThreadID);
             if (th != INVALID_HANDLE_VALUE) {
                 FILETIME start_time, exit_time, system_time, user_time;
-                int status = ERROR_SUCCESS;
 
                 if (GetThreadTimes(th,
                                    &start_time,

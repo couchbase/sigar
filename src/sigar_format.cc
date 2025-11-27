@@ -74,5 +74,6 @@ SIGAR_DECLARE(const char*) sigar_strerror(sigar_t* sigar, int err) {
         return sigar_error_string(err);
     }
 
-    return sigar_strerror_get(err, sigar->errbuf.data(), sigar->errbuf.size());
+    return sigar_strerror_get(
+            err, sigar->errbuf.data(), static_cast<int>(sigar->errbuf.size()));
 }

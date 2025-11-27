@@ -127,7 +127,8 @@ int main() {
         fflush(stdout);
 
         std::array<char, 80> line;
-        if (fgets(line.data(), line.size(), stdin) == nullptr ||
+        if (fgets(line.data(), static_cast<int>(line.size()), stdin) ==
+                    nullptr ||
             ferror(stdin) || strstr(line.data(), "quit") != nullptr) {
             break;
         }

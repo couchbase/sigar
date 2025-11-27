@@ -282,7 +282,7 @@ static std::vector<sigar::disk_usage_t> find_disk_usages(SigarIface& instance) {
 
 uint64_t sum_implemented(uint64_t a, uint64_t b) {
     if (!is_implemented(a) && !is_implemented(b)) {
-        return -1ULL;
+        return std::numeric_limits<uint64_t>::max();
     }
     uint64_t ret = 0;
     if (is_implemented(a)) {
@@ -497,7 +497,8 @@ int sigar_port_main(std::optional<sigar_pid_t> babysitter_pid) {
 
     while (!feof(input)) {
         std::array<char, 80> line;
-        if (fgets(line.data(), line.size(), input) == nullptr ||
+        if (fgets(line.data(), static_cast<int>(line.size()), input) ==
+                    nullptr ||
             ferror(input) || strstr(line.data(), "quit") != nullptr) {
             break;
         }
